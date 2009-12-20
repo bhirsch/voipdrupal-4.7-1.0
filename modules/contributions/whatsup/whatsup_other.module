@@ -1,0 +1,96 @@
+<?php
+// $Id: whatsup_other.module,v 1.1 2007/02/15 21:30:43 leob Exp $
+
+/**
+ * @file
+ * Provides functionality that does not necessarily fit in any of the other modules that are part of What's Up.
+//NOTE: this module cannot be called 'whatsup'. that messes up with the theme engine!
+ */
+
+/**
+ * Implementation of hook_help().
+ */
+function whatsup_other_help($section) {
+  switch ($section) {
+    case 'admin/modules#description':
+      return t("Provides functionality that does not necessarily fit in any of the other modules that are part of What's Up.");
+    case 'admin/help#whatsup':
+      return t("Provides functionality that does not necessarily fit in any of the other modules that are part of What's Up.");
+  }
+}
+
+
+/**
+ * Implementation of hook_user()
+ */
+function whatsup_other_user($op, &$edit, &$account, $category = NULL) {
+  global $about_me_default_page;
+  switch($op) {
+      
+    case 'load':
+      break;
+
+    case 'view':
+      break;
+
+    case 'delete':
+      break;
+   
+  }
+}
+
+/*
+ * Implementation of hook_menu()
+ */
+function whatsup_other_menu($may_cache) {
+  global $user;
+  $items = array();
+  $view_access = user_access('access content');
+  $admin_access = user_access('administer users');
+  
+  if ($may_cache) {
+  }
+  else {
+    if (arg(0) == 'whatsup' && is_numeric(arg(1)) && arg(1) > 0) {
+      
+       $items[] = array('path' => 'whatsup/'. arg(1), 'title' => t('about me'),
+         'callback' => '_about_me_page_view', 'callback arguments' => array(arg(1)), 
+         'access' => $view_access,
+         'type' => MENU_CALLBACK);
+
+        $items[] = array('path' => 'whatsup/'. arg(1) .'/view', 'title' => t('view'),
+          'access' => $view_access, 
+          'type' => MENU_DEFAULT_LOCAL_TASK, 'weight' => -10);
+
+        $items[] = array('path' => 'whatsup/'. arg(1) .'/edit', 'title' => t('edit'),
+          'callback' => '_about_me_page_edit', 
+          'access' => $admin_access || $user->uid == arg(1),
+          'type' => MENU_LOCAL_TASK);
+    }
+  }
+  
+  return $items;
+}
+
+/*
+ * Implementation of hook_simple_login_get_registration_certificate_items() from simple_login.module
+ */
+function whatsup_other_simple_login_get_registration_certificate_items($form_values = NULL, $account = NULL) {
+
+  global $base_url;
+  global $user;
+  if (!isset($account)) {
+    $account = $user;
+  }
+  
+  $items = array();
+  
+  // return voip-specific items
+  $extension_number = $account->voip_extension_info['number']?$account->voip_extension_info['number']:t('undefined.');
+  $phone_pin = $account->voip_extension_info['phone_pin']?$account->voip_extension_info['phone_pin']:t('undefined.');
+  $items['voip_extension'] = array('description' => t('for the user extension'), 'value' => $extension_number);
+  $items['voip_phone_pin'] = array('description' => t('for the user phone pin'), 'value' => $phone_pin);
+
+  return $items;
+}
+

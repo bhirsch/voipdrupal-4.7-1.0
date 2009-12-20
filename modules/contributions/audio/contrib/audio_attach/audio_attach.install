@@ -1,0 +1,25 @@
+<?php
+// $Id: audio_attach.install,v 1.1.2.3 2006/08/15 16:47:33 drewish Exp $
+
+function audio_attach_install() {
+  switch ($GLOBALS['db_type']) {
+    case 'mysqli':
+    case 'mysql':
+      db_query("
+        CREATE TABLE {audio_attach} (
+          nid int(10) unsigned NOT NULL default '0',
+          aid int(10) unsigned NOT NULL default '0',
+          PRIMARY KEY  (nid)
+        ) /*!40100 DEFAULT CHARACTER SET utf8 */;
+      ");
+      break;
+    case 'pgsql':
+      db_query("
+        CREATE TABLE {audio_attach} (
+          nid INTEGER PRIMARY KEY,
+          aid INTEGER NOT NULL DEFAULT 0
+        )
+      ");
+      break;
+  }
+}

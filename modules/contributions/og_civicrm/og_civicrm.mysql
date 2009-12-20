@@ -1,0 +1,6 @@
+CREATE TABLE `og_civicrm` (
+  `nid` int(11) NOT NULL,
+  `gid` int(11) NOT NULL,
+  `did` int(11) NOT NULL,
+  PRIMARY KEY  (`nid`, gid, did)
+) TYPE=MyISAM;

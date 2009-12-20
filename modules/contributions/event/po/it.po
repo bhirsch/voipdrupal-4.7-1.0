@@ -1,0 +1,3039 @@
+# LANGUAGE translation of PROJECT
+# Copyright YEAR NAME <EMAIL@ADDRESS>
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: event.module\n"
+"POT-Creation-Date: 2006-07-20 20:58-0400\n"
+"PO-Revision-Date: 2005-01-24 22:08+0100\n"
+"Last-Translator: Matteo Ferrari <webmaster@cantincoro.org>\n"
+"Language-Team: Italian <michele@drupalitalia.org> <Matteo Ferrari "
+"<webmaster@cantincoro.org>>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=n != 1;\n"
+"X-Poedit-Language: Italian\n"
+"X-Poedit-Country: ITALY\n"
+"X-Poedit-SourceCharset: utf-8\n"
+
+#: event.module:196 contrib/event_views/event_views_tables.inc:525
+#, fuzzy
+msgid "Day"
+msgstr "Maggio"
+
+#: event.module:196 contrib/event_views/event_views_tables.inc:519;562
+#, fuzzy
+msgid "Month"
+msgstr "Lun"
+
+#: event.module:676;1851 event.theme:275;281;293
+msgid "Start"
+msgstr "Inizio"
+
+#: event.module:677;1859 event.theme:277;284;295
+msgid "End"
+msgstr ""
+
+#: event.module:1822 contrib/event_views/event_views_tables.inc:418
+#, fuzzy
+msgid "Start Date"
+msgstr "Inizio"
+
+#: event.module:1835 contrib/event_views/event_views_tables.inc:427
+#, fuzzy
+msgid "End Date"
+msgstr "Data"
+
+#: event.module:0 contrib/basicevent.module:25;60
+msgid "event"
+msgstr "evento"
+
+#: contrib/event_views/event_views_api.inc:198
+#: contrib/event_views/event_views.module:577
+msgid "Week "
+msgstr ""
+
+#: contrib/event_views/event_views_tables.inc:41;58
+#: contrib/event_views/event_views.module:511
+msgid "Event: Start Time"
+msgstr ""
+
+#: contrib/event_views/event_views_tables.inc:46;59
+#: contrib/event_views/event_views.module:512
+#, fuzzy
+msgid "Event: End Time"
+msgstr "eventi"
+
+#: ical.inc:305
+msgid "iCalendar API for Events Modules"
+msgstr ""
+
+#: ical.inc:0
+msgid "ical"
+msgstr ""
+
+#: event.install:44
+msgid ""
+"Event module was successfully installed with default options. To customize "
+"event and/or location settings for events, please view the <a href=\"%"
+"settings\">event content type settings page</a>."
+msgstr ""
+
+#: contrib/basicevent.module:15
+msgid ""
+"A story-like node that implements the event API automatically. Depends on "
+"the event module (4.6 or later)."
+msgstr ""
+
+#: contrib/basicevent.module:17
+msgid ""
+"An event is a story which can be given a start and end date, thus appearing "
+"in the events calendar."
+msgstr ""
+
+#: contrib/basicevent.module:73
+msgid "event content-type settings page"
+msgstr ""
+
+#: contrib/basicevent.module:74
+msgid ""
+"The event node is currently set to never appear in the calendar. You will "
+"not be able to set the start and end dates until an administrator changes "
+"the content-type settings. This is done using the %link."
+msgstr ""
+
+#: contrib/basicevent.module:32
+#, fuzzy
+msgid "create events"
+msgstr "Altri eventi."
+
+#: contrib/basicevent.module:32
+#, fuzzy
+msgid "edit own events"
+msgstr "modifica evento"
+
+#: contrib/basicevent.module:0
+#, fuzzy
+msgid "basicevent"
+msgstr "evento"
+
+#: event.module:29;32
+msgid "calendar"
+msgstr "calendario"
+
+#: event.module:39;1443
+msgid "month"
+msgstr ""
+
+#: event.module:39
+msgid "Month view"
+msgstr ""
+
+#: event.module:40
+msgid "week"
+msgstr ""
+
+#: event.module:40
+msgid "Week view"
+msgstr ""
+
+#: event.module:41;1437
+#, fuzzy
+msgid "day"
+msgstr "1 giorno"
+
+#: event.module:41
+msgid "Day view"
+msgstr ""
+
+#: event.module:42
+#, fuzzy
+msgid "table"
+msgstr "Tabella"
+
+#: event.module:42
+#, fuzzy
+msgid "Table view"
+msgstr "Tabella"
+
+#: event.module:43
+#, fuzzy
+msgid "List view"
+msgstr "eventi"
+
+#: event.module:79
+msgid "events"
+msgstr "eventi"
+
+#: event.module:84
+msgid "filter by content type"
+msgstr ""
+
+#: event.module:89
+msgid "filter by taxonomy"
+msgstr ""
+
+#: event.module:94
+#, fuzzy
+msgid "event rss feed"
+msgstr "eventi"
+
+#: event.module:99
+#, fuzzy
+msgid "event dst view"
+msgstr "eventi"
+
+#: event.module:104
+msgid "event ical feed"
+msgstr ""
+
+#: event.module:116
+#, fuzzy
+msgid "event ical"
+msgstr "evento"
+
+#: event.module:136
+#, fuzzy
+msgid "Timezone settings"
+msgstr "Gestione fuso orario"
+
+#: event.module:140;162
+msgid "Event time zone input"
+msgstr ""
+
+#: event.module:142;150;164;172
+msgid "Use the sitewide time zone"
+msgstr ""
+
+#: event.module:142;164
+msgid "Use the time zone of the user editing or creating the event"
+msgstr ""
+
+#: event.module:142;164
+msgid "Allow users to set event time zones"
+msgstr ""
+
+#: event.module:143
+msgid ""
+"Events are saved with a time zone value. This setting allows you to "
+"determine how the time zone is determined when creating or editing an event."
+msgstr ""
+
+#: event.module:148;170
+msgid "Event time zone display"
+msgstr ""
+
+#: event.module:150;172
+msgid "Use the event's time zone"
+msgstr ""
+
+#: event.module:150
+msgid "Use the user's time zone"
+msgstr ""
+
+#: event.module:151
+msgid ""
+"Events are saved with a time zone value. This setting allows you to "
+"determine if the event's time zone, the sitewide time zone, or the user's "
+"personal time zone setting is used to display the time for an event."
+msgstr ""
+
+#: event.module:165
+msgid ""
+"Events are saved with a time zone value. This setting allows you to "
+"determine how the time zone is determined when creating or editing an event. "
+"You must have 'Configurable time zones' enabled in %url before you can "
+"enable user's time zones for this feature."
+msgstr ""
+
+#: event.module:165;173
+msgid "site configuration"
+msgstr ""
+
+#: event.module:173
+msgid ""
+"Events are saved with a time zone value. This setting allows you to "
+"determine if the event's time zone, the sitewide time zone, or the user's "
+"personal time zone setting is used to display the time for an event. You "
+"must have 'Configurable time zones' enabled in %url before you can enable "
+"user's time zones for this feature."
+msgstr ""
+
+#: event.module:178
+msgid "Time notation preference"
+msgstr "Preferenze formato orario"
+
+#: event.module:180
+msgid "24h"
+msgstr "24 ore"
+
+#: event.module:180
+msgid "12h"
+msgstr "12 ore"
+
+#: event.module:181
+#, fuzzy
+msgid "The time notation system used for entering event times."
+msgstr "Il formato orario usato per inserire l'orario di inizio evento."
+
+#: event.module:185
+#, fuzzy
+msgid "Upcoming event block limit"
+msgstr "Prossimi eventi"
+
+#: event.module:189
+msgid ""
+"Limit the amount of events displayed in the upcoming events block by this "
+"amount."
+msgstr ""
+
+#: event.module:191
+msgid "Event overview options"
+msgstr ""
+
+#: event.module:194
+#, fuzzy
+msgid "Default overview"
+msgstr "Tipo di anteprima"
+
+#: event.module:196
+msgid "Week"
+msgstr ""
+
+#: event.module:197
+msgid ""
+"The default event view to display when no format is specifically requested. "
+"This is also the view that will be displayed from the block calendar links."
+msgstr ""
+
+#: event.module:200
+msgid "Table view default period"
+msgstr ""
+
+#: event.module:204
+msgid ""
+"The default number of days to display in the table view. You can specify a "
+"different number of days in the url. More info on the event url format %link"
+msgstr ""
+
+#: event.module:204
+msgid "here"
+msgstr ""
+
+#: event.module:209
+msgid "Taxonomy filter controls"
+msgstr ""
+
+#: event.module:211
+msgid "Show taxonomy filter control on calendar views"
+msgstr ""
+
+#: event.module:211
+msgid ""
+"Only show taxonomy filter control when taxonomy filter view is requested"
+msgstr ""
+
+#: event.module:211
+msgid "Never show taxonomy filter control"
+msgstr ""
+
+#: event.module:215
+msgid "Content type filter controls"
+msgstr ""
+
+#: event.module:216
+msgid "Show content type filter control on calendar views"
+msgstr ""
+
+#: event.module:216
+msgid ""
+"Only show content type filter control when content type filter view is "
+"requested"
+msgstr ""
+
+#: event.module:216
+msgid "Never show content type filter control"
+msgstr ""
+
+#: event.module:254;387;1706
+msgid "Events"
+msgstr "Eventi"
+
+#: event.module:283;294
+msgid "view all"
+msgstr ""
+
+#: event.module:316
+msgid "%weekday %month %day, %year"
+msgstr ""
+
+#: event.module:323
+msgid "Week of %month %day, %year"
+msgstr ""
+
+#: event.module:329
+msgid "%month %year"
+msgstr ""
+
+#: event.module:339;348;663;711
+msgid "%startmonth %startdate, %startyear - %endmonth %enddate, %endyear"
+msgstr ""
+
+#: event.module:433
+msgid "iCal support not enabled"
+msgstr ""
+
+#: event.module:690
+#, fuzzy
+msgid " - Events Feed"
+msgstr "Eventi"
+
+#: event.module:1419
+msgid "g"
+msgstr "g"
+
+#: event.module:1421
+msgid "am"
+msgstr "am"
+
+#: event.module:1421
+msgid "pm"
+msgstr "pm"
+
+#: event.module:1424
+msgid "H"
+msgstr "H"
+
+#: event.module:1450
+#, fuzzy
+msgid "year"
+msgstr "ricerca"
+
+#: event.module:1458
+#, fuzzy
+msgid "hour"
+msgstr "1 ora"
+
+#: event.module:1465
+#, fuzzy
+msgid "minutes"
+msgstr "1 minuto"
+
+#: event.module:1610;1645
+msgid "(all)"
+msgstr ""
+
+#: event.module:1622
+msgid "Select event terms to filter by"
+msgstr ""
+
+#: event.module:1659
+msgid "Select event type to filter by"
+msgstr ""
+
+#: event.module:1687
+msgid "Calendar to browse events."
+msgstr "Calendario per visualizzazione eventi."
+
+#: event.module:1688
+msgid "List of upcoming events."
+msgstr "Lista dei prossimi eventi."
+
+#: event.module:1710
+msgid "Upcoming events"
+msgstr "Prossimi eventi"
+
+#: event.module:1750
+msgid "NOW"
+msgstr "ADESSO"
+
+#: event.module:1781
+#, fuzzy
+msgid "no upcoming events available"
+msgstr "Lista dei prossimi eventi."
+
+#: event.module:1805
+#, fuzzy
+msgid "Show in event calendar"
+msgstr "Mostra gli eventi"
+
+#: event.module:1807
+msgid "All views"
+msgstr ""
+
+#: event.module:1807
+msgid "Only in views for this type"
+msgstr ""
+
+#: event.module:1808
+msgid ""
+"All views: This content type will be available for display on all calendar "
+"views, including with other events.<br />Only in views for this type: This "
+"content type will only appear in calendar views specific to this type and "
+"never with other events.<br />Never: This content type will not be "
+"associated with the events calendar."
+msgstr ""
+
+#: event.module:1832;1845
+msgid "YYYY-MM-DD HH:MM"
+msgstr ""
+
+#: event.module:1852
+#, fuzzy
+msgid "Start date."
+msgstr "Inizio"
+
+#: event.module:1860
+msgid "End date."
+msgstr ""
+
+#: event.module:1873
+msgid "Select the time zone this event occurs in."
+msgstr ""
+
+#: event.module:2092
+msgid "Daylight Savings Regions | Current GMT: %date"
+msgstr ""
+
+#: event.module:2107
+msgid ""
+"The event module allows for any type of content to be event enabled,  "
+"meaning content can have a start and end time, and appear in calendars.  The "
+"ability to event enable any content type combined with the ability to create "
+"new types of content make it possible to create unlimited types of "
+"calendars.  The ability to broadly event enable content will allow for "
+"creative applications combining information and real world events."
+msgstr ""
+
+#: event.module:2108
+msgid ""
+"The administrator can decide which content types should be events for their "
+"site.  In content type configuration, administrators can select the calendar "
+"view options: never, all views, or only views for this type. For example, "
+"this makes it possible to have a general calendar which shows all meetups "
+"and house parties in the same calendar, and have a separate calendar for "
+"rallies which only contains the rallies content type. Calendars can be "
+"customized to view a specific content type or a category of content, using "
+"taxonomies."
+msgstr ""
+
+#: event.module:2109
+msgid ""
+"Administrators can also set two types of options for events; general event "
+"options, and event overview options.  General event options are for timezone "
+"configuration, time notation formats, and event block configuration.  Event "
+"overview options allow calendar and table event default views.  "
+"Administrators can also set general filter controls for content types and "
+"categories, via the event taxonomy controls."
+msgstr ""
+
+#: event.module:2110
+msgid ""
+"<p>You can</p>\n"
+"<ul>\n"
+"<li>enable content types to be event enabled at <a href=\"%admin-node-"
+"configure-types\" title=\"content type configuration\">administer &gt;&gt; "
+"content &gt;&gt; content types </a> then click configure for a content type."
+"</li>\n"
+"<li>administer general event options <a href=\"%admin-settings-event\" title="
+"\"administer events\">administer &gt;&gt; settings &gt;&gt; events</a>.</"
+"li>\n"
+"<li><a href=\"%node-add\" title=\"list of content types that can be created"
+"\">create content</a> and set a start and end time, if the administrator has "
+"set that content type to be event enabled.</li>\n"
+"<li>use <a href=\"%external-http-drupal-org-handbook-modules-eventfinder"
+"\">eventfinder, <a href=\"http://drupal.org/handbook/modules/volunteer"
+"\">volunteer</a>, and <a href=\"%external-http-drupal-org-handbook-modules-"
+"rsvp\">RSVP</a> modules to invite users to events.</li>\n"
+msgstr ""
+
+#: event.module:2117
+msgid ""
+"For more information please read the configuration and customization "
+"handbook <a href=\"%event\">Event page</a>."
+msgstr ""
+
+#: event.module:2120
+msgid "Lets users make events and keep calendars."
+msgstr "Permette agli utenti di pubblicare eventi e mantenere un calendario."
+
+#: event.module:2122
+msgid ""
+"This is a listing of all the event system's time zones, sorted by daylight "
+"savings time regions, and thier respective offsets from GMT in seconds. Time "
+"zones in the 'None' region do not observe daylight savings time. If you "
+"believe there is an error, please first search for the locale on %"
+"timeanddate and confirm it. If there is indeed an error please submit a %"
+"bugreport on drupal.org so we can fix it."
+msgstr ""
+
+#: event.module:1753
+msgid "1 minute"
+msgid_plural "%count minutes"
+msgstr[0] "1 minuto"
+msgstr[1] "%count minuti"
+
+#: event.theme:73;129;178;213;269
+msgid "limit view to events of this type"
+msgstr ""
+
+#: event.theme:76;131;180;215;271
+#, fuzzy
+msgid "view this event"
+msgstr "Modifica questo evento."
+
+#: event.theme:78;112;118;162;168;219;225;237;360
+#, fuzzy
+msgid "Start: "
+msgstr "Inizio"
+
+#: event.theme:80;114;121;164;171;221;228;239;362
+msgid "End: "
+msgstr ""
+
+#: event.theme:124;174;231;287
+#, fuzzy
+msgid "all day"
+msgstr "1 giorno"
+
+#: event.theme:245;301
+#, fuzzy
+msgid "more info"
+msgstr "leggi tutto"
+
+#: event.theme:245;301
+msgid "Show detailed information for this event."
+msgstr ""
+
+#: event.theme:316;339
+msgid "%month / %day"
+msgstr ""
+
+#: event.theme:367
+#, fuzzy
+msgid "Timezone: "
+msgstr "Gestione fuso orario"
+
+#: event.theme:421
+#, fuzzy
+msgid "Add to iCalendar"
+msgstr "Calendario"
+
+#: event.theme:421
+msgid "Add this calendar to your iCalendar"
+msgstr ""
+
+#: event.theme:432
+msgid "More events."
+msgstr "Altri eventi."
+
+#: contrib/event_views/event_views.module:15
+msgid ""
+"Views-enables the event fields, adds event calendar themes to views display "
+"options, and creates default event views. Requires the event module and the "
+"views module."
+msgstr ""
+
+#: contrib/event_views/event_views.module:17
+msgid ""
+"<p>The Event Views module makes the event fields available to the Views "
+"module, and creates default event views that filter dates using a drop-down "
+"date selector, the jscalendar selector, or by arguments in the url. Set up a "
+"default event view by going to %link and select <strong>add</strong>. Save "
+"the default views as-is or make any changes you like.</p>"
+msgstr ""
+
+#: contrib/event_views/event_views.module:18
+msgid ""
+"<p>You can change the format of the output. The default views display a list "
+"of events, but you can change it to a table or a teaser list in the "
+"<strong>Page</strong> settings. You can also add or remove fields from the "
+"view.</p>"
+msgstr ""
+
+#: contrib/event_views/event_views.module:19
+msgid ""
+"<p>You can filter events in several ways. Use filters to pre-select a date "
+"range, expose those filters to allow the viewer to select a date range, or "
+"eliminate the filters and give the view year, month, and day arguments to "
+"filter the events by the url (i.e. YYYY/MM/DD).</p>"
+msgstr ""
+
+#: contrib/event_views/event_views.module:20
+msgid ""
+"<p>You can display your selected events in a calendar by choosing a calendar "
+"option instead of the option to display results in a table or list.</p>"
+msgstr ""
+
+#: contrib/event_views/event_views.module:21
+msgid ""
+"<p>There is also an option to display other date fields in a calendar. "
+"Select the Calendar:Start Time and Calendar:End Time fields and select the "
+"date field to use. The same options are available on filters and arguments, "
+"where you can select any date field as the field you want to filter on.</p>"
+msgstr ""
+
+#: contrib/event_views/event_views.module:409
+msgid "Week of %date"
+msgstr ""
+
+#: contrib/event_views/event_views.module:585;611
+msgid "N/A"
+msgstr ""
+
+#: contrib/event_views/event_views.module:625
+#, fuzzy
+msgid "Calendar Month"
+msgstr "calendario"
+
+#: contrib/event_views/event_views.module:625
+#, fuzzy
+msgid "Calendar Day"
+msgstr "calendario"
+
+#: contrib/event_views/event_views.module:625
+#, fuzzy
+msgid "Calendar Week"
+msgstr "calendario"
+
+#: contrib/event_views/event_views.module:636
+msgid "View"
+msgstr ""
+
+#: contrib/event_views/event_views.module:715
+msgid ""
+"The module %module was deactivated--it requires the following disabled/non-"
+"existant modules to function properly: %dependencies"
+msgstr ""
+
+#: contrib/event_views/event_views.module:0
+#, fuzzy
+msgid "event_views"
+msgstr "eventi"
+
+#: contrib/event_views/event_views_tables.inc:21
+msgid "now"
+msgstr ""
+
+#: contrib/event_views/event_views_tables.inc:51
+#, fuzzy
+msgid "Event: Timezone"
+msgstr "Gestione fuso orario"
+
+#: contrib/event_views/event_views_tables.inc:64
+#, fuzzy
+msgid "Event: Start Date"
+msgstr "Inizio"
+
+#: contrib/event_views/event_views_tables.inc:68
+msgid ""
+"This filter allows events to be filtered by their start date. Enter dates in "
+"the format: CCYY-MM-DD HH:MM:SS. Enter 'now' to use the current time. You "
+"may enter a delta (in seconds) to the option that will be added to the time; "
+"this is most useful when combined with now. If you have the jscalendar "
+"module from jstools installed, you can use a popup date picker here."
+msgstr ""
+
+#: contrib/event_views/event_views_tables.inc:72
+msgid "Event: End Date"
+msgstr ""
+
+#: contrib/event_views/event_views_tables.inc:76
+msgid ""
+"This filter allows events to be filtered by their end date. Enter dates in "
+"the format: CCYY-MM-DD HH:MM:SS. Enter 'now' to use the current time. You "
+"may enter a delta (in seconds) to the option that will be added to the time; "
+"this is most useful when combined with now. If you have the jscalendar "
+"module from jstools installed, you can use a popup date picker here."
+msgstr ""
+
+#: contrib/event_views/event_views_tables.inc:80;170
+msgid "Event: Start Year"
+msgstr ""
+
+#: contrib/event_views/event_views_tables.inc:87
+msgid "Filter by year. Use the option to select the date field to filter on."
+msgstr ""
+
+#: contrib/event_views/event_views_tables.inc:91;176
+msgid "Event: Start Month"
+msgstr ""
+
+#: contrib/event_views/event_views_tables.inc:98
+msgid "Filter by month. Use the option to select the date field to filter on."
+msgstr ""
+
+#: contrib/event_views/event_views_tables.inc:102;182
+msgid "Event: Start Day"
+msgstr ""
+
+#: contrib/event_views/event_views_tables.inc:109
+msgid "Filter by day. Use the option to select the date field to filter on."
+msgstr ""
+
+#: contrib/event_views/event_views_tables.inc:129
+msgid "Calendar: Start Time"
+msgstr ""
+
+#: contrib/event_views/event_views_tables.inc:135
+msgid ""
+"A field to serve as the start time for this record in a calendar view. Use "
+"the option to select the date field use."
+msgstr ""
+
+#: contrib/event_views/event_views_tables.inc:138
+msgid "Calendar: End Time"
+msgstr ""
+
+#: contrib/event_views/event_views_tables.inc:144
+msgid ""
+"A field to serve as the end time for this record in a calendar view. Use the "
+"option to select the date field to use."
+msgstr ""
+
+#: contrib/event_views/event_views_tables.inc:151
+msgid "Event: Type"
+msgstr ""
+
+#: contrib/event_views/event_views_tables.inc:156
+msgid ""
+"A node type selector that is limited to event-enabled node types. Use as "
+"exposed filter that only contains event node types."
+msgstr ""
+
+#: contrib/event_views/event_views_tables.inc:173
+msgid ""
+"Filter by the event year (YYYY). Use the option to select the date field to "
+"filter on."
+msgstr ""
+
+#: contrib/event_views/event_views_tables.inc:179
+msgid ""
+"Filter by the event month (1-12). Place this argument after a 'Year' "
+"argument. Use the option to select the date field to filter on."
+msgstr ""
+
+#: contrib/event_views/event_views_tables.inc:185
+msgid ""
+"Filter by the event day (1-31). Place this argument after a 'Year' and a "
+"'Month' argument. Use the option to select the date field to filter on."
+msgstr ""
+
+#: contrib/event_views/event_views_tables.inc:188
+#, fuzzy
+msgid "Event: Start Week"
+msgstr "Inizio della settimana"
+
+#: contrib/event_views/event_views_tables.inc:191
+msgid ""
+"Filter by the week number (1-52). Place this argument after a 'Year' "
+"argument. Use the option to select the date field to filter on."
+msgstr ""
+
+#: contrib/event_views/event_views_tables.inc:209
+#, fuzzy
+msgid "event_select"
+msgstr "eventi"
+
+#: contrib/event_views/event_views_tables.inc:210
+msgid "Events list filtered by drop-down date selector."
+msgstr ""
+
+#: contrib/event_views/event_views_tables.inc:216;339;447
+#, fuzzy
+msgid "event list"
+msgstr "eventi"
+
+#: contrib/event_views/event_views_tables.inc:247;370;478
+#, fuzzy
+msgid "Start Time:"
+msgstr "Inizio"
+
+#: contrib/event_views/event_views_tables.inc:255;378;486
+msgid "End Time:"
+msgstr ""
+
+#: contrib/event_views/event_views_tables.inc:303
+#, fuzzy
+msgid "Start Year:"
+msgstr "Inizio"
+
+#: contrib/event_views/event_views_tables.inc:312
+#, fuzzy
+msgid "Start Month:"
+msgstr "Inizio"
+
+#: contrib/event_views/event_views_tables.inc:321
+#, fuzzy
+msgid "Start Day:"
+msgstr "Inizio"
+
+#: contrib/event_views/event_views_tables.inc:332
+#, fuzzy
+msgid "event_js"
+msgstr "eventi"
+
+#: contrib/event_views/event_views_tables.inc:333
+msgid "Events list filtered by js date selector."
+msgstr ""
+
+#: contrib/event_views/event_views_tables.inc:440
+#, fuzzy
+msgid "event_date"
+msgstr "evento"
+
+#: contrib/event_views/event_views_tables.inc:441
+msgid "Events list filtered by url arguments."
+msgstr ""
+
+#: contrib/event_views/event_views_tables.inc:513;556
+#, fuzzy
+msgid "Year"
+msgstr "ricerca"
+
+#: contrib/event_views/event_views_tables.inc:534
+msgid "Monthly calendar view of events, filtered by url arguments"
+msgstr ""
+
+#: contrib/event_views/event_views_tables.inc:539
+#, fuzzy
+msgid "Calendar"
+msgstr "calendario"
+
+#: contrib/event_views/event_views_tables.inc:570
+msgid "Title:"
+msgstr ""
+
+#: contrib/event_views/event_views_tables.inc:576
+#, fuzzy
+msgid "Start:"
+msgstr "Inizio"
+
+#: contrib/event_views/event_views_tables.inc:582
+msgid "End:"
+msgstr ""
+
+#: event_timezones.inc:152
+#, fuzzy
+msgid "None"
+msgstr "No"
+
+#: event_timezones.inc:153;550
+msgid "Egypt"
+msgstr ""
+
+#: event_timezones.inc:154
+msgid "Namibia"
+msgstr ""
+
+#: event_timezones.inc:155
+msgid "Asia - Former USSR"
+msgstr ""
+
+#: event_timezones.inc:156
+msgid "Iraq, Syria"
+msgstr ""
+
+#: event_timezones.inc:157;646
+msgid "Israel"
+msgstr ""
+
+#: event_timezones.inc:158
+msgid "Lebanon, Kirgizstan"
+msgstr ""
+
+#: event_timezones.inc:159
+msgid "Palestine"
+msgstr ""
+
+#: event_timezones.inc:160;645
+msgid "Iran"
+msgstr ""
+
+#: event_timezones.inc:161
+msgid "South Australia"
+msgstr ""
+
+#: event_timezones.inc:162
+msgid "Australia, Tasmania"
+msgstr ""
+
+#: event_timezones.inc:163
+msgid "New Zealand"
+msgstr ""
+
+#: event_timezones.inc:165
+msgid "EU and other European countries"
+msgstr ""
+
+#: event_timezones.inc:166
+msgid "Russian Federation"
+msgstr ""
+
+#: event_timezones.inc:167
+msgid "North America"
+msgstr ""
+
+#: event_timezones.inc:168;548
+msgid "Cuba"
+msgstr ""
+
+#: event_timezones.inc:169
+msgid "Brazil"
+msgstr ""
+
+#: event_timezones.inc:170
+#, fuzzy
+msgid "Chile"
+msgstr "Titolo"
+
+#: event_timezones.inc:171
+msgid "Falklands"
+msgstr ""
+
+#: event_timezones.inc:172
+msgid "Paraguay"
+msgstr ""
+
+#: event_timezones.inc:255
+msgid "Africa/Addis_Ababa"
+msgstr ""
+
+#: event_timezones.inc:256
+msgid "Africa/Algiers"
+msgstr ""
+
+#: event_timezones.inc:257
+msgid "Africa/Asmera"
+msgstr ""
+
+#: event_timezones.inc:258
+msgid "Africa/Bangui"
+msgstr ""
+
+#: event_timezones.inc:259
+msgid "Africa/Blantyre"
+msgstr ""
+
+#: event_timezones.inc:260
+msgid "Africa/Brazzaville"
+msgstr ""
+
+#: event_timezones.inc:261
+msgid "Africa/Bujumbura"
+msgstr ""
+
+#: event_timezones.inc:262
+msgid "Africa/Cairo"
+msgstr ""
+
+#: event_timezones.inc:263
+msgid "Africa/Ceuta"
+msgstr ""
+
+#: event_timezones.inc:264
+msgid "Africa/Dar_es_Salaam"
+msgstr ""
+
+#: event_timezones.inc:265
+msgid "Africa/Djibouti"
+msgstr ""
+
+#: event_timezones.inc:266
+msgid "Africa/Douala"
+msgstr ""
+
+#: event_timezones.inc:267
+msgid "Africa/Gaborone"
+msgstr ""
+
+#: event_timezones.inc:268
+msgid "Africa/Harare"
+msgstr ""
+
+#: event_timezones.inc:269
+msgid "Africa/Johannesburg"
+msgstr ""
+
+#: event_timezones.inc:270
+msgid "Africa/Kampala"
+msgstr ""
+
+#: event_timezones.inc:271
+msgid "Africa/Khartoum"
+msgstr ""
+
+#: event_timezones.inc:272
+msgid "Africa/Kigali"
+msgstr ""
+
+#: event_timezones.inc:273
+msgid "Africa/Kinshasa"
+msgstr ""
+
+#: event_timezones.inc:274
+msgid "Africa/Lagos"
+msgstr ""
+
+#: event_timezones.inc:275
+msgid "Africa/Libreville"
+msgstr ""
+
+#: event_timezones.inc:276
+msgid "Africa/Luanda"
+msgstr ""
+
+#: event_timezones.inc:277
+msgid "Africa/Lubumbashi"
+msgstr ""
+
+#: event_timezones.inc:278
+msgid "Africa/Lusaka"
+msgstr ""
+
+#: event_timezones.inc:279
+msgid "Africa/Malabo"
+msgstr ""
+
+#: event_timezones.inc:280
+msgid "Africa/Maputo"
+msgstr ""
+
+#: event_timezones.inc:281
+msgid "Africa/Maseru"
+msgstr ""
+
+#: event_timezones.inc:282
+msgid "Africa/Mbabane"
+msgstr ""
+
+#: event_timezones.inc:283
+msgid "Africa/Mogadishu"
+msgstr ""
+
+#: event_timezones.inc:284
+msgid "Africa/Nairobi"
+msgstr ""
+
+#: event_timezones.inc:285
+msgid "Africa/Ndjamena"
+msgstr ""
+
+#: event_timezones.inc:286
+msgid "Africa/Niamey"
+msgstr ""
+
+#: event_timezones.inc:287
+msgid "Africa/Porto-Novo"
+msgstr ""
+
+#: event_timezones.inc:288
+msgid "Africa/Tripoli"
+msgstr ""
+
+#: event_timezones.inc:289
+msgid "Africa/Tunis"
+msgstr ""
+
+#: event_timezones.inc:290
+msgid "Africa/Windhoek"
+msgstr ""
+
+#: event_timezones.inc:291
+msgid "America/Adak"
+msgstr ""
+
+#: event_timezones.inc:292
+msgid "America/Anchorage"
+msgstr ""
+
+#: event_timezones.inc:293
+msgid "America/Anguilla"
+msgstr ""
+
+#: event_timezones.inc:294
+msgid "America/Antigua"
+msgstr ""
+
+#: event_timezones.inc:295
+msgid "America/Araguaina"
+msgstr ""
+
+#: event_timezones.inc:296
+msgid "America/Aruba"
+msgstr ""
+
+#: event_timezones.inc:297
+msgid "America/Asuncion"
+msgstr ""
+
+#: event_timezones.inc:298
+msgid "America/Atka"
+msgstr ""
+
+#: event_timezones.inc:299
+msgid "America/Barbados"
+msgstr ""
+
+#: event_timezones.inc:300
+msgid "America/Belem"
+msgstr ""
+
+#: event_timezones.inc:301
+msgid "America/Belize"
+msgstr ""
+
+#: event_timezones.inc:302
+msgid "America/Boa_Vista"
+msgstr ""
+
+#: event_timezones.inc:303
+msgid "America/Bogota"
+msgstr ""
+
+#: event_timezones.inc:304
+msgid "America/Boise"
+msgstr ""
+
+#: event_timezones.inc:305
+msgid "America/Buenos_Aires"
+msgstr ""
+
+#: event_timezones.inc:306
+msgid "America/Cambridge_Bay"
+msgstr ""
+
+#: event_timezones.inc:307
+msgid "America/Cancun"
+msgstr ""
+
+#: event_timezones.inc:308
+msgid "America/Caracas"
+msgstr ""
+
+#: event_timezones.inc:309
+msgid "America/Catamarca"
+msgstr ""
+
+#: event_timezones.inc:310
+msgid "America/Cayenne"
+msgstr ""
+
+#: event_timezones.inc:311
+msgid "America/Cayman"
+msgstr ""
+
+#: event_timezones.inc:312
+msgid "America/Chicago"
+msgstr ""
+
+#: event_timezones.inc:313
+msgid "America/Chihuahua"
+msgstr ""
+
+#: event_timezones.inc:314
+msgid "America/Cordoba"
+msgstr ""
+
+#: event_timezones.inc:315
+msgid "America/Costa_Rica"
+msgstr ""
+
+#: event_timezones.inc:316
+msgid "America/Cuiaba"
+msgstr ""
+
+#: event_timezones.inc:317
+msgid "America/Curacao"
+msgstr ""
+
+#: event_timezones.inc:318
+msgid "America/Dawson"
+msgstr ""
+
+#: event_timezones.inc:319
+msgid "America/Dawson_Creek"
+msgstr ""
+
+#: event_timezones.inc:320
+msgid "America/Denver"
+msgstr ""
+
+#: event_timezones.inc:321
+msgid "America/Detroit"
+msgstr ""
+
+#: event_timezones.inc:322
+msgid "America/Dominica"
+msgstr ""
+
+#: event_timezones.inc:323
+msgid "America/Edmonton"
+msgstr ""
+
+#: event_timezones.inc:324
+msgid "America/Eirunepe"
+msgstr ""
+
+#: event_timezones.inc:325
+msgid "America/El_Salvador"
+msgstr ""
+
+#: event_timezones.inc:326
+msgid "America/Ensenada"
+msgstr ""
+
+#: event_timezones.inc:327
+msgid "America/Fort_Wayne"
+msgstr ""
+
+#: event_timezones.inc:328
+msgid "America/Fortaleza"
+msgstr ""
+
+#: event_timezones.inc:329
+msgid "America/Glace_Bay"
+msgstr ""
+
+#: event_timezones.inc:330
+msgid "America/Godthab"
+msgstr ""
+
+#: event_timezones.inc:331
+msgid "America/Goose_Bay"
+msgstr ""
+
+#: event_timezones.inc:332
+msgid "America/Grand_Turk"
+msgstr ""
+
+#: event_timezones.inc:333
+msgid "America/Grenada"
+msgstr ""
+
+#: event_timezones.inc:334
+msgid "America/Guadeloupe"
+msgstr ""
+
+#: event_timezones.inc:335
+msgid "America/Guatemala"
+msgstr ""
+
+#: event_timezones.inc:336
+msgid "America/Guayaquil"
+msgstr ""
+
+#: event_timezones.inc:337
+msgid "America/Guyana"
+msgstr ""
+
+#: event_timezones.inc:338
+msgid "America/Halifax"
+msgstr ""
+
+#: event_timezones.inc:339
+msgid "America/Havana"
+msgstr ""
+
+#: event_timezones.inc:340
+msgid "America/Hermosillo"
+msgstr ""
+
+#: event_timezones.inc:341
+msgid "America/Indiana/Indianapolis"
+msgstr ""
+
+#: event_timezones.inc:342
+msgid "America/Indiana/Knox"
+msgstr ""
+
+#: event_timezones.inc:343
+msgid "America/Indiana/Marengo"
+msgstr ""
+
+#: event_timezones.inc:344
+msgid "America/Indiana/Vevay"
+msgstr ""
+
+#: event_timezones.inc:345
+msgid "America/Indianapolis"
+msgstr ""
+
+#: event_timezones.inc:346
+msgid "America/Inuvik"
+msgstr ""
+
+#: event_timezones.inc:347
+msgid "America/Iqaluit"
+msgstr ""
+
+#: event_timezones.inc:348
+msgid "America/Jamaica"
+msgstr ""
+
+#: event_timezones.inc:349
+msgid "America/Jujuy"
+msgstr ""
+
+#: event_timezones.inc:350
+msgid "America/Juneau"
+msgstr ""
+
+#: event_timezones.inc:351
+msgid "America/Kentucky/Louisville"
+msgstr ""
+
+#: event_timezones.inc:352
+msgid "America/Kentucky/Monticello"
+msgstr ""
+
+#: event_timezones.inc:353
+msgid "America/Knox_IN"
+msgstr ""
+
+#: event_timezones.inc:354
+msgid "America/La_Paz"
+msgstr ""
+
+#: event_timezones.inc:355
+msgid "America/Lima"
+msgstr ""
+
+#: event_timezones.inc:356
+msgid "America/Los_Angeles"
+msgstr ""
+
+#: event_timezones.inc:357
+msgid "America/Louisville"
+msgstr ""
+
+#: event_timezones.inc:358
+msgid "America/Maceio"
+msgstr ""
+
+#: event_timezones.inc:359
+msgid "America/Managua"
+msgstr ""
+
+#: event_timezones.inc:360
+msgid "America/Manaus"
+msgstr ""
+
+#: event_timezones.inc:361
+msgid "America/Martinique"
+msgstr ""
+
+#: event_timezones.inc:362
+msgid "America/Mazatlan"
+msgstr ""
+
+#: event_timezones.inc:363
+msgid "America/Mendoza"
+msgstr ""
+
+#: event_timezones.inc:364
+msgid "America/Menominee"
+msgstr ""
+
+#: event_timezones.inc:365
+msgid "America/Merida"
+msgstr ""
+
+#: event_timezones.inc:366
+msgid "America/Mexico_City"
+msgstr ""
+
+#: event_timezones.inc:367
+msgid "America/Miquelon"
+msgstr ""
+
+#: event_timezones.inc:368
+msgid "America/Monterrey"
+msgstr ""
+
+#: event_timezones.inc:369
+msgid "America/Montevideo"
+msgstr ""
+
+#: event_timezones.inc:370
+msgid "America/Montreal"
+msgstr ""
+
+#: event_timezones.inc:371
+msgid "America/Montserrat"
+msgstr ""
+
+#: event_timezones.inc:372
+msgid "America/Nassau"
+msgstr ""
+
+#: event_timezones.inc:373
+msgid "America/New_York"
+msgstr ""
+
+#: event_timezones.inc:374
+msgid "America/Nipigon"
+msgstr ""
+
+#: event_timezones.inc:375
+msgid "America/Nome"
+msgstr ""
+
+#: event_timezones.inc:376
+msgid "America/Noronha"
+msgstr ""
+
+#: event_timezones.inc:377
+msgid "America/Panama"
+msgstr ""
+
+#: event_timezones.inc:378
+msgid "America/Pangnirtung"
+msgstr ""
+
+#: event_timezones.inc:379
+msgid "America/Paramaribo"
+msgstr ""
+
+#: event_timezones.inc:380
+msgid "America/Phoenix"
+msgstr ""
+
+#: event_timezones.inc:381
+msgid "America/Port-au-Prince"
+msgstr ""
+
+#: event_timezones.inc:382
+msgid "America/Port_of_Spain"
+msgstr ""
+
+#: event_timezones.inc:383
+msgid "America/Porto_Acre"
+msgstr ""
+
+#: event_timezones.inc:384
+msgid "America/Porto_Velho"
+msgstr ""
+
+#: event_timezones.inc:385
+msgid "America/Puerto_Rico"
+msgstr ""
+
+#: event_timezones.inc:386
+msgid "America/Rainy_River"
+msgstr ""
+
+#: event_timezones.inc:387
+msgid "America/Rankin_Inlet"
+msgstr ""
+
+#: event_timezones.inc:388
+msgid "America/Recife"
+msgstr ""
+
+#: event_timezones.inc:389
+msgid "America/Regina"
+msgstr ""
+
+#: event_timezones.inc:390
+msgid "America/Rio_Branco"
+msgstr ""
+
+#: event_timezones.inc:391
+msgid "America/Rosario"
+msgstr ""
+
+#: event_timezones.inc:392
+msgid "America/Santiago"
+msgstr ""
+
+#: event_timezones.inc:393
+msgid "America/Santo_Domingo"
+msgstr ""
+
+#: event_timezones.inc:394
+msgid "America/Sao_Paulo"
+msgstr ""
+
+#: event_timezones.inc:395
+msgid "America/Scoresbysund"
+msgstr ""
+
+#: event_timezones.inc:396
+msgid "America/Shiprock"
+msgstr ""
+
+#: event_timezones.inc:397
+msgid "America/St_Johns"
+msgstr ""
+
+#: event_timezones.inc:398
+msgid "America/St_Kitts"
+msgstr ""
+
+#: event_timezones.inc:399
+msgid "America/St_Lucia"
+msgstr ""
+
+#: event_timezones.inc:400
+msgid "America/St_Thomas"
+msgstr ""
+
+#: event_timezones.inc:401
+msgid "America/St_Vincent"
+msgstr ""
+
+#: event_timezones.inc:402
+msgid "America/Swift_Current"
+msgstr ""
+
+#: event_timezones.inc:403
+msgid "America/Tegucigalpa"
+msgstr ""
+
+#: event_timezones.inc:404
+msgid "America/Thule"
+msgstr ""
+
+#: event_timezones.inc:405
+msgid "America/Thunder_Bay"
+msgstr ""
+
+#: event_timezones.inc:406
+msgid "America/Tijuana"
+msgstr ""
+
+#: event_timezones.inc:407
+msgid "America/Tortola"
+msgstr ""
+
+#: event_timezones.inc:408
+msgid "America/Vancouver"
+msgstr ""
+
+#: event_timezones.inc:409
+msgid "America/Virgin"
+msgstr ""
+
+#: event_timezones.inc:410
+msgid "America/Whitehorse"
+msgstr ""
+
+#: event_timezones.inc:411
+msgid "America/Winnipeg"
+msgstr ""
+
+#: event_timezones.inc:412
+msgid "America/Yakutat"
+msgstr ""
+
+#: event_timezones.inc:413
+msgid "America/Yellowknife"
+msgstr ""
+
+#: event_timezones.inc:414
+msgid "Antarctica/Casey"
+msgstr ""
+
+#: event_timezones.inc:415
+msgid "Antarctica/Davis"
+msgstr ""
+
+#: event_timezones.inc:416
+msgid "Antarctica/DumontDUrville"
+msgstr ""
+
+#: event_timezones.inc:417
+msgid "Antarctica/Mawson"
+msgstr ""
+
+#: event_timezones.inc:418
+msgid "Antarctica/McMurdo"
+msgstr ""
+
+#: event_timezones.inc:419
+msgid "Antarctica/Palmer"
+msgstr ""
+
+#: event_timezones.inc:420
+msgid "Antarctica/South_Pole"
+msgstr ""
+
+#: event_timezones.inc:421
+msgid "Antarctica/Syowa"
+msgstr ""
+
+#: event_timezones.inc:422
+msgid "Antarctica/Vostok"
+msgstr ""
+
+#: event_timezones.inc:423
+msgid "Arctic/Longyearbyen"
+msgstr ""
+
+#: event_timezones.inc:424
+msgid "Asia/Aden"
+msgstr ""
+
+#: event_timezones.inc:425
+msgid "Asia/Almaty"
+msgstr ""
+
+#: event_timezones.inc:426
+msgid "Asia/Amman"
+msgstr ""
+
+#: event_timezones.inc:427
+msgid "Asia/Anadyr"
+msgstr ""
+
+#: event_timezones.inc:428
+msgid "Asia/Aqtau"
+msgstr ""
+
+#: event_timezones.inc:429
+msgid "Asia/Aqtobe"
+msgstr ""
+
+#: event_timezones.inc:430
+msgid "Asia/Ashgabat"
+msgstr ""
+
+#: event_timezones.inc:431
+msgid "Asia/Ashkhabad"
+msgstr ""
+
+#: event_timezones.inc:432
+msgid "Asia/Baghdad"
+msgstr ""
+
+#: event_timezones.inc:433
+msgid "Asia/Bahrain"
+msgstr ""
+
+#: event_timezones.inc:434
+msgid "Asia/Baku"
+msgstr ""
+
+#: event_timezones.inc:435
+msgid "Asia/Bangkok"
+msgstr ""
+
+#: event_timezones.inc:436
+msgid "Asia/Beirut"
+msgstr ""
+
+#: event_timezones.inc:437
+msgid "Asia/Bishkek"
+msgstr ""
+
+#: event_timezones.inc:438
+msgid "Asia/Brunei"
+msgstr ""
+
+#: event_timezones.inc:439
+msgid "Asia/Calcutta"
+msgstr ""
+
+#: event_timezones.inc:440
+msgid "Asia/Chungking"
+msgstr ""
+
+#: event_timezones.inc:441
+msgid "Asia/Colombo"
+msgstr ""
+
+#: event_timezones.inc:442
+msgid "Asia/Dacca"
+msgstr ""
+
+#: event_timezones.inc:443
+msgid "Asia/Damascus"
+msgstr ""
+
+#: event_timezones.inc:444
+msgid "Asia/Dhaka"
+msgstr ""
+
+#: event_timezones.inc:445
+msgid "Asia/Dili"
+msgstr ""
+
+#: event_timezones.inc:446
+msgid "Asia/Dubai"
+msgstr ""
+
+#: event_timezones.inc:447
+msgid "Asia/Dushanbe"
+msgstr ""
+
+#: event_timezones.inc:448
+msgid "Asia/Gaza"
+msgstr ""
+
+#: event_timezones.inc:449
+msgid "Asia/Harbin"
+msgstr ""
+
+#: event_timezones.inc:450
+msgid "Asia/Hong_Kong"
+msgstr ""
+
+#: event_timezones.inc:451
+msgid "Asia/Hovd"
+msgstr ""
+
+#: event_timezones.inc:452
+msgid "Asia/Irkutsk"
+msgstr ""
+
+#: event_timezones.inc:453
+msgid "Asia/Istanbul"
+msgstr ""
+
+#: event_timezones.inc:454
+msgid "Asia/Jakarta"
+msgstr ""
+
+#: event_timezones.inc:455
+msgid "Asia/Jayapura"
+msgstr ""
+
+#: event_timezones.inc:456
+msgid "Asia/Jerusalem"
+msgstr ""
+
+#: event_timezones.inc:457
+msgid "Asia/Kabul"
+msgstr ""
+
+#: event_timezones.inc:458
+msgid "Asia/Kamchatka"
+msgstr ""
+
+#: event_timezones.inc:459
+msgid "Asia/Karachi"
+msgstr ""
+
+#: event_timezones.inc:460
+msgid "Asia/Kashgar"
+msgstr ""
+
+#: event_timezones.inc:461
+msgid "Asia/Katmandu"
+msgstr ""
+
+#: event_timezones.inc:462
+msgid "Asia/Krasnoyarsk"
+msgstr ""
+
+#: event_timezones.inc:463
+msgid "Asia/Kuala_Lumpur"
+msgstr ""
+
+#: event_timezones.inc:464
+msgid "Asia/Kuching"
+msgstr ""
+
+#: event_timezones.inc:465
+msgid "Asia/Kuwait"
+msgstr ""
+
+#: event_timezones.inc:466
+msgid "Asia/Macao"
+msgstr ""
+
+#: event_timezones.inc:467
+msgid "Asia/Magadan"
+msgstr ""
+
+#: event_timezones.inc:468
+msgid "Asia/Manila"
+msgstr ""
+
+#: event_timezones.inc:469
+msgid "Asia/Muscat"
+msgstr ""
+
+#: event_timezones.inc:470
+msgid "Asia/Nicosia"
+msgstr ""
+
+#: event_timezones.inc:471
+msgid "Asia/Novosibirsk"
+msgstr ""
+
+#: event_timezones.inc:472
+msgid "Asia/Omsk"
+msgstr ""
+
+#: event_timezones.inc:473
+msgid "Asia/Phnom_Penh"
+msgstr ""
+
+#: event_timezones.inc:474
+msgid "Asia/Pyongyang"
+msgstr ""
+
+#: event_timezones.inc:475
+msgid "Asia/Qatar"
+msgstr ""
+
+#: event_timezones.inc:476
+msgid "Asia/Rangoon"
+msgstr ""
+
+#: event_timezones.inc:477
+msgid "Asia/Riyadh"
+msgstr ""
+
+#: event_timezones.inc:478
+msgid "Asia/Riyadh87"
+msgstr ""
+
+#: event_timezones.inc:479
+msgid "Asia/Riyadh88"
+msgstr ""
+
+#: event_timezones.inc:480
+msgid "Asia/Riyadh89"
+msgstr ""
+
+#: event_timezones.inc:481
+msgid "Asia/Saigon"
+msgstr ""
+
+#: event_timezones.inc:482
+msgid "Asia/Samarkand"
+msgstr ""
+
+#: event_timezones.inc:483
+msgid "Asia/Seoul"
+msgstr ""
+
+#: event_timezones.inc:484
+msgid "Asia/Shanghai"
+msgstr ""
+
+#: event_timezones.inc:485
+msgid "Asia/Singapore"
+msgstr ""
+
+#: event_timezones.inc:486
+msgid "Asia/Taipei"
+msgstr ""
+
+#: event_timezones.inc:487
+msgid "Asia/Tashkent"
+msgstr ""
+
+#: event_timezones.inc:488
+msgid "Asia/Tbilisi"
+msgstr ""
+
+#: event_timezones.inc:489
+msgid "Asia/Tehran"
+msgstr ""
+
+#: event_timezones.inc:490
+msgid "Asia/Tel_Aviv"
+msgstr ""
+
+#: event_timezones.inc:491
+msgid "Asia/Thimbu"
+msgstr ""
+
+#: event_timezones.inc:492
+msgid "Asia/Thimphu"
+msgstr ""
+
+#: event_timezones.inc:493
+msgid "Asia/Tokyo"
+msgstr ""
+
+#: event_timezones.inc:494
+msgid "Asia/Ujung_Pandang"
+msgstr ""
+
+#: event_timezones.inc:495
+msgid "Asia/Ulaanbaatar"
+msgstr ""
+
+#: event_timezones.inc:496
+msgid "Asia/Ulan_Bator"
+msgstr ""
+
+#: event_timezones.inc:497
+msgid "Asia/Urumqi"
+msgstr ""
+
+#: event_timezones.inc:498
+msgid "Asia/Vientiane"
+msgstr ""
+
+#: event_timezones.inc:499
+msgid "Asia/Vladivostok"
+msgstr ""
+
+#: event_timezones.inc:500
+msgid "Asia/Yakutsk"
+msgstr ""
+
+#: event_timezones.inc:501
+msgid "Asia/Yekaterinburg"
+msgstr ""
+
+#: event_timezones.inc:502
+msgid "Asia/Yerevan"
+msgstr ""
+
+#: event_timezones.inc:503
+msgid "Atlantic/Azores"
+msgstr ""
+
+#: event_timezones.inc:504
+msgid "Atlantic/Bermuda"
+msgstr ""
+
+#: event_timezones.inc:505
+msgid "Atlantic/Canary"
+msgstr ""
+
+#: event_timezones.inc:506
+msgid "Atlantic/Cape_Verde"
+msgstr ""
+
+#: event_timezones.inc:507
+msgid "Atlantic/Faeroe"
+msgstr ""
+
+#: event_timezones.inc:508
+msgid "Atlantic/Jan_Mayen"
+msgstr ""
+
+#: event_timezones.inc:509
+msgid "Atlantic/Madeira"
+msgstr ""
+
+#: event_timezones.inc:510
+msgid "Atlantic/South_Georgia"
+msgstr ""
+
+#: event_timezones.inc:511
+msgid "Atlantic/Stanley"
+msgstr ""
+
+#: event_timezones.inc:512
+msgid "Australia/ACT"
+msgstr ""
+
+#: event_timezones.inc:513
+msgid "Australia/Adelaide"
+msgstr ""
+
+#: event_timezones.inc:514
+msgid "Australia/Brisbane"
+msgstr ""
+
+#: event_timezones.inc:515
+msgid "Australia/Broken_Hill"
+msgstr ""
+
+#: event_timezones.inc:516
+msgid "Australia/Canberra"
+msgstr ""
+
+#: event_timezones.inc:517
+msgid "Australia/Darwin"
+msgstr ""
+
+#: event_timezones.inc:518
+msgid "Australia/Hobart"
+msgstr ""
+
+#: event_timezones.inc:519
+msgid "Australia/LHI"
+msgstr ""
+
+#: event_timezones.inc:520
+msgid "Australia/Lindeman"
+msgstr ""
+
+#: event_timezones.inc:521
+msgid "Australia/Lord_Howe"
+msgstr ""
+
+#: event_timezones.inc:522
+msgid "Australia/Melbourne"
+msgstr ""
+
+#: event_timezones.inc:523
+msgid "Australia/NSW"
+msgstr ""
+
+#: event_timezones.inc:524
+msgid "Australia/North"
+msgstr ""
+
+#: event_timezones.inc:525
+msgid "Australia/Perth"
+msgstr ""
+
+#: event_timezones.inc:526
+msgid "Australia/Queensland"
+msgstr ""
+
+#: event_timezones.inc:527
+msgid "Australia/South"
+msgstr ""
+
+#: event_timezones.inc:528
+msgid "Australia/Sydney"
+msgstr ""
+
+#: event_timezones.inc:529
+msgid "Australia/Tasmania"
+msgstr ""
+
+#: event_timezones.inc:530
+msgid "Australia/Victoria"
+msgstr ""
+
+#: event_timezones.inc:531
+msgid "Australia/West"
+msgstr ""
+
+#: event_timezones.inc:532
+msgid "Australia/Yancowinna"
+msgstr ""
+
+#: event_timezones.inc:533
+msgid "Brazil/Acre"
+msgstr ""
+
+#: event_timezones.inc:534
+msgid "Brazil/DeNoronha"
+msgstr ""
+
+#: event_timezones.inc:535
+msgid "Brazil/East"
+msgstr ""
+
+#: event_timezones.inc:536
+msgid "Brazil/West"
+msgstr ""
+
+#: event_timezones.inc:537
+msgid "Canada/Atlantic"
+msgstr ""
+
+#: event_timezones.inc:538
+msgid "Canada/Central"
+msgstr ""
+
+#: event_timezones.inc:539
+msgid "Canada/East-Saskatchewan"
+msgstr ""
+
+#: event_timezones.inc:540
+msgid "Canada/Eastern"
+msgstr ""
+
+#: event_timezones.inc:541
+msgid "Canada/Mountain"
+msgstr ""
+
+#: event_timezones.inc:542
+msgid "Canada/Newfoundland"
+msgstr ""
+
+#: event_timezones.inc:543
+msgid "Canada/Pacific"
+msgstr ""
+
+#: event_timezones.inc:544
+msgid "Canada/Saskatchewan"
+msgstr ""
+
+#: event_timezones.inc:545
+msgid "Canada/Yukon"
+msgstr ""
+
+#: event_timezones.inc:546
+msgid "Chile/Continental"
+msgstr ""
+
+#: event_timezones.inc:547
+msgid "Chile/EasterIsland"
+msgstr ""
+
+#: event_timezones.inc:549
+msgid "EST"
+msgstr ""
+
+#: event_timezones.inc:551
+msgid "Eire"
+msgstr ""
+
+#: event_timezones.inc:552
+msgid "Etc/GMT-1"
+msgstr ""
+
+#: event_timezones.inc:553
+msgid "Etc/GMT-10"
+msgstr ""
+
+#: event_timezones.inc:554
+msgid "Etc/GMT-11"
+msgstr ""
+
+#: event_timezones.inc:555
+msgid "Etc/GMT-12"
+msgstr ""
+
+#: event_timezones.inc:556
+msgid "Etc/GMT-2"
+msgstr ""
+
+#: event_timezones.inc:557
+msgid "Etc/GMT-3"
+msgstr ""
+
+#: event_timezones.inc:558
+msgid "Etc/GMT-4"
+msgstr ""
+
+#: event_timezones.inc:559
+msgid "Etc/GMT-5"
+msgstr ""
+
+#: event_timezones.inc:560
+msgid "Etc/GMT-6"
+msgstr ""
+
+#: event_timezones.inc:561
+msgid "Etc/GMT-7"
+msgstr ""
+
+#: event_timezones.inc:562
+msgid "Etc/GMT-8"
+msgstr ""
+
+#: event_timezones.inc:563
+msgid "Etc/GMT-9"
+msgstr ""
+
+#: event_timezones.inc:564
+msgid "Etc/GMT"
+msgstr ""
+
+#: event_timezones.inc:565
+msgid "Etc/GMT+1"
+msgstr ""
+
+#: event_timezones.inc:566
+msgid "Etc/GMT+10"
+msgstr ""
+
+#: event_timezones.inc:567
+msgid "Etc/GMT+11"
+msgstr ""
+
+#: event_timezones.inc:568
+msgid "Etc/GMT+12"
+msgstr ""
+
+#: event_timezones.inc:569
+msgid "Etc/GMT+13"
+msgstr ""
+
+#: event_timezones.inc:570
+msgid "Etc/GMT+14"
+msgstr ""
+
+#: event_timezones.inc:571
+msgid "Etc/GMT+2"
+msgstr ""
+
+#: event_timezones.inc:572
+msgid "Etc/GMT+3"
+msgstr ""
+
+#: event_timezones.inc:573
+msgid "Etc/GMT+4"
+msgstr ""
+
+#: event_timezones.inc:574
+msgid "Etc/GMT+5"
+msgstr ""
+
+#: event_timezones.inc:575
+msgid "Etc/GMT+6"
+msgstr ""
+
+#: event_timezones.inc:576
+msgid "Etc/GMT+7"
+msgstr ""
+
+#: event_timezones.inc:577
+msgid "Etc/GMT+8"
+msgstr ""
+
+#: event_timezones.inc:578
+msgid "Etc/GMT+9"
+msgstr ""
+
+#: event_timezones.inc:579
+msgid "Europe/Amsterdam"
+msgstr ""
+
+#: event_timezones.inc:580
+msgid "Europe/Andorra"
+msgstr ""
+
+#: event_timezones.inc:581
+msgid "Europe/Athens"
+msgstr ""
+
+#: event_timezones.inc:582
+msgid "Europe/Belfast"
+msgstr ""
+
+#: event_timezones.inc:583
+msgid "Europe/Belgrade"
+msgstr ""
+
+#: event_timezones.inc:584
+msgid "Europe/Berlin"
+msgstr ""
+
+#: event_timezones.inc:585
+msgid "Europe/Bratislava"
+msgstr ""
+
+#: event_timezones.inc:586
+msgid "Europe/Brussels"
+msgstr ""
+
+#: event_timezones.inc:587
+msgid "Europe/Bucharest"
+msgstr ""
+
+#: event_timezones.inc:588
+msgid "Europe/Budapest"
+msgstr ""
+
+#: event_timezones.inc:589
+msgid "Europe/Chisinau"
+msgstr ""
+
+#: event_timezones.inc:590
+msgid "Europe/Copenhagen"
+msgstr ""
+
+#: event_timezones.inc:591
+msgid "Europe/Dublin"
+msgstr ""
+
+#: event_timezones.inc:592
+msgid "Europe/Gibraltar"
+msgstr ""
+
+#: event_timezones.inc:593
+msgid "Europe/Helsinki"
+msgstr ""
+
+#: event_timezones.inc:594
+msgid "Europe/Istanbul"
+msgstr ""
+
+#: event_timezones.inc:595
+msgid "Europe/Kaliningrad"
+msgstr ""
+
+#: event_timezones.inc:596
+msgid "Europe/Kiev"
+msgstr ""
+
+#: event_timezones.inc:597
+msgid "Europe/Lisbon"
+msgstr ""
+
+#: event_timezones.inc:598
+msgid "Europe/Ljubljana"
+msgstr ""
+
+#: event_timezones.inc:599
+msgid "Europe/London"
+msgstr ""
+
+#: event_timezones.inc:600
+msgid "Europe/Luxembourg"
+msgstr ""
+
+#: event_timezones.inc:601
+msgid "Europe/Madrid"
+msgstr ""
+
+#: event_timezones.inc:602
+msgid "Europe/Malta"
+msgstr ""
+
+#: event_timezones.inc:603
+msgid "Europe/Minsk"
+msgstr ""
+
+#: event_timezones.inc:604
+msgid "Europe/Monaco"
+msgstr ""
+
+#: event_timezones.inc:605
+msgid "Europe/Moscow"
+msgstr ""
+
+#: event_timezones.inc:606
+msgid "Europe/Nicosia"
+msgstr ""
+
+#: event_timezones.inc:607
+msgid "Europe/Oslo"
+msgstr ""
+
+#: event_timezones.inc:608
+msgid "Europe/Paris"
+msgstr ""
+
+#: event_timezones.inc:609
+msgid "Europe/Prague"
+msgstr ""
+
+#: event_timezones.inc:610
+msgid "Europe/Riga"
+msgstr ""
+
+#: event_timezones.inc:611
+msgid "Europe/Rome"
+msgstr ""
+
+#: event_timezones.inc:612
+msgid "Europe/Samara"
+msgstr ""
+
+#: event_timezones.inc:613
+msgid "Europe/San_Marino"
+msgstr ""
+
+#: event_timezones.inc:614
+msgid "Europe/Sarajevo"
+msgstr ""
+
+#: event_timezones.inc:615
+msgid "Europe/Simferopol"
+msgstr ""
+
+#: event_timezones.inc:616
+msgid "Europe/Skopje"
+msgstr ""
+
+#: event_timezones.inc:617
+msgid "Europe/Sofia"
+msgstr ""
+
+#: event_timezones.inc:618
+msgid "Europe/Stockholm"
+msgstr ""
+
+#: event_timezones.inc:619
+msgid "Europe/Tallinn"
+msgstr ""
+
+#: event_timezones.inc:620
+msgid "Europe/Tirane"
+msgstr ""
+
+#: event_timezones.inc:621
+msgid "Europe/Tiraspol"
+msgstr ""
+
+#: event_timezones.inc:622
+msgid "Europe/Uzhgorod"
+msgstr ""
+
+#: event_timezones.inc:623
+msgid "Europe/Vaduz"
+msgstr ""
+
+#: event_timezones.inc:624
+msgid "Europe/Vatican"
+msgstr ""
+
+#: event_timezones.inc:625
+msgid "Europe/Vienna"
+msgstr ""
+
+#: event_timezones.inc:626
+msgid "Europe/Vilnius"
+msgstr ""
+
+#: event_timezones.inc:627
+msgid "Europe/Warsaw"
+msgstr ""
+
+#: event_timezones.inc:628
+msgid "Europe/Zagreb"
+msgstr ""
+
+#: event_timezones.inc:629
+msgid "Europe/Zaporozhye"
+msgstr ""
+
+#: event_timezones.inc:630
+msgid "Europe/Zurich"
+msgstr ""
+
+#: event_timezones.inc:631
+msgid "GB"
+msgstr ""
+
+#: event_timezones.inc:632
+msgid "GB-Eire"
+msgstr ""
+
+#: event_timezones.inc:633
+msgid "Hongkong"
+msgstr ""
+
+#: event_timezones.inc:634
+msgid "Indian/Antananarivo"
+msgstr ""
+
+#: event_timezones.inc:635
+msgid "Indian/Chagos"
+msgstr ""
+
+#: event_timezones.inc:636
+msgid "Indian/Christmas"
+msgstr ""
+
+#: event_timezones.inc:637
+msgid "Indian/Cocos"
+msgstr ""
+
+#: event_timezones.inc:638
+msgid "Indian/Comoro"
+msgstr ""
+
+#: event_timezones.inc:639
+msgid "Indian/Kerguelen"
+msgstr ""
+
+#: event_timezones.inc:640
+msgid "Indian/Mahe"
+msgstr ""
+
+#: event_timezones.inc:641
+msgid "Indian/Maldives"
+msgstr ""
+
+#: event_timezones.inc:642
+msgid "Indian/Mauritius"
+msgstr ""
+
+#: event_timezones.inc:643
+msgid "Indian/Mayotte"
+msgstr ""
+
+#: event_timezones.inc:644
+msgid "Indian/Reunion"
+msgstr ""
+
+#: event_timezones.inc:647
+msgid "Jamaica"
+msgstr ""
+
+#: event_timezones.inc:648
+#, fuzzy
+msgid "Japan"
+msgstr "Gen"
+
+#: event_timezones.inc:649
+msgid "Kwajalein"
+msgstr ""
+
+#: event_timezones.inc:650
+msgid "Libya"
+msgstr ""
+
+#: event_timezones.inc:651
+msgid "Mexico/BajaNorte"
+msgstr ""
+
+#: event_timezones.inc:652
+msgid "Mexico/BajaSur"
+msgstr ""
+
+#: event_timezones.inc:653
+msgid "Mexico/General"
+msgstr ""
+
+#: event_timezones.inc:654
+msgid "Mideast/Riyadh87"
+msgstr ""
+
+#: event_timezones.inc:655
+msgid "Mideast/Riyadh88"
+msgstr ""
+
+#: event_timezones.inc:656
+msgid "Mideast/Riyadh89"
+msgstr ""
+
+#: event_timezones.inc:657
+msgid "NZ"
+msgstr ""
+
+#: event_timezones.inc:659
+msgid "Pacific/Apia"
+msgstr ""
+
+#: event_timezones.inc:660
+msgid "Pacific/Auckland"
+msgstr ""
+
+#: event_timezones.inc:661
+msgid "Pacific/Chatham"
+msgstr ""
+
+#: event_timezones.inc:662
+msgid "Pacific/Easter"
+msgstr ""
+
+#: event_timezones.inc:663
+msgid "Pacific/Efate"
+msgstr ""
+
+#: event_timezones.inc:664
+msgid "Pacific/Enderbury"
+msgstr ""
+
+#: event_timezones.inc:665
+msgid "Pacific/Fakaofo"
+msgstr ""
+
+#: event_timezones.inc:666
+msgid "Pacific/Fiji"
+msgstr ""
+
+#: event_timezones.inc:667
+msgid "Pacific/Funafuti"
+msgstr ""
+
+#: event_timezones.inc:668
+msgid "Pacific/Galapagos"
+msgstr ""
+
+#: event_timezones.inc:669
+msgid "Pacific/Gambier"
+msgstr ""
+
+#: event_timezones.inc:670
+msgid "Pacific/Guadalcanal"
+msgstr ""
+
+#: event_timezones.inc:671
+msgid "Pacific/Guam"
+msgstr ""
+
+#: event_timezones.inc:672
+msgid "Pacific/Honolulu"
+msgstr ""
+
+#: event_timezones.inc:673
+msgid "Pacific/Johnston"
+msgstr ""
+
+#: event_timezones.inc:674
+msgid "Pacific/Kiritimati"
+msgstr ""
+
+#: event_timezones.inc:675
+msgid "Pacific/Kosrae"
+msgstr ""
+
+#: event_timezones.inc:676
+msgid "Pacific/Kwajalein"
+msgstr ""
+
+#: event_timezones.inc:677
+msgid "Pacific/Majuro"
+msgstr ""
+
+#: event_timezones.inc:678
+msgid "Pacific/Marquesas"
+msgstr ""
+
+#: event_timezones.inc:679
+msgid "Pacific/Midway"
+msgstr ""
+
+#: event_timezones.inc:680
+msgid "Pacific/Nauru"
+msgstr ""
+
+#: event_timezones.inc:681
+msgid "Pacific/Niue"
+msgstr ""
+
+#: event_timezones.inc:682
+msgid "Pacific/Norfolk"
+msgstr ""
+
+#: event_timezones.inc:683
+msgid "Pacific/Noumea"
+msgstr ""
+
+#: event_timezones.inc:684
+msgid "Pacific/Pago_Pago"
+msgstr ""
+
+#: event_timezones.inc:685
+msgid "Pacific/Palau"
+msgstr ""
+
+#: event_timezones.inc:686
+msgid "Pacific/Pitcairn"
+msgstr ""
+
+#: event_timezones.inc:687
+msgid "Pacific/Ponape"
+msgstr ""
+
+#: event_timezones.inc:688
+msgid "Pacific/Port_Moresby"
+msgstr ""
+
+#: event_timezones.inc:689
+msgid "Pacific/Rarotonga"
+msgstr ""
+
+#: event_timezones.inc:690
+msgid "Pacific/Saipan"
+msgstr ""
+
+#: event_timezones.inc:691
+msgid "Pacific/Samoa"
+msgstr ""
+
+#: event_timezones.inc:692
+msgid "Pacific/Tahiti"
+msgstr ""
+
+#: event_timezones.inc:693
+msgid "Pacific/Tarawa"
+msgstr ""
+
+#: event_timezones.inc:694
+msgid "Pacific/Tongatapu"
+msgstr ""
+
+#: event_timezones.inc:695
+msgid "Pacific/Truk"
+msgstr ""
+
+#: event_timezones.inc:696
+msgid "Pacific/Wake"
+msgstr ""
+
+#: event_timezones.inc:697
+msgid "Pacific/Wallis"
+msgstr ""
+
+#: event_timezones.inc:698
+msgid "Pacific/Yap"
+msgstr ""
+
+#: event_timezones.inc:699
+msgid "Poland"
+msgstr ""
+
+#: event_timezones.inc:700
+msgid "Portugal"
+msgstr ""
+
+#: event_timezones.inc:701
+msgid "Singapore"
+msgstr ""
+
+#: event_timezones.inc:702
+#, fuzzy
+msgid "Turkey"
+msgstr "Mar"
+
+#: event_timezones.inc:703
+msgid "US/Alaska"
+msgstr ""
+
+#: event_timezones.inc:704
+msgid "US/Aleutian"
+msgstr ""
+
+#: event_timezones.inc:705
+msgid "US/Arizona"
+msgstr ""
+
+#: event_timezones.inc:706
+msgid "US/Central"
+msgstr ""
+
+#: event_timezones.inc:707
+msgid "US/East-Indiana"
+msgstr ""
+
+#: event_timezones.inc:708
+msgid "US/Eastern"
+msgstr ""
+
+#: event_timezones.inc:709
+msgid "US/Hawaii"
+msgstr ""
+
+#: event_timezones.inc:710
+msgid "US/Indiana-Starke"
+msgstr ""
+
+#: event_timezones.inc:711
+msgid "US/Michigan"
+msgstr ""
+
+#: event_timezones.inc:712
+msgid "US/Mountain"
+msgstr ""
+
+#: event_timezones.inc:713
+msgid "US/Pacific"
+msgstr ""
+
+#: event_timezones.inc:714
+msgid "US/Samoa"
+msgstr ""
+
+#: event_timezones.inc:715
+msgid "Pacific/French Polynesia-Marquesas Islands"
+msgstr ""
+
+#~ msgid "Table"
+#~ msgstr "Tabella"
+
+#~ msgid "Home"
+#~ msgstr "Home"
+
+#~ msgid "Mon"
+#~ msgstr "Lun"
+
+#~ msgid "Tue"
+#~ msgstr "Mar"
+
+#~ msgid "Wed"
+#~ msgstr "Mer"
+
+#~ msgid "Thu"
+#~ msgstr "Gio"
+
+#~ msgid "Fri"
+#~ msgstr "Ven"
+
+#~ msgid "Sat"
+#~ msgstr "Sab"
+
+#~ msgid "Sun"
+#~ msgstr "Dom"
+
+#~ msgid "January"
+#~ msgstr "Gennaio"
+
+#~ msgid "February"
+#~ msgstr "Febbraio"
+
+#~ msgid "March"
+#~ msgstr "Marzo"
+
+#~ msgid "April"
+#~ msgstr "Aprile"
+
+#~ msgid "May"
+#~ msgstr "Maggio"
+
+#~ msgid "June"
+#~ msgstr "Giugno"
+
+#~ msgid "July"
+#~ msgstr "Luglio"
+
+#~ msgid "August"
+#~ msgstr "Agosto"
+
+#~ msgid "September"
+#~ msgstr "Settembre"
+
+#~ msgid "October"
+#~ msgstr "Ottobre"
+
+#~ msgid "November"
+#~ msgstr "Novembre"
+
+#~ msgid "December"
+#~ msgstr "Dicembre"
+
+#, fuzzy
+#~ msgid "Never"
+#~ msgstr "Novembre"
+
+#~ msgid "1 day"
+#~ msgid_plural "%count days"
+#~ msgstr[0] "1 giorno"
+#~ msgstr[1] "%count giorni"
+
+#~ msgid "more"
+#~ msgstr "leggi tutto"
+
+#~ msgid "Events are happenings scheduled for a specific date and time."
+#~ msgstr "Gli eventi sono avvenimenti schedulati ad una certa data e ora."
+
+#~ msgid "Browse events"
+#~ msgstr "Visualizza eventi"
+
+#~ msgid "Explanation or submission guidelines"
+#~ msgstr "Spiegazione o linee guida per l'inserimento"
+
+#~ msgid ""
+#~ "This text will be displayed at the top of the event submission form.  "
+#~ "Useful for helping or instructing your users."
+#~ msgstr ""
+#~ "Questo testo verrà visualizzato all'inizio della maschera di "
+#~ "pubblicazione eventi. Utile per aiutare o istruire gli utenti."
+
+#~ msgid "Sunday"
+#~ msgstr "Domenica"
+
+#~ msgid "Monday"
+#~ msgstr "Lunedì"
+
+#~ msgid "The day the weeks starts in the block calendar."
+#~ msgstr "Il giorno con cui iniziano le settimane nel blocco calendario."
+
+#~ msgid "Yes"
+#~ msgstr "Si"
+
+#~ msgid ""
+#~ "Yes: Times are saved relative to the user's timezone. No: Times are "
+#~ "displayed exactly as the user inputted them."
+#~ msgstr ""
+#~ "Si: gli orari sono salvati relativi al fuso orario dell'utente.  No: gli "
+#~ "orari sono visualizzati esattamente come l'utente gli ha inseriti."
+
+#~ msgid ""
+#~ "The type of overview to show the user when he clicks on the block "
+#~ "calendar."
+#~ msgstr ""
+#~ "Il tipo di anteprima da visualizzare all'utente quando lui clicca sul "
+#~ "blocco calendario."
+
+#~ msgid "Teaser"
+#~ msgstr "Teaser"
+
+#~ msgid "Body"
+#~ msgstr "Testo"
+
+#~ msgid "Table headers"
+#~ msgstr "Intestazioni tabella"
+
+#~ msgid ""
+#~ "The table headers used in the table view. Only entries that have their "
+#~ "own database column in the event table and are of type \"textfield\", "
+#~ "\"textarea\", or \"select\" can be used."
+#~ msgstr ""
+#~ "Gli elementi di testata usati nella visualizzazione della tabella. Solo "
+#~ "le entrate che hanno le proprie colonne nella tabella 'event' e sono del "
+#~ "tipo \"textfield\", \"textarea\", o \"select\" possono essere utilizzati."
+
+#~ msgid "Feb"
+#~ msgstr "Feb"
+
+#~ msgid "Mar"
+#~ msgstr "Mar"
+
+#~ msgid "Apr"
+#~ msgstr "Apr"
+
+#~ msgid "Jun"
+#~ msgstr "Giu"
+
+#~ msgid "Jul"
+#~ msgstr "Lug"
+
+#~ msgid "Aug"
+#~ msgstr "Ago"
+
+#~ msgid "Sep"
+#~ msgstr "Set"
+
+#~ msgid "Oct"
+#~ msgstr "Ott"
+
+#~ msgid "Nov"
+#~ msgstr "Nov"
+
+#~ msgid "Dec"
+#~ msgstr "Dic"
+
+#~ msgid "Search"
+#~ msgstr "Ricerca"
+
+#~ msgid "Search Events"
+#~ msgstr "Ricerca eventi"
+
+#~ msgid "Upcoming"
+#~ msgstr "Imminente"
+
+#~ msgid "Upcoming Events"
+#~ msgstr "Eventi imminenti"
+
+#~ msgid "search events"
+#~ msgstr "ricerca eventi"
+
+#~ msgid "Required."
+#~ msgstr "Obbligatorio."
+
+#~ msgid "When is this event taking place."
+#~ msgstr "Quando avviene l'evento"
+
+#~ msgid "Details"
+#~ msgstr "Dettagli"
+
+#~ msgid "g:ia"
+#~ msgstr "g:ia"
+
+#~ msgid "G:i"
+#~ msgstr "G:i"
+
+#~ msgid "Click here to see the full event."
+#~ msgstr "Cliccare qui per vedere l'evenbto completo."
+
+#~ msgid "M, j"
+#~ msgstr "M, j"
+
+#~ msgid "No matches found."
+#~ msgstr "Nessun dato soddisfa i criteri di ricerca."
+
+#~ msgid "Date period"
+#~ msgstr "Periodo di date"
+
+#~ msgid "From"
+#~ msgstr "Da"
+
+#~ msgid "To"
+#~ msgstr "A"
+
+#~ msgid "maintain events"
+#~ msgstr "manutenzione eventi"

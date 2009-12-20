@@ -1,0 +1,18 @@
+-- $Id: location.mysql,v 1.7 2006/03/31 22:49:00 ankur Exp $
+
+CREATE TABLE location (
+  oid int(10) unsigned NOT NULL default '0',
+  type varchar(6) NOT NULL default '',
+  name varchar(255) default NULL,
+  street varchar(255) default NULL,
+  additional varchar(255) default NULL,
+  city varchar(255) default NULL,
+  province varchar(16) default NULL,
+  postal_code varchar(16) default NULL,
+  country char(2) default NULL,
+  latitude decimal(10,6) default NULL,
+  longitude decimal(10,6) default NULL,
+  source tinyint(4) default '0',
+  PRIMARY KEY  (type,oid)
+) TYPE=MyISAM /*!40100 DEFAULT CHARACTER SET utf8 */;
+

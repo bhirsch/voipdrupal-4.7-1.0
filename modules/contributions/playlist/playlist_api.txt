@@ -1,0 +1,130 @@
+For this module, a playlist is defined as a one-node-to-many-nodes relationship.  The parent node is also referred to as
+the playlist node, since it is the common thread between the playlist items.  A playlist item is also referred to as a child
+node.
+
+Example:
+PLAYLIST NODE (parent)
+-PLAYLIST ITEM NODE (child)
+-PLAYLIST ITEM NODE (child)
+-PLAYLIST ITEM NODE (child)
+
+Each playlist item has a weight so that the playlist node understands the order. 
+
+An example workflow would be:
+   
+   1) user creates a new playlist, with nid = 240
+   2) user adds 3 new playlist items to that playlist with nids = 23,64,79
+   3) user orders the playlist items and gives them a weight
+   
+   In this instance the database would store:
+   RID   |     TYPE         | PARENT_ID  | CHILD_ID |  WEIGHT  
+    1       new_playlist        240          23         0
+    2       new_playlist        240          64         1
+    3       new_playlist        240          79         2
+
+The following functions below assist in retrieving and inputting data into this database schema.
+    
+***********************************************************************
+
+
+PLAYLIST_PATH: wherever this is typed in code, it will be replaced with the path to the playlist module.
+
+***********************        
+**                   **
+**   THEME FUNCTIONS **
+**                   **
+***********************
+theme_playlist_sortable($parent_id, $type)
+		 * This theme function takes a parent_id, loads all the children nodes, and then outputs it as an ordered <ol> list.
+		 * It adds the prototype drag and drop javascript as well.  It creates a trash icon for deleting an item from the list.
+     * It makes use of an AJAX menu callback item described below.
+     * If Javascript is not enabled, it loads in regular up and down arrows to sort items.
+         
+theme_playlist_get_list($playlist_id, $type)
+		 * This just outputs an ordered list <ol> without any sorting or deleting capabilities.
+
+***********************        
+**  MENU CALLBACKS   **
+**  AJAX CALLBACK    **
+**                   **
+***********************
+PATH 'playlist/add'
+This menu item calls the function playlist_add_item which renders a form with checkboxes for a user to add the playlist item
+to.  The usage is: playlist/add/[type]/[child_id]
+The form loads all playlist that the user created of the given [type].  
+If a playlist checkbox is selected/deselected, it then adds/deletes the [child_id] to/from that playlist upon form submission.
+
+PATH 'playlist/manage'
+usage playlist/manage/[type]/[playlist_id]/[op]/[child_id]
+This provides a way to add and delete playlist items through the URL.The callback function is _playlist_manage()
+
+PATH 'playlist/ajax/order'
+The theme_playlist_sortable theme function makes a call to a prototype.js function that allows list items to be
+'drag and droppable'.  It does this by:
+1) loading in the appropriate javascript through drupal_add_js
+2) making a call to the javascript function that executes the dragging and dropping.
+   When a playlist item is "dropped", an HTTP request to the URL 'playlist/ajax/order/[playlist_id]' is made without refreshing the page.
+   As you can see the last argument (arg(3)) contains the playlist id that is being sorted.
+3) we define a menu callback function, _playlist_order_save($parent_id) for the path 'playlist/ajax/order' and send arg(3) as an argument 
+4) our menu callback function looks at $_REQUEST['list'] which contains the array of playlist item nids from <ol id="list"> element.
+   it then uses playlist_set_weight to save the weights in the order that they appear on the page.
+
+PATH 'playlist'
+usage playlist/[type]/[uid] OR playlist/[type] OR playlist/[uid] OR playlist
+playlist/[type]/[uid] : Show latest playlists uploaded to the site by a user and of a certain type
+playlist/[type] : Show latest playlists uploaded to the site of a certain type
+playlist/[uid] : Show latest playlist uploaded by a user
+playlist : show latest playlist uploaded to the site
+
+This function call assumes that the 'type' is a valid node type that is also in the {playlist_relate} type column
+
+
+***********************        
+**                   **
+**  COMMON FUNCTIONS **
+**                   **
+***********************
+playlist_get_children($parent_id, $type)
+	*  Input a parent node id, and return an array of children id's ordered by their weight.         
+		 
+playlist_get_parents($child_id = NULL, $type = NULL)
+	*  Input the nid of a child node, and return an array of parent ids. 
+	*  Additionally restrict the results to a given playlist type.
+	*  There are three ways to use this function:
+	*  1) get all the parent ids that belong to a given child
+	*  2) get all the parent ids of a given type
+	*  3) get all the parent ids connected to a child filtered by type
+
+playlist_add_child($child_id, $parent_id, $type)
+	*    Adds a new child to a parent id.  It will be automatically assigned the next weight in the list.
+	*    Returns true if successful.
+
+playlist_remove_child($child_id, $parent_id = NULL)
+	*  Delete a child node from a given playlist.  If no parent_id specified, it deletes the child from all playlists. 
+	*  Returns true if successful.
+
+playlist_remove($parent_id)
+    *  Delete a playlist parent. Returns true if successful.  
+
+playlist_remove_by_type($type)
+	*  Delete all playlists of a given type. Returns true if successful.
+
+playlist_swap_weight($parent_id, $child_id1, $child_id2)
+	*  Swaps the weights of two children in a given playlist. Returns true if successful.
+
+playlist_set_weight($parent_id, $child_id, $weight)
+	*   Set weight of a playlist item directly.
+
+playlist_get_weight($parent_id, $child_id)
+	*   Get current weight of a playlist item.
+
+playlist_get_next_weight($parent_id)	
+	*   Get next weight in a playlist, used in playlist_add_child. 	
+
+playlist_check($param = array())
+ *   Check to see if a playlist_relate row already exists, return true or false.
+ *   You can specify what you are looking for, a type, a parent_id, a child_id, or a combination.
+ *   Example: playlist_check('type' => 'audio_playlist', 'parent_id' => 23, 'child_id' => 54);
+
+ playlist_get_types($type)
+    *   Return an array of all playlist types in the playlist_relate table

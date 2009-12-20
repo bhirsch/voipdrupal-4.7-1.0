@@ -1,0 +1,9 @@
+
+INSTALLATION
+
+1) unzip all files to the /modules directory
+2) enable the module through administer >> modules
+   (this will generate the database tables necessary)
+3) enable permissions to "manage playlists" under administer >> access control
+4) turn on any other playlist modules (such as audio_playlist.module) and set their permissions
+   

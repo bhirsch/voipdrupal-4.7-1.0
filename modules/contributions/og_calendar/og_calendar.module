@@ -1,0 +1,126 @@
+<?php
+
+/**
+ * @file
+ * Filters the event calendar by organic groups
+ */
+ 
+/**
+ * Implementation of hook_help().
+ */
+function og_calendar_help($section) {
+  switch ($section) {
+    case 'admin/modules#description':
+      return t('Offers filtering options on the calendar by organic group.');
+  }
+}
+
+/**
+ * Implementation of hook_menu().
+ */
+function og_calendar_menu() {
+  $items = array();
+
+  if (!$may_cache) {
+    $items[] = array(
+      'path' => 'og_calendar',
+      'title' => t('Group calendar'),
+      'callback' => 'og_calendar_page',
+      'access' => user_access('access content'),
+      'type' => MENU_CALLBACK,
+    );
+  }
+
+  return $items;
+}
+
+/**
+ * Implementation of hook_link().
+ */
+function og_calendar_link($type, $node = NULL, $teaser = FALSE) {
+  $links = array();
+
+  // If this is an event node contained in a group...
+  if ($type == 'node' && $node->type == 'event' && count($node->og_groups)) {
+    $group_node = node_load($node->og_groups[0]);
+    $links[] = l(t('%name calendar', array('%name' => $group_node->title)), "og_calendar/$group_node->nid");
+  }
+
+  return $links;
+}
+
+/**
+ * Menu callback; views either all group events or a specific group's calendar
+ */
+function og_calendar_page($gid = NULL) {
+  if ($gid) {
+    $group = node_load($gid);
+    $nodes = array();
+
+    // View only events from this group
+    $result = db_query("SELECT e.nid FROM {event} e INNER JOIN {node} n ON e.nid = n.nid INNER JOIN {node_access} na ON na.nid = e.nid INNER JOIN {og} og on og.nid = na.gid WHERE og.nid = %d", $gid);
+    while ($nid = db_fetch_object($result)) {
+      $event = node_load($nid->nid);
+      if (isset($event->nid)) {
+        $nodes[$event->nid] = $event;
+      }
+    }
+    if (count($nodes)) {
+      og_set_group_context($group);
+      return event_get_calendar('month', $nodes, 'og_calendar', t('%name calendar', array('%name' => $group->title)));
+    }
+    else {
+      return t('No (visible) events for %name were found!', array('%name' => $group->name));
+    }
+  }
+  else {
+    // Redirect to the main event page
+    drupal_goto('event');
+  }
+
+}
+
+/**
+ * Implementation of og_create_links().
+ */
+function og_calendar_og_create_links($group) {
+  $links = array();
+  $links[] = l(t('group calendar'), "og_calendar/$group->nid");
+  return $links; 
+}
+
+/**
+ * Implementation of hook_form_alter().
+ */
+function og_calendar_form_alter($form_id, $form) {
+  if ($form_id == 'system_modules' && !$_POST) {
+    og_calendar_system_module_validate($form);
+  }
+}
+
+/**
+ * Validation callback; implements dependency checking
+ *
+ * See http://drupal.org/node/54463 for more info.
+ */
+function og_calendar_system_module_validate(&$form) {
+
+  $module = 'og_calendar';
+  $dependencies = array('event', 'og');
+
+  foreach ($dependencies as $dependency) {
+    if (!in_array($dependency, $form['status']['#default_value'])) {
+      $missing_dependency = TRUE;
+      $missing_dependency_list[] = $dependency;
+    }
+  }
+
+  if (in_array($module, $form['status']['#default_value']) && isset($missing_dependency)) {
+    db_query("UPDATE {system} SET status = 0 WHERE type = 'module' AND name = '%s'", $module);
+    $key = array_search($module, $form['status']['#default_value']);
+    unset($form['status']['#default_value'][$key]);
+    drupal_set_message(t('The module %module was deactivated--it requires the following disabled/non-existant modules to function properly: %dependencies', array('%module' => $module, '%dependencies' => implode(', ', $missing_dependency_list))), 'error');
+
+  }
+
+}

@@ -1,0 +1,232 @@
+<?php
+// $Id: audio.install,v 1.4.2.7 2006/08/29 16:25:55 drewish Exp $
+
+/**
+ * Install the initial schema.
+ */
+function audio_install() {
+  switch ($GLOBALS['db_type']) {
+    case 'mysql':
+    case 'mysqli':
+      db_query("
+        CREATE TABLE {audio} (
+          `vid` int(10) unsigned NOT NULL default '0',
+          `nid` int(10) unsigned NOT NULL default '0',
+          `title_format` varchar(128) default '',
+          `play_count` int(10) unsigned NOT NULL default '0',
+          `download_count` int(10) unsigned NOT NULL default '0',
+          `downloadable` tinyint(1) NOT NULL default '1',
+          `fileformat` varchar(10) NOT NULL default '',
+          `sample_rate` int(10) unsigned NOT NULL default '0',
+          `channel_mode` varchar(10) NOT NULL default '',
+          `bitrate` float unsigned NOT NULL default '0',
+          `bitrate_mode` varchar(4) NOT NULL default '',
+          `playtime` varchar(10) NOT NULL default '',
+          PRIMARY KEY  (`vid`)
+        ) /*!40100 DEFAULT CHARACTER SET utf8 */;
+      ");
+      db_query("
+        CREATE TABLE  {audio_file} (
+          `vid` int(10) unsigned NOT NULL default '0',
+          `origname` varchar(255) NOT NULL default '',
+          `filename` varchar(255) NOT NULL default '',
+          `filepath` varchar(255) NOT NULL default '',
+          `filemime` varchar(255) NOT NULL default '',
+          `filesize` int(10) unsigned NOT NULL default '0',
+          PRIMARY KEY  (`vid`)
+        ) /*!40100 DEFAULT CHARACTER SET utf8 */;
+      ");
+      db_query("
+        CREATE TABLE  {audio_metadata} (
+          `vid` int(10) unsigned NOT NULL default '0',
+          `tag` varchar(45) NOT NULL default '',
+          `value` varchar(255) NOT NULL default '',
+          `clean` varchar(255) NOT NULL default '',
+          PRIMARY KEY  (`vid`,`tag`,`value`),
+          KEY `audio_metadata_tags` (`clean`)
+        ) /*!40100 DEFAULT CHARACTER SET utf8 */;
+      ");
+      break;
+
+    case 'pgsql':
+      db_query("
+        CREATE TABLE {audio} (
+            vid integer NOT NULL default '0'
+                CHECK (vid >= 0),
+            nid integer NOT NULL default '0'
+                CHECK (nid >= 0),
+            title_format varchar(128) default '',
+            play_count integer NOT NULL default '0'
+                CHECK (play_count >= 0),
+            download_count integer NOT NULL default '0'
+                CHECK (download_count >= 0),
+            downloadable smallint NOT NULL default '1',
+            fileformat varchar(10) NOT NULL default '',
+            sample_rate integer NOT NULL default '0'
+                CHECK (sample_rate >= 0),
+            channel_mode varchar(10) NOT NULL default '',
+            bitrate float NOT NULL default '0'
+                CHECK (bitrate >= 0),
+            bitrate_mode varchar(4) NOT NULL default '',
+            playtime varchar(10) NOT NULL default '',
+            PRIMARY KEY  (vid)
+        );
+      ");
+      db_query("
+        CREATE TABLE {audio_file} (
+            vid integer NOT NULL default '0'
+                CHECK (vid >= 0),
+            origname varchar(255) NOT NULL default '',
+            filename varchar(255) NOT NULL default '',
+            filepath varchar(255) NOT NULL default '',
+            filemime varchar(255) NOT NULL default '',
+            filesize integer NOT NULL default '0'
+                CHECK (filesize >= 0),
+            PRIMARY KEY  (vid)
+        );
+      ");
+      db_query("
+        CREATE TABLE {audio_metadata} (
+            vid integer NOT NULL default '0'
+                CHECK (vid >= 0),
+            tag varchar(45) NOT NULL default '',
+            value varchar(255) NOT NULL default '',
+            clean varchar(255) NOT NULL default '',
+            PRIMARY KEY  (vid, tag, value)
+        );
+      ");
+      break;
+  }
+
+  _audio_add_default_perms();
+}
+
+/**
+ * Add permission to download and view audio to the anonymous and authenticated
+ * roles by default.
+ */
+function _audio_add_default_perms() {
+  $newperms = array('download audio', 'play audio', 'view download stats');
+  $rids = array(DRUPAL_ANONYMOUS_RID, DRUPAL_AUTHENTICATED_RID);
+  foreach ($rids as $rid) {
+    $result = db_result(db_query("SELECT perm FROM {permission} WHERE rid = %d", $rid));
+    if ($result) {
+      $perms = explode(', ', $result);
+      foreach ($newperms as $newperm) {
+        if (!in_array($newperm, $perms)) {
+          $perms[] = $newperm;
+        }
+      }
+      db_query("UPDATE {permission} SET perm = '%s' WHERE rid = %d", implode(', ', $perms), $rid);
+    }
+    else {
+      db_query("INSERT INTO {permission} (rid, perm) VALUES (%d, '%s')", $rid, implode(', ', $newperms));
+    }
+  }
+}
+
+
+/**
+ * Add a field to track downloads. Rename the play count field.
+ */
+function audio_update_9() {
+  $ret = array();
+  switch ($GLOBALS['db_type']) {
+    case 'mysql':
+    case 'mysqli':
+      $ret[] = update_sql(
+<<<MYSQL_UPDATE
+        ALTER TABLE {audio}
+          CHANGE COLUMN `playcount` `play_count` INTEGER UNSIGNED NOT NULL DEFAULT 0,
+          ADD COLUMN `download_count` INTEGER UNSIGNED NOT NULL DEFAULT 0 AFTER `play_count`;
+MYSQL_UPDATE
+      );
+      break;
+  }
+  return $ret;
+}
+
+/**
+ * Change the way the lists of allowed and browsable tags are stored.
+ */
+function audio_update_10() {
+  // don't bother if they haven't changed the allowed tags setting.
+  if (variable_get('audio_allowed_tags', FALSE)) {
+    $allowed = explode(' ', variable_get('audio_allowed_tags', 'artist title album track year genre'));
+    $browsable = explode(' ', variable_get('audio_browseable_tags', 'artist title album year genre'));
+    $settings = array();
+    $weight = -10;
+
+    foreach ($allowed as $tag) {
+      $settings[$tag] = array(
+        'required' => 0,
+        'hidden' => 0,
+        'writetofile' => 1,
+        'browsable' => (int) in_array($tag, $browsable),
+        'weight' => $weight++,
+      );
+    }
+    variable_set('audio_tag_settings', $settings);
+  }
+  return array();
+}
+
+/**
+ * Expand the tag lengths to 45 characters to allow the longest tag defined
+ * by getID3.
+ */
+function audio_update_11() {
+  $ret = array();
+  switch ($GLOBALS['db_type']) {
+    case 'mysql':
+    case 'mysqli':
+      $ret[] = update_sql(
+<<<MYSQL_UPDATE
+        ALTER TABLE {audio_metadata}
+          MODIFY COLUMN `tag` VARCHAR(45) NOT NULL DEFAULT '';
+MYSQL_UPDATE
+      );
+      break;
+  }
+
+  return $ret;
+}
+
+/**
+ * Add download and play permisions for anon and auth users by default.
+ */
+function audio_update_12() {
+  _audio_add_default_perms();
+  return array();
+}
+
+/**
+ * Try to clean up a bug that wasn't setting the audio_file.origname field.
+ */
+function audio_update_13() {
+  $ret = array();
+  $ret[] = update_sql("UPDATE {audio_file} SET origname = filename WHERE origname='' OR origname IS NULL;");
+  return $ret;
+}
+
+/**
+ * Add an autocomplete setting to the metadata tags.
+ */
+function audio_update_14() {
+  // remove some old variables that should have been deleted back in update 10
+  variable_del('audio_allowed_tags');
+  variable_del('audio_browseable_tags');
+  variable_del('audio_block_browse_tags');
+
+  // don't bother if they haven't changed the allowed tags setting.
+  $tags = variable_get('audio_tag_settings', FALSE);
+  if (is_array($tags) && count($tags)) {
+    $autocomplete = array('artist', 'title', 'album', 'genre');
+    foreach ($tags as $name => $tag) {
+      $tags[$name]['autocomplete'] = (int) in_array($name, $autocomplete);
+    }
+    variable_set('audio_tag_settings', $tags);
+  }
+  return array();
+}
+

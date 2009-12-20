@@ -1,0 +1,26 @@
+<?php
+
+// $Id$
+
+
+/**
+ * Install the initial schema.
+ */
+function personal_audio_playlist_install() {
+  switch ($GLOBALS['db_type']) {
+    case 'mysql':
+    case 'mysqli':
+      db_query(
+<<<MYSQL_UPDATE
+CREATE TABLE `personal_audio_playlist` (
+  `pa_id` int(10) unsigned NOT NULL auto_increment,
+  `uid` int(10) unsigned NOT NULL default '0',
+  `nid` int(10) unsigned NOT NULL default '0',
+  PRIMARY KEY  (`pa_id`),
+  KEY `uid` (`uid`)
+) TYPE=MyISAM /*!40100 DEFAULT CHARACTER SET utf8 */;
+MYSQL_UPDATE
+      );
+      break;
+  }
+}

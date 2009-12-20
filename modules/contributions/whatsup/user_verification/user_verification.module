@@ -1,0 +1,228 @@
+<?php
+/* $Id: user_verification.module,v 1.1 2007/02/01 15:39:19 leob Exp $ */
+
+/**
+ * @file
+ * Provides a way for managers to mark a user as verified.
+ * 
+ */
+
+ 
+/**
+ * Implementation of hook_help().
+ */
+function user_verification_help($section) {
+  switch ($section) {
+    case 'admin/modules#description':
+      return t('Provides a way for managers to mark a user as verified.');
+    case 'admin/help#user_verification':
+      return t('Provides a way for managers to mark a user as verified.');
+    case 'admin/user_verification':
+      return t('<p>Use this page to check which users have already been verified.</p>');      
+  }
+}
+
+
+/**
+ * Implementation of hook_user()
+ */
+function user_verification_user($op, &$edit, &$account, $category = NULL) {
+
+  switch($op) {
+      
+    case 'load':
+      if ($account->uid) {
+        $query = "SELECT * FROM {user_verification} WHERE `uid` = '%d'";
+        $db_entry = db_fetch_array(db_query($query, $account->uid));
+        if (!$db_entry) {
+          watchdog('user_verification', t('Creating user_verification information for user %user.', array('%user' => $account->uid)), WATCHDOG_WARNING);
+          $query2 = "INSERT INTO {user_verification} (uid, verified) VALUES (%d, %d)";
+          $verified = ($account->uid == 1)?1:0;
+          $db_result = db_query($query2, $account->uid, $verified);
+          if (!$db_result) {
+            $error_msg = t("Could not create user_verification entry: %e", array('%e' => db_error()));
+            watchdog('user_verification', $error_msg, WATCHDOG_ERROR);
+            return FALSE;
+          }
+          $db_entry = db_fetch_array(db_query($query, $account->uid));
+        }
+        $account->verified = $db_entry['verified'];
+      }
+      break;
+
+    case 'view':
+      $status = $account->verified?t('This user has been verified'):t('Attention: this user has not been verified, yet');
+      $item = array('title' => t('User verification'), 
+                    'value' => $status,
+                    'class' => 'user_verification');
+      $user_verification_info[] = $item;
+      // return
+      $rc = array(t('User verification') => $user_verification_info);
+      return $rc;
+      break;
+      
+    case 'register':
+    case 'form':
+      if (($op == 'register') || (($op == 'form') && ($category == 'account'))) {
+        if (user_access('administer user verification')) {
+          $form = array();
+
+          $form['user_verification_form'] = array( 
+            '#type' => 'fieldset',
+            '#title' => t('Account verification'),
+            '#collapsible' => FALSE,
+            '#collapsed' => FALSE,
+            '#weight' => -1,
+          );
+          
+          $form['user_verification_form']['user_verification_form_user_verified'] = array(
+            '#type' => 'radios',
+            '#title' => t('Has this user been verified?'),
+            '#default_value' => $account->verified,
+            '#options' => array(t('no'), t('yes')),
+            );
+          return $form;
+        }
+      }
+      break;
+
+    case 'insert':
+    case 'update':
+      if (isset($edit['user_verification_form_user_verified'])) {
+        $verified = $edit['user_verification_form_user_verified'];
+        $edit['user_verification_form_user_verified'] = NULL;          
+        $query = "UPDATE {user_verification} SET `verified` = %d WHERE `uid` = %d";
+        $db_result = db_query($query, $verified, $account->uid);
+        if (!$db_result) {
+          $error_msg = t("Could not update user_verification entry: %e", array('%e' => db_error()));
+          watchdog('user_verification', $error_msg, WATCHDOG_ERROR);
+        }
+      }
+      break;
+
+    case 'delete':
+      // delete the user entry
+      $query = 'DELETE FROM {user_verification} WHERE `uid` = %d';
+      db_query($query, $account->uid);
+      break;
+  }
+}
+
+/**
+ * Implementation of hook_perm().
+ */
+function user_verification_perm() {
+  return array('administer user verification');
+}
+
+/**
+ * Implementation of hook_xmlrpc()
+ */
+function user_verification_xmlrpc() {
+  return array(
+    array(
+      'user_verification.isVerified',
+      'user_verification_is_verified', 
+      array('boolean', 'int'),
+      t('checks if the specified user has been verified.')
+    ),
+  );
+}
+
+function user_verification_is_verified ($uid = NULL) {
+  if (!$uid) {
+    global $user;
+    $uid = $user->uid;
+  }
+  $account = user_load(array('uid' => $uid));
+  if (!$account) {
+    return FALSE;
+  }
+  else {
+    return $account->verified;
+  }
+}
+
+/**
+ * Implementation of hook_menu().
+ */
+function user_verification_menu($may_cache) {
+  $items = array();
+  if (!$may_cache) {
+    $items[] = array('path' => 'admin/user_verification', 'title' => t('user verification'),
+      'callback' => '_user_verification_status_page', 'callback arguments' => array('admin/user_verification'),
+      'access' => user_access('administer user verification'),
+      'weight' => 3);
+  }
+  return $items;
+}
+
+
+function _user_verification_status_page($url_string) {
+	
+  // present the verification filter form
+  $status_list['all'] = t('all users');
+  $status_list['unverified'] = t('unverified users');
+  $status_list['verified'] = t('verified users');
+
+  if (empty($_SESSION['user_verification_filter'])) {
+    $_SESSION['user_verification_filter'] = 'all';
+  }
+
+  $form['filter'] = array(
+    '#type' => 'select',
+    '#title' => t('Filter by user status'),
+    '#options' => $status_list,
+    '#default_value' => $_SESSION['user_verification_filter']
+  );
+  $form['#action'] = url($url_string);
+
+  $form['submit'] = array('#type' => 'submit', '#value' =>t('Filter'));
+  $output = drupal_get_form('user_verification_status_page_form', $form);
+
+  // format the verificaiton status page
+  $header = array(
+    array('data' => t('User id'), 'field' => 'uid'),
+    array('data' => t('User name'), 'field' => 'name', 'sort' => 'asc'),
+    array('data' => t('Member since'), 'field' => 'u.created'),
+    array('data' => t('Status'), 'field' => 'verified'),
+    t('Action')
+  );
+  
+  $query = "SELECT u.uid, u.name, u.created, v.verified " 
+  		   . " FROM {users} u LEFT JOIN {user_verification} v ON u.uid=v.uid " 
+  		   . " WHERE u.status=%d  ";
+  $status = 1;
+  $query_args = array($status);
+
+  $type = $_SESSION['user_verification_filter'];
+  if ($type == 'unverified'){
+    $query .= "AND v.verified = 0 ";
+  }
+  else if ($type != 'all') {
+    $query .= "AND v.verified = 1 ";
+  }
+  
+  $query .= tablesort_sql($header);
+  
+  $result = pager_query($query, 30, 0, NULL, $query_args);
+  $rows = array();
+  while ($entry = db_fetch_array($result)) {
+  	if (!isset($entry['verified'])) {
+  	  $entry['verified'] = 0;
+  	}
+  	$entry['name'] = l($entry['name'], "user/{$entry['uid']}", array());
+  	$entry['verified'] = $entry['verified']?t('verified'):t('unverified');
+  	$entry['created'] = format_date($entry['created'], 'custom', 'm/d/Y');
+  	$entry['action'] = l(t('edit'), "user/{$entry['uid']}/edit", array());
+    $rows[] = $entry;
+  }
+  $output .= theme('table', $header, $rows);
+  $output .= theme('pager', NULL, 30, 0);
+  return $output;
+}
+
+function user_verification_status_page_form_submit($form_id, $form) {
+  global $form_values;
+  $_SESSION['user_verification_filter'] = $form_values['filter'];
+}

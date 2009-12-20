@@ -1,0 +1,203 @@
+<?php
+/* $Id: referred_by.module,v 1.2 2006/09/23 14:04:06 leob Exp $ */
+
+/**
+ * @file
+ * Implements functionality associated with membership referral.
+ * 
+ */
+
+/**
+ * Required files
+ */
+ 
+ 
+/**
+ * Implementation of hook_help().
+ */
+function referred_by_help($section) {
+  switch ($section) {
+    case 'admin/modules#description':
+      return t('Implements functionality associated with membership referral.');
+    case 'admin/help#referred_by':
+      return t("Implements functionality associated with membership referral.");
+  }
+}
+
+/**
+ * Implementation of hook_user()
+ */
+function referred_by_user($op, &$edit, &$account, $category = NULL) {
+  switch($op) {
+    case 'register':
+    case 'form':
+      if (($op == 'register') || (($op == 'form') && ($category == 'account'))) {
+        // Referral information
+        $form = array();
+        $form['referral'] = array('#type' => 'fieldset', '#title' => t('Referral information'), '#collapsible' => TRUE, '#collapsed' => FALSE, '#weight' => 20);
+        $default_value = '';
+        if (($account->referred_by) && ($account->referred_by['referred_by'])) {
+          // determine the name of the referrer user
+      	  $query = 'SELECT * FROM {referred_by} WHERE `uid` = %d';
+          $referrer_entry = db_fetch_array(db_query($query, $account->referred_by['referred_by']));
+          if (!$referrer_entry) {
+            watchdog('referred_by', t('Error retrieving information for user %uid.', array('%uid' => $account->referred_by['referred_by'])), WATCHDOG_ERROR);
+       	    return;
+          }
+      	  if ($referrer_entry['name_when_deleted']) {
+      	    $default_value = t('%user_name (deleted)', array('%user_name' => $referrer_entry['name_when_deleted']));
+      	  }
+      	  else {
+            $referrer_user = user_load(array('uid' => $referrer_entry['uid']));
+            $default_value = $referrer_user->name;
+      	  }
+        }
+        $form['referral']['form_referred_by'] = array('#type' => 'textfield', '#title' => t('Referred by'), '#maxlength' => 60, '#autocomplete_path' => 'user/autocomplete', '#default_value' => $default_value, '#weight' => -1, '#description' => t('Please type in the id of the user who referred you to this site. Leave blank for %anonymous.', array('%anonymous' => theme('placeholder', variable_get('anonymous', 'Anonymous')))));
+        return $form;
+      }
+
+    case 'validate':
+      if (isset($edit['form_referred_by'])) {
+        if ($account->name && ($edit['form_referred_by'] == $account->name)) {
+          form_set_error('form_referred_by', t('You are not allowed to refer yourself. If no one referred you to this website, please leave this field in blank.'));
+        }
+        else {
+          $user = user_load(array('name' => $edit['form_referred_by']));
+          if (!$user) {
+            form_set_error('form_referred_by', t('Invalid user name. If no one referred you to this website, please leave this field in blank.'));
+          }
+        }
+      }
+      break;
+
+    case 'insert':
+    case 'update':  
+      if (isset($edit['form_referred_by'])) {
+      	$user = user_load(array('name' => $edit['form_referred_by']));
+watchdog('referred_by', 'user: ' . print_r($user, TRUE));
+        $query = "UPDATE {referred_by} SET `referred_by` = %d WHERE `uid` = %d";
+        $db_result = db_query($query, $user->uid, $account->uid);
+        if (!$db_result) {
+          $error_msg = t("Could not update referred_by entry: %e", array('%e' => db_error()));
+          watchdog('referred_by', $error_msg, WATCHDOG_ERROR);
+          return FALSE;
+        }
+        $edit['form_referred_by'] = NULL;
+      }
+      break;
+      
+    case 'load':
+      if ($account->uid) {
+      $query = "SELECT `referred_by` FROM {referred_by} WHERE `uid` = '%d'";
+      $db_entry = db_fetch_array(db_query($query, $account->uid));
+      if (!$db_entry) {
+        watchdog('referred_by', t('Creating referral information for user %user.', array('%user' => print_r($account, TRUE))), WATCHDOG_WARNING);
+        watchdog('referred_by', t('Creating referral information for user %user.', array('%user' => $account->uid)), WATCHDOG_WARNING);
+        $query2 = "INSERT INTO {referred_by} (`uid`, `referred_by`) VALUES (%d, %d)";
+        $db_result = db_query($query2, $account->uid, 0);
+        if (!$db_result) {
+          $error_msg = t("Could not create referred_by entry: %e", array('%e' => db_error()));
+          watchdog('referred_by', $error_msg, WATCHDOG_ERROR);
+          return FALSE;
+        }
+        $db_entry = db_fetch_array(db_query($query, $account->uid));
+      }
+      $account->referred_by = $db_entry;
+      }
+      break;
+
+    case 'view':
+      $referral_info = array();
+      // retrieve referer information
+      $user = NULL;
+      $default_value = t('no one');
+      if ($account->referred_by['referred_by']) {
+      	// determine the name of the referrer user
+      	$query = 'SELECT * FROM {referred_by} WHERE `uid` = %d';
+        $referrer_entry = db_fetch_array(db_query($query, $account->referred_by['referred_by']));
+        if (!$referrer_entry) {
+          watchdog('referred_by', t('Error retrieving information for user %uid.', array('%uid' => $account->referred_by['referred_by'])), WATCHDOG_ERROR);
+       	  return;
+        }
+      	if ($referrer_entry['name_when_deleted']) {
+          $default_value = t('%user_name (deleted)', array('%user_name' => $referrer_entry['name_when_deleted']));
+      	}
+      	else {
+          $referrer_user = user_load(array('uid' => $referrer_entry['uid']));
+          $default_value = $referrer_user->name;
+      	}
+      }
+      $referral_items = array('title' => t('Member referred by:'), 
+                              'value' => $default_value,
+                              'class' => 'name');
+      $referral_info[] = $referral_items;
+      // calculate direct referrals made by user being shown
+      $query = "SELECT COUNT(*) FROM {referred_by} WHERE `referred_by` = %d";
+      $count = db_result(db_query($query, $account->uid));
+      $referral_items = array('title' => t('Number of members directed referred by this user:'), 
+                              'value' => $count,
+                              'class' => 'count');
+      $referral_info[] = $referral_items;
+      // return
+      $rc = array(t('Referral info') => $referral_info);
+      return $rc;
+
+    case 'delete':
+      $query = 'SELECT COUNT(*) FROM {referred_by} WHERE `referred_by` = %d';
+      $count = db_result(db_query($query, $account->uid));
+      // if no one has been referred by the user being deleted...
+      if ($count == 0) {
+      	// retrieve 'referred_by' entry associated with the user being deleted
+      	$query = 'SELECT `referred_by` FROM {referred_by} WHERE `uid` = %d';
+        $referred_by = db_result(db_query($query, $account->uid));
+      	// delete the user entry
+        $query = 'DELETE FROM {referred_by} WHERE `uid` = %d';
+        db_query($query, $account->uid);
+watchdog('teste', "deleting uid: $account->uid");
+        // update the reference tree
+        _referred_by_clean_references_to($referred_by);
+      }
+      else {
+        // maintain the name and uid of the deleted user in the table while the users he referred to are still in the system
+        $query = "UPDATE {referred_by} SET `name_when_deleted` = '%s' WHERE `uid` = %d";
+        $db_result = db_query($query, $account->name, $account->uid);
+watchdog('teste', "updating uid: $account->uid");
+      }
+      break;
+   
+  }
+}
+
+/*
+ * Update reference tree by deleting all the entries whose users have already been deleted and that do not point to any active user anymore
+ */
+function _referred_by_clean_references_to($referred_by) {
+  while ($referred_by) {
+    $query = 'SELECT * FROM {referred_by} WHERE `uid` = %d';
+    $referred_by_entry = db_fetch_array(db_query($query, $referred_by));
+    if (!$referred_by_entry) {
+      watchdog('referred_by', t('Error retrieving entry for user %uid', array('%uid' => $account->uid)), WATCHDOG_ERROR);
+      return FALSE;
+    }
+    // if the referrer user had already been deleted and has not referred anyone else, delete it
+    if ($referred_by_entry['name_when_deleted']) {
+      $query = 'SELECT COUNT(*) FROM {referred_by} WHERE `referred_by` = %d';
+      $count = db_result(db_query($query, $referred_by));
+      if ($count == 0) {
+      	// delete the referrer user from the table
+        $query = 'DELETE FROM {referred_by} WHERE `uid` = %d';
+        db_query($query, $referred_by_entry['uid']);
+watchdog('teste', "deleting uid: " . $referred_by_entry['uid']);
+    	// do the same for the referrer of the referrer
+    	$referred_by = $referred_by_entry['referred_by'];
+      }
+      else {
+        return TRUE;
+      }
+    }
+    else {
+      return TRUE;
+    }
+  }
+}
+

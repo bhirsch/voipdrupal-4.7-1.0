@@ -1,0 +1,1217 @@
+# translation of nl.po to DUTCH
+# Hendrik Eeckhaut <Hendrik.Eeckhaut@UGent.be>, 2006.
+msgid ""
+msgstr ""
+"Project-Id-Version: nl\n"
+"POT-Creation-Date: 2006-08-02 23:30+0200\n"
+"PO-Revision-Date: 2006-08-03 08:25+0200\n"
+"Last-Translator: Hendrik Eeckhaut <Hendrik.Eeckhaut@UGent.be>\n"
+"Language-Team: DUTCH <nl@li.org>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms:  nplurals=2; plural=(n != 1);\n"
+"X-Generator: KBabel 1.11.2\n"
+
+#: node.tpl.php:21 og.module:55;325;751;883;1143
+msgid "groups"
+msgstr "groepen"
+
+#: og_views.inc:266 og.module:779;1961
+msgid "Title"
+msgstr "Titel"
+
+#: og_views.inc:273 og.module:1961
+msgid "Author"
+msgstr "Auteur"
+
+#: og_views.inc:279 og.module:1961
+msgid "Replies"
+msgstr "Antwoorden"
+
+#: og_views.inc:459 og.module:553;1839
+msgid "subscribe"
+msgstr ""
+
+#: og_views.inc:469 og.module:1822
+msgid "my subscription"
+msgstr ""
+
+#: og.module:709 og_basic.module:62
+msgid "Name"
+msgstr "Naam"
+
+#: node.tpl.php:25
+msgid "categories"
+msgstr "categorieën"
+
+#: og_xmlrpc.inc:13
+msgid "unrecognized user ID: %uid"
+msgstr ""
+
+#: og_xmlrpc.inc:17;37;52
+msgid "Wrong username or password."
+msgstr "Foute gebruikersnaam of wachtwoord."
+
+#: og_xmlrpc.inc:33
+msgid "User is not a member of the specified group"
+msgstr ""
+
+#: og_xmlrpc.inc:48
+msgid "User is not allowed to retrieve subscriptions for another user."
+msgstr ""
+
+#: og_basic.module:9
+msgid ""
+"A group provides a home page for like minded users. There they post articles "
+"about their shared interest."
+msgstr ""
+
+#: og_basic.module:11
+msgid "Basic group node for Organic groups"
+msgstr ""
+
+#: og_basic.module:22;34
+msgid "group"
+msgstr ""
+
+#: og_basic.module:63
+msgid "Welcome message"
+msgstr "Welkomsbericht"
+
+#: og_basic.module:63
+msgid "This message is shown by default at the top of the group home page."
+msgstr ""
+
+#: og_basic.module:55
+msgid "create groups"
+msgstr ""
+
+#: og_basic.module:0
+msgid "og_basic"
+msgstr ""
+
+#: og.module:39
+msgid "Organic groups"
+msgstr ""
+
+#: og.module:41
+msgid ""
+"Group specific blocks are only visible on group pages and not on systemwide "
+"pages like the home page or admin pages."
+msgstr ""
+
+#: og.module:43
+msgid ""
+"In order to let group admins determine their own group theme, you must "
+"enable multiple themes using %page."
+msgstr ""
+
+#: og.module:43
+msgid "theme configuration page"
+msgstr ""
+
+#: og.module:54
+msgid "subscribe to group"
+msgstr ""
+
+#: og.module:58
+msgid "my groups"
+msgstr ""
+
+#: og.module:59
+msgid "unsubscribe from group"
+msgstr ""
+
+#: og.module:60
+msgid "approve subscription request"
+msgstr ""
+
+#: og.module:61
+msgid "deny subscription request"
+msgstr ""
+
+#: og.module:62
+msgid "create group administrator"
+msgstr ""
+
+#: og.module:63
+msgid "delete group administrator"
+msgstr ""
+
+#: og.module:64
+msgid "remove post from group"
+msgstr ""
+
+#: og.module:65
+msgid "group feed"
+msgstr ""
+
+#: og.module:73
+msgid "subscriber management"
+msgstr ""
+
+#: og.module:74
+msgid "list"
+msgstr ""
+
+#: og.module:75
+msgid "manage subscription"
+msgstr ""
+
+#: og.module:76
+msgid "send invitation"
+msgstr ""
+
+#: og.module:78
+msgid "add subscribers"
+msgstr ""
+
+#: og.module:88
+msgid "email"
+msgstr ""
+
+#: og.module:265
+msgid "Send email to %group"
+msgstr ""
+
+#: og.module:273
+msgid ""
+"Your email will be sent to %count in this group. Please use this feature "
+"sparingly."
+msgstr ""
+
+#: og.module:275
+msgid "Subject"
+msgstr "Onderwerp"
+
+#: og.module:275
+msgid "Enter a subject for your email."
+msgstr ""
+
+#: og.module:276
+msgid "Body"
+msgstr "Berichttekst"
+
+#: og.module:276
+msgid "Enter a body for your email."
+msgstr ""
+
+#: og.module:277
+msgid "Send email"
+msgstr "E-mail verzenden"
+
+#: og.module:284
+msgid ""
+"\n"
+"\n"
+"--------------------------------\n"
+"This message was sent by an administrator in the '%group' group at %site. To "
+"visit this group, browse to %url1. To unsubscribe from this group, visit %"
+"url2"
+msgstr ""
+
+#: og.module:296
+msgid "%count emails sent."
+msgstr ""
+
+#: og.module:312
+msgid ""
+"You may not unsubscribe from this group because it is a %closed group. You "
+"should request unsubscription from a group administrator."
+msgstr ""
+
+#: og.module:312;1844
+msgid "closed"
+msgstr "gesloten"
+
+#: og.module:315
+msgid ""
+"You may not unsubscribe from this group because you are its owner. A site "
+"administrator can assign ownership to another user and then you can "
+"unsubscribe."
+msgstr ""
+
+#: og.module:318
+msgid "Unsubscribe from this group"
+msgstr ""
+
+#: og.module:319
+msgid "Goodbye"
+msgstr ""
+
+#: og.module:319
+msgid "Actions"
+msgstr ""
+
+#: og.module:321
+msgid "Email notification"
+msgstr ""
+
+#: og.module:321;1881
+msgid "enabled"
+msgstr ""
+
+#: og.module:321;1886
+msgid "disabled"
+msgstr "uitgezet"
+
+#: og.module:321
+msgid "Do you want to receive an email each time a message is posted to this group?"
+msgstr ""
+
+#: og.module:322;669
+msgid "Submit"
+msgstr "Indienen"
+
+#: og.module:325
+msgid "home"
+msgstr ""
+
+#: og.module:333
+msgid "Subscription saved."
+msgstr ""
+
+#: og.module:382
+msgid "Subscription request approved."
+msgstr ""
+
+#: og.module:383
+msgid "Subscription request approved for '%title'"
+msgstr ""
+
+#: og.module:384
+msgid "You may now post messages in this group located at %url"
+msgstr ""
+
+#: og.module:400
+msgid "Subscription request denied."
+msgstr ""
+
+#: og.module:401
+msgid "Subscription request denied for %title"
+msgstr ""
+
+#: og.module:402
+msgid "Sorry, your subscription request was denied."
+msgstr ""
+
+#: og.module:418
+msgid "User was promoted to %ga"
+msgstr ""
+
+#: og.module:418;430
+msgid "group administrator"
+msgstr ""
+
+#: og.module:430
+msgid "User is no longer a %ga"
+msgstr ""
+
+#: og.module:441
+msgid "Confirmation"
+msgstr "Bevestiging "
+
+#: og.module:441
+msgid "Remove %title from this group."
+msgstr ""
+
+#: og.module:443
+msgid "Remove"
+msgstr "Verwijderen"
+
+#: og.module:458
+msgid "%title removed from group."
+msgstr ""
+
+#: og.module:479
+msgid "Email addresses or usernames"
+msgstr ""
+
+#: og.module:479
+msgid ""
+"Enter up to %max email addresses or usernames. Separate multiple addresses "
+"by commas or new lines. Each person will receive an invitation message from "
+"you."
+msgstr ""
+
+#: og.module:480
+msgid "Personal message"
+msgstr "Persoonlijk bericht"
+
+#: og.module:480
+msgid "Optional. Enter a message which will become part of the invitation email."
+msgstr ""
+
+#: og.module:481
+msgid "Send invitation"
+msgstr "Uitnodigingverzenden"
+
+#: og.module:495
+msgid "You may not specify more than %max email addresses or usernames."
+msgstr ""
+
+#: og.module:519
+msgid "invalid email address or username: "
+msgstr ""
+
+#: og.module:531
+msgid "Invitation to join the group \"%group\" at %site"
+msgstr ""
+
+#: og.module:532
+msgid ""
+"Hi. I'm a member of '%group' and I welcome you to join this group as well. "
+"Please see the link and message below.\n"
+"\n"
+msgstr ""
+
+#: og.module:535
+msgid "Subscribe: %url"
+msgstr ""
+
+#: og.module:553
+msgid ""
+"In order to subscribe to this group, you must login or register a new "
+"account. After you have successfully done so, you will need to follow the %"
+"subscribe link again."
+msgstr ""
+
+#: og.module:594
+msgid "Subscription request for '%group' from '%name'"
+msgstr ""
+
+#: og.module:595
+msgid "To instantly approve this request, visit %url. "
+msgstr ""
+
+#: og.module:596
+msgid "You may deny this request or manage subscribers at %url"
+msgstr ""
+
+#: og.module:602
+msgid "Subscription request to the %group group awaits approval by an administrator."
+msgstr ""
+
+#: og.module:608
+msgid "Subscribed to the %group group"
+msgstr ""
+
+#: og.module:613
+msgid ""
+"Subscription request to the %group group was rejected, only group "
+"administrators can add users to this group."
+msgstr ""
+
+#: og.module:634
+msgid "User unsubscribed from group."
+msgstr ""
+
+#: og.module:664
+msgid "List of users"
+msgstr "Lijst van gebruikers"
+
+#: og.module:667
+msgid ""
+"Add one or more usernames in order to associate users with this group. "
+"Multiple usernames should be separated by a comma."
+msgstr ""
+
+#: og.module:689
+msgid "Unrecognized %names: "
+msgstr ""
+
+#: og.module:705
+msgid "%count added to the group"
+msgstr ""
+
+#: og.module:713
+msgid "Operations"
+msgstr "Handelingen"
+
+#: og.module:717
+msgid "manager"
+msgstr ""
+
+#: og.module:719
+msgid "edit group"
+msgstr "groep bewerken"
+
+#: og.module:731
+msgid "unsubscribe"
+msgstr ""
+
+#: og.module:733
+msgid "admin: remove"
+msgstr ""
+
+#: og.module:736
+msgid "admin: create"
+msgstr ""
+
+#: og.module:740
+msgid "approve"
+msgstr ""
+
+#: og.module:741
+msgid "deny"
+msgstr "weigeren"
+
+#: og.module:751
+msgid "Home"
+msgstr "Start"
+
+#: og.module:753;779
+msgid "Subscribers"
+msgstr ""
+
+#: og.module:779
+msgid "Manager"
+msgstr ""
+
+#: og.module:779;960
+msgid "Description"
+msgstr "Beschrijving"
+
+#: og.module:791
+msgid "No groups"
+msgstr "Geen groepen"
+
+#: og.module:794
+msgid ""
+"You may also view an <a href=\"%opml\">OPML file</a> listing RSS feeds from "
+"your subscribed groups."
+msgstr ""
+
+#: og.module:889
+msgid " RSS feed"
+msgstr ""
+
+#: og.module:928
+msgid "No posts in this group."
+msgstr ""
+
+#: og.module:931
+msgid ""
+"No public posts in this group. Consider subscribing to this group in order "
+"to view its posts."
+msgstr ""
+
+#: og.module:960
+msgid "A brief description for the group details block and the group directory."
+msgstr ""
+
+#: og.module:961
+msgid "Group website"
+msgstr ""
+
+#: og.module:961
+msgid "If your group has its own website, enter the address here."
+msgstr ""
+
+#: og.module:969
+msgid "Subscription requests"
+msgstr ""
+
+#: og.module:969
+msgid "open - subscription requests are accepted immediately."
+msgstr ""
+
+#: og.module:969
+msgid "moderated - subscription requests must be approved."
+msgstr ""
+
+#: og.module:969
+msgid "invite only - subscriptions must be created by an administrator."
+msgstr ""
+
+#: og.module:969
+msgid "closed - subscriptions are fully administered by an administrator."
+msgstr ""
+
+#: og.module:969
+msgid ""
+"How should subscription requests be handled in this group? When you select "
+"<em>closed</em>, users will not be able to subscribe <strong>or</strong> "
+"unsubscribe."
+msgstr ""
+
+#: og.module:990;1909
+msgid "registration form"
+msgstr ""
+
+#: og.module:990
+msgid ""
+"Should this group be available for subscription during registration?. If "
+"checked, a corresponding checkbox will be added to the registration form."
+msgstr ""
+
+#: og.module:1014
+msgid "list in groups directory"
+msgstr ""
+
+#: og.module:1014
+msgid "Should this group appear on the %page?"
+msgstr ""
+
+#: og.module:1014
+msgid "list of groups page"
+msgstr ""
+
+#: og.module:1039
+msgid "subscribe to email notifications"
+msgstr ""
+
+#: og.module:1041
+msgid ""
+"Should subscribers to this group be automatically notified via email of new "
+"posts and comments? Users may always change this setting on their %"
+"mysubscription page."
+msgstr ""
+
+#: og.module:1041
+msgid "My subscription"
+msgstr ""
+
+#: og.module:1050
+msgid "Language"
+msgstr "Taal"
+
+#: og.module:1053
+msgid ""
+"Selecting a different locale will change the interface language of the "
+"group. Users who have chosen a preferred language always see their chosen "
+"language."
+msgstr ""
+
+#: og.module:1058
+msgid "Selecting a different theme will change the look and feel of the group."
+msgstr ""
+
+#: og.module:1086
+msgid "Please enter a valid URL for group website, such as  http://www.example.com/"
+msgstr ""
+
+#: og.module:1281;1284;1921;1922
+msgid "Public"
+msgstr ""
+
+#: og.module:1281
+msgid ""
+"Show this post to everyone, or only to subscribers of the groups checked "
+"below. Only uncheck this box if truly needed."
+msgstr ""
+
+#: og.module:1284
+msgid ""
+"Show this post to everyone, or only to subscribers of the groups checked "
+"below. Only check this box if truly needed."
+msgstr ""
+
+#: og.module:1300
+msgid "Audience"
+msgstr ""
+
+#: og.module:1300
+msgid "Show this post in these groups."
+msgstr ""
+
+#: og.module:1305;1466;1491
+msgid "Groups"
+msgstr "Groepen"
+
+#: og.module:1388
+msgid "%author added '%title' at %site"
+msgstr ""
+
+#: og.module:1390
+msgid "View original: "
+msgstr ""
+
+#: og.module:1391
+msgid "Post reply: "
+msgstr ""
+
+#: og.module:1394
+msgid ""
+"You are subscribed to the group '%group_name' at '%site'. To manage your "
+"subscription, visit %group_url"
+msgstr ""
+
+#: og.module:1459
+msgid "Subscribe to %name."
+msgstr ""
+
+#: og.module:1462
+msgid "(approval needed)"
+msgstr ""
+
+#: og.module:1600
+msgid ""
+"Organic groups access control has been disabled. You may now disable the "
+"module on the <em>%modules</em> page"
+msgstr ""
+
+#: og.module:1600
+msgid "admin/modules"
+msgstr ""
+
+#: og.module:1614
+msgid "Organic groups access control enabled."
+msgstr ""
+
+#: og.module:1642;1894
+msgid "Group details"
+msgstr "Groepdetails"
+
+#: og.module:1644
+msgid "Group authors"
+msgstr ""
+
+#: og.module:1645;1746
+msgid "New groups"
+msgstr "Nieuwe groepen"
+
+#: og.module:1646;1719
+msgid "My groups"
+msgstr ""
+
+#: og.module:1647;1697
+msgid "Group notifications"
+msgstr ""
+
+#: og.module:1670
+msgid "Maximum number of items to show"
+msgstr ""
+
+#: og.module:1688
+msgid "This group offers a %groupfeed and an %email."
+msgstr ""
+
+#: og.module:1688
+msgid "RSS feed"
+msgstr ""
+
+#: og.module:1688
+msgid "email subscription"
+msgstr ""
+
+#: og.module:1690
+msgid " Or subscribe to these personalized, sitewide feeds:"
+msgstr ""
+
+#: og.module:1691
+msgid "my unread: "
+msgstr ""
+
+#: og.module:1692
+msgid "my groups: "
+msgstr ""
+
+#: og.module:1693
+msgid "all posts: "
+msgstr ""
+
+#: og.module:1712;1744;1779
+msgid "more"
+msgstr "meer"
+
+#: og.module:1712
+msgid "Browse all of my groups."
+msgstr ""
+
+#: og.module:1729;1729
+msgid "OPML file"
+msgstr ""
+
+#: og.module:1744
+msgid "Browse the newest groups."
+msgstr ""
+
+#: og.module:1779
+msgid "View all subscribers."
+msgstr ""
+
+#: og.module:1782
+msgid "Recent authors"
+msgstr ""
+
+#: og.module:1813
+msgid "invite friend"
+msgstr ""
+
+#: og.module:1821
+msgid "manager: "
+msgstr ""
+
+#: og.module:1824
+msgid "website"
+msgstr ""
+
+#: og.module:1828
+msgid "Your subscription request awaits approval."
+msgstr ""
+
+#: og.module:1829
+msgid "delete request"
+msgstr ""
+
+#: og.module:1832
+msgid "You must login/register in order to contribute to this group."
+msgstr ""
+
+#: og.module:1836
+msgid "request subscription"
+msgstr ""
+
+#: og.module:1844
+msgid ""
+"This is a %closed group. The group administrators add/remove subscribers as "
+"needed."
+msgstr ""
+
+#: og.module:1859
+msgid "create %type"
+msgstr ""
+
+#: og.module:1859
+msgid "Add a new %s in this group."
+msgstr ""
+
+#: og.module:1866;1887
+msgid "Enable"
+msgstr ""
+
+#: og.module:1870;1882
+msgid "Disable"
+msgstr ""
+
+#: og.module:1879
+msgid "Organic groups configuration"
+msgstr ""
+
+#: og.module:1883
+msgid ""
+"Before disabling this module, use the button below to restore default "
+"permissions."
+msgstr ""
+
+#: og.module:1888
+msgid ""
+"You usually want to enable access control with this module. The button below "
+"will delete one record in your node_access table and thus enable node "
+"permissions on your site. You may revert by clicking the same button again."
+msgstr ""
+
+#: og.module:1890
+msgid "Module status"
+msgstr "Modulestatus"
+
+#: og.module:1891
+msgid "Organic groups access control is currently"
+msgstr ""
+
+#: og.module:1896
+msgid ""
+"New groups don't appear in the groups directory. Administrators control the "
+"directory exclusively."
+msgstr ""
+
+#: og.module:1897
+msgid "New groups always appear in the groups directory."
+msgstr ""
+
+#: og.module:1898
+msgid ""
+"Group creator chooses whether her group appears in the directory. Defaults "
+"to %in."
+msgstr ""
+
+#: og.module:1898
+msgid "in directory"
+msgstr ""
+
+#: og.module:1899
+msgid ""
+"Group creator chooses whether her group appears in the directory. Defaults "
+"to %out."
+msgstr ""
+
+#: og.module:1899
+msgid "not in directory"
+msgstr ""
+
+#: og.module:1901
+msgid "Groups directory control"
+msgstr ""
+
+#: og.module:1901;1909
+msgid ""
+"OG admins always see the checkbox for adding a group to the %dir. Note that "
+"changing this setting has no effect on existing posts. Re-save those posts "
+"to acquire this new setting."
+msgstr ""
+
+#: og.module:1901;1917
+msgid "groups directory"
+msgstr ""
+
+#: og.module:1904
+msgid ""
+"New groups don't appear in on the registration form. Administrators control "
+"the form exclusively."
+msgstr ""
+
+#: og.module:1905
+msgid "New groups always appear on the registration form."
+msgstr ""
+
+#: og.module:1906
+msgid ""
+"Group creator chooses whether her group appears on the registration form. "
+"Defaults to %in."
+msgstr ""
+
+#: og.module:1906
+msgid "on form"
+msgstr ""
+
+#: og.module:1907
+msgid ""
+"Group creator chooses whether her group appears on the registration form. "
+"Defaults to %out."
+msgstr ""
+
+#: og.module:1907
+msgid "not on form"
+msgstr ""
+
+#: og.module:1909
+msgid "Registration form control"
+msgstr ""
+
+#: og.module:1912
+msgid ""
+"New group members are never subscribed to email notifications by default. "
+"Users may choose to enable this for themselves on their my subscription page."
+msgstr ""
+
+#: og.module:1913
+msgid "New group members are always subscribed to email notifications by default."
+msgstr ""
+
+#: og.module:1914
+msgid ""
+"Group creator chooses whether her members are automatically subscribed to "
+"email notifications. Defaults to %in."
+msgstr ""
+
+#: og.module:1914
+msgid "yes notification"
+msgstr ""
+
+#: og.module:1915
+msgid ""
+"Group creator chooses whether her members are automatically subscribed to "
+"email notifications. Defaults to %out."
+msgstr ""
+
+#: og.module:1915
+msgid "no notification"
+msgstr ""
+
+#: og.module:1917
+msgid "Group email notifications"
+msgstr ""
+
+#: og.module:1917
+msgid ""
+"Should new subscribers to a group automatically be notified via email when "
+"new content is posted to the group? Note that changing this setting has no "
+"effect on existing subscriptions."
+msgstr ""
+
+#: og.module:1919
+msgid "Node authoring form"
+msgstr ""
+
+#: og.module:1920
+msgid "Explanation or submission guidelines"
+msgstr ""
+
+#: og.module:1920
+msgid ""
+"This text will be displayed at the top of the group submission form.  It is "
+"useful for helping or instructing your users."
+msgstr ""
+
+#: og.module:1921
+msgid "Visible only within the targeted groups"
+msgstr ""
+
+#: og.module:1921
+msgid "Visible within the targeted groups and on other pages"
+msgstr ""
+
+#: og.module:1921;1921
+msgid "Visibility chosen by author/editor using a checkbox on the posting form. "
+msgstr ""
+
+#: og.module:1921
+msgid "Checkbox defaults to %pub."
+msgstr ""
+
+#: og.module:1921
+msgid "Checkbox defaults to %pri."
+msgstr ""
+
+#: og.module:1921
+msgid "Private"
+msgstr "Privé"
+
+#: og.module:1922
+msgid "Visibility of posts"
+msgstr "Zichtbaarheid van berichten"
+
+#: og.module:1922
+msgid ""
+"Determine how broadly available a given post should be when it is affiliated "
+"with a group. OG admins always see the checkbox for making a post %pub. Note "
+"that changing this setting has no effect on existing posts. Re-save those "
+"posts to acquire this new setting."
+msgstr ""
+
+#: og.module:1924
+msgid "optional"
+msgstr ""
+
+#: og.module:1924
+msgid "required"
+msgstr "vereist"
+
+#: og.module:1925
+msgid "Audience required"
+msgstr ""
+
+#: og.module:1925
+msgid ""
+"Do you require that all posts be affiliated with a group? If so, new users "
+"will be unable to complete a post until they join a group. Note that "
+"changing this setting will affect existing posts when they are edited."
+msgstr ""
+
+#: og.module:1935
+msgid "Omitted content types"
+msgstr ""
+
+#: og.module:1935
+msgid ""
+"Select any node types which should <em>not</em> participate in the Audience "
+"targetting system. Node types which are designated as group home page node "
+"types (see below) will be automatically excluded."
+msgstr ""
+
+#: og.module:1937
+msgid "Group home page"
+msgstr "Groep startpagina"
+
+#: og.module:1938
+msgid "River of News"
+msgstr ""
+
+#: og.module:1938
+msgid "Group by content type"
+msgstr ""
+
+#: og.module:1939
+msgid "Presentation style"
+msgstr "Presentatiestijl"
+
+#: og.module:1939
+msgid ""
+"If neither of these presentations suits you, you may override in the theme "
+"layer."
+msgstr ""
+
+#: og.module:1940
+msgid "Maximum posts on group home page"
+msgstr ""
+
+#: og.module:1940
+msgid ""
+"If using River of News display, indicate the number of posts on home page. "
+"If grouping posts by content type, indicate number of posts per type."
+msgstr ""
+
+#: og.module:1941
+msgid "Group home page node types"
+msgstr ""
+
+#: og.module:1941
+msgid ""
+"Select the node types which act as group home pages. Usually %group is the "
+"best choice."
+msgstr ""
+
+#: og.module:1943
+msgid "Member pictures"
+msgstr ""
+
+#: og.module:1943
+msgid ""
+"Should member pictures be shown in the group subscribers and group details "
+"blocks? You must also enable pictures in %user."
+msgstr ""
+
+#: og.module:1943
+msgid "User configuration"
+msgstr ""
+
+#: og.module:1961
+msgid "Last reply"
+msgstr "Laatste antwoord"
+
+#: og.module:1978
+msgid "(pending approval)"
+msgstr ""
+
+#: og.module:2002
+msgid "Subscribe a user to a group"
+msgstr ""
+
+#: og.module:2007
+msgid "All subscribers for a given group."
+msgstr ""
+
+#: og.module:2012
+msgid "Retrieve the group subscriptions for a given user."
+msgstr ""
+
+#: og.module:2023;2029
+msgid "[ogname]"
+msgstr ""
+
+#: og.module:2023
+msgid "The name of the organic group this post belongs to."
+msgstr ""
+
+#: og.module:272
+msgid "1 subscriber"
+msgid_plural "all %count subscribers"
+msgstr[0] ""
+msgstr[1] ""
+
+#: og.module:543
+msgid "%count invitations sent."
+msgid_plural "%count invitations sent."
+msgstr[0] ""
+msgstr[1] ""
+
+#: og.module:689
+msgid "name"
+msgid_plural "names"
+msgstr[0] "naam"
+msgstr[1] "naam"
+
+#: og.module:705
+msgid "1 user"
+msgid_plural "%count users"
+msgstr[0] "1 gebruiker"
+msgstr[1] "%count gebruikers"
+
+#: og.module:155
+msgid "administer organic groups"
+msgstr ""
+
+#: og.module:0
+msgid "og"
+msgstr ""
+
+#: og_views.inc:51
+msgid "Admin specifies whether or not a group appears in the public listings."
+msgstr ""
+
+#: og_views.inc:84
+msgid "Og: Group Name"
+msgstr ""
+
+#: og_views.inc:88
+msgid "Display the title of the first group a node belongs to."
+msgstr ""
+
+#: og_views.inc:108
+msgid "Og: Subscription email"
+msgstr ""
+
+#: og_views.inc:111
+msgid "Does subscriber receive email notifications for a group."
+msgstr ""
+
+#: og_views.inc:128
+msgid "Og: Group in User Subbed Groups"
+msgstr ""
+
+#: og_views.inc:132
+msgid "Groups are filtered to where current user is a member ."
+msgstr ""
+
+#: og_views.inc:153
+msgid "Og: Post in User Subbed Groups"
+msgstr ""
+
+#: og_views.inc:157
+msgid "Posts are filtered to groups that current user is a member of."
+msgstr ""
+
+#: og_views.inc:180
+msgid "Og: Group nid"
+msgstr ""
+
+#: og_views.inc:182
+msgid "This argument filters for a given organic group"
+msgstr ""
+
+#: og_views.inc:218
+msgid "Shows all activity in subscribed groups."
+msgstr ""
+
+#: og_views.inc:222
+msgid "recent posts in my groups"
+msgstr ""
+
+#: og_views.inc:227
+msgid "There are no posts in your subscribed groups."
+msgstr ""
+
+#: og_views.inc:234
+msgid "my recent"
+msgstr ""
+
+#: og_views.inc:254
+msgid "Group"
+msgstr "Groep"
+
+#: og_views.inc:260
+msgid "Type"
+msgstr "Type"
+
+#: og_views.inc:286
+msgid "Last Post"
+msgstr "Laatste Bericht"
+
+#: og_views.inc:443
+msgid "external website"
+msgstr ""
+
+#: og_views.inc:455
+msgid "Closed"
+msgstr "Gesloten"
+
+#: og_views.inc:457
+msgid "Invite only"
+msgstr ""
+
+#: og_views.inc:473
+msgid "yes"
+msgstr "ja"
+

@@ -1,0 +1,316 @@
+<?php
+/* $Id: about_me.module,v 1.6 2006/11/01 16:01:07 leob Exp $ */
+
+/**
+ * @file
+ * Provides users with an 'about me' page that they can customize.
+ * 
+ */
+
+/**
+ * Required files
+ */
+ 
+
+/*
+ * Global variables
+ */ 
+global $about_me_default_page;
+if (!isset($about_me_default_page)) {
+  $about_me_default_page = t("This is %my_username's personal page.<br><br>This site is still under construction. <br><br>Please come back later.");
+}	 
+ 
+/**
+ * Implementation of hook_help().
+ */
+function about_me_help($section) {
+  switch ($section) {
+    case 'admin/modules#description':
+      return t('Provides users with a customizable "about me" page.');
+    case 'admin/help#about_me':
+      return t('Provides users with a customizable "about me" page.');
+  }
+}
+
+
+/**
+ * Implementation of hook_user()
+ */
+function about_me_user($op, &$edit, &$account, $category = NULL) {
+  global $about_me_default_page;
+  switch($op) {
+      
+    case 'load':
+      if ($account->uid && user_access("have 'about me' page", $account)) {
+        $query = "SELECT * FROM {about_me} WHERE `uid` = '%d'";
+        $db_entry = db_fetch_array(db_query($query, $account->uid));
+        if (!$db_entry) {
+          watchdog('about_me', t('Creating about_me information for user %user.', array('%user' => $account->uid)), WATCHDOG_WARNING);
+          $about_me_uid = $account->uid;
+          $about_me_title = t('about me page for user %uid', array('%uid' => $account->uid));
+          $about_me_contents = variable_get('about_me_default_contents', $about_me_default_page);
+          $about_me_format = NULL;
+          $query2 = "INSERT INTO {about_me} (uid, title, contents, format) VALUES (%d, '%s', '%s', %d)";
+          $db_result = db_query($query2, $about_me_uid, $about_me_title, $about_me_contents, $about_me_format);
+          if (!$db_result) {
+            $error_msg = t("Could not create about_me entry: %e", array('%e' => db_error()));
+            watchdog('about_me', $error_msg, WATCHDOG_ERROR);
+            return FALSE;
+          }
+          $db_entry = db_fetch_array(db_query($query, $account->uid));
+        }
+        $account->about_me_title = $db_entry['title'];
+        $account->about_me_contents = $db_entry['contents'];
+        $account->about_me_format = $db_entry['format'];
+      }
+      break;
+
+    case 'view':
+      if (user_access("have 'about me' page", $account) && $account->about_me_contents) {
+        $link = l(t('here'), "about_me/$account->uid");
+        $about_me_link = t("Click %link to go to %user_name's personal page", array('%link' => $link, '%user_name' => $account->name));
+        
+        $item = array('title' => t('About me'), 
+                               'value' => $about_me_link,
+                               'class' => 'about_me_link');
+        $about_me_info[] = $item;
+        // return
+        $rc = array(t('About me') => $about_me_info);
+        return $rc;
+      }
+      break;
+
+    case 'delete':
+      // delete the user entry
+      $query = 'DELETE FROM {about_me} WHERE `uid` = %d';
+      db_query($query, $account->uid);
+      break;
+   
+  }
+}
+
+/*
+ * Implementation of hook_menu()
+ */
+
+function about_me_menu($may_cache) {
+  global $user;
+  $items = array();
+  $view_access = user_access('access content');
+  $admin_access = user_access('administer users');
+  
+  if ($may_cache) {
+    if ($user->uid && user_access("have 'about me' page")) {
+      $items[] = array('path' => 'about_me/' . $user->uid, 'title' => t('about me'),
+        'callback' => '_about_me_page_view', 'callback arguments' => array(arg(1)),
+        'access' => $view_access && user_access("have 'about me' page"),
+        'type' => MENU_DYNAMIC_ITEM);
+    }
+  }
+  else {
+    if (arg(0) == 'about_me' && is_numeric(arg(1)) && arg(1) > 0) {
+      
+       $items[] = array('path' => 'about_me/'. arg(1), 'title' => t('about me'),
+         'callback' => '_about_me_page_view', 'callback arguments' => array(arg(1)), 
+         'access' => $view_access,
+         'type' => MENU_CALLBACK);
+
+        $items[] = array('path' => 'about_me/'. arg(1) .'/view', 'title' => t('view'),
+          'access' => $view_access, 
+          'type' => MENU_DEFAULT_LOCAL_TASK, 'weight' => -10);
+
+        $items[] = array('path' => 'about_me/'. arg(1) .'/edit', 'title' => t('edit'),
+          'callback' => '_about_me_page_edit', 
+          'access' => $admin_access || $user->uid == arg(1),
+          'type' => MENU_LOCAL_TASK);
+    }
+  }
+  
+  return $items;
+}
+
+/**
+ * Implementation of hook_link()
+ */
+function about_me_link($type, $node = NULL, $teaser = FALSE) { 
+  $links = array(); 
+  if ($type == 'node') {
+  	$account = user_load(array('uid' => $node->uid));
+  	if ($account->about_me_contents) {
+      $links[] = t('by ') . l($account->name, "about_me/$account->uid/view", 
+          array('title' => t('View %user\'s profile.', array('%user' => $account->name))));
+    }    
+  } 
+  return $links; 
+} 
+
+function _about_me_for_user($uid = NULL){
+  if (is_null($uid)){
+    global $user;
+    $uid = $user->uid;
+  }
+  return db_result(db_query('SELECT nid FROM {node} WHERE uid = %d AND type = "bio"', $uid));
+}
+
+
+/**
+ * Implementation of hook_perm().
+ */
+function about_me_perm() {
+  return array("have 'about me' page");
+}
+
+function _about_me_page_view ($uid = 0) {
+  $account = user_load(array('uid' => $uid));
+
+  if ($account->about_me_contents && user_access('access content')) {
+    $title = ($account->about_me_title)? $account->about_me_title : t('about page for %user_name', array('%user_name' => $account->name));
+    drupal_set_title($title);
+    $entry = check_markup($account->about_me_contents, $account->about_me_format, FALSE);
+    // process the items returned by other modules
+    $items = _about_me_get_items($account);
+    $args = array();
+    foreach($items as $name => $item) {
+      $args["%$name"] = $item['value'];
+    }
+    return theme('about_me_view', $entry, $args);
+  }
+  else {
+    drupal_not_found();
+    return;
+  }
+}
+
+function _about_me_page_edit () {
+  global $about_me_default_page;
+	
+  $account = user_load(array('uid' => arg(1)));
+  
+  if (!user_access("have 'about me' page", $account)) {
+    drupal_not_found();
+    return;
+  }
+
+  $form['about_me_uid'] = array('#type' => 'value', '#value' => $account->uid);
+
+  $default_title = $account->about_me_title;
+  $form['about_me_title'] = array(
+      '#type' => 'textfield',
+      '#title' => t('Page title'),
+      '#default_value' => $default_title,
+      '#size' => 60,
+      '#maxlength' => 60,
+      '#required' => TRUE,
+      '#description' => t('This is the title of your page.'));
+
+  $default_value = ($account->about_me_contents)? $account->about_me_contents : variable_get('about_me_default_contents', $about_me_default_page);
+  // process the description based on the items returned by other modules
+  $items = _about_me_get_items($account);
+  $description = theme('about_me_description', $items);
+  $form['about_me_contents'] = array(
+    '#type' => 'textarea',
+    '#title' => t('About me'),
+    '#default_value' => $default_value,
+    '#cols' => 60,
+    '#rows' => 40,
+    '#description' => $description,
+  );
+
+  $default_format = ($account->about_me_format)? $account->about_me_format : NULL;
+  $form['about_me_format'] = filter_form($default_format);
+
+  $form['submit'] = array('#type' => 'submit', '#value' => t('Save'));
+
+  $output = drupal_get_form('_about_me_page_edit', $form);
+  return $output;
+}
+
+function _about_me_page_edit_submit($form_id, $form_values) {
+  	
+  $set_clauses = array();
+  $set_values = array();
+  if (isset($form_values['about_me_title'])) {
+    $set_clauses[] = "`title` = '%s'";
+    $set_values[] = $form_values['about_me_title'];
+  }
+  if (isset($form_values['about_me_contents'])) {
+    $set_clauses[] = "`contents` = '%s'";
+    $set_values[] = $form_values['about_me_contents'];
+  }
+  if (isset($form_values['format'])) {
+    $set_clauses[] = "`format` = %d";
+    $set_values[] = $form_values['format'];
+  }
+  $set_values[] = $form_values['about_me_uid'];
+  if (!empty($set_clauses)) {
+    $query = "UPDATE {about_me} SET " . implode(', ', $set_clauses) . " WHERE `uid` = %d";
+    $db_result = db_query($query, $set_values);
+    if (!$db_result) {
+      $error_msg = t("Could not update about_me entry: %e", array('%e' => db_error()));
+      watchdog('about_me', $error_msg, WATCHDOG_ERROR);
+    }
+  }
+
+  drupal_goto('about_me/' . $form_values['about_me_uid']);
+}
+
+/**
+ * Implementation of hook_settings()
+ */
+function about_me_settings() {
+  global $about_me_default_page;
+  drupal_set_title(t("'about me' configuration"));
+  $description = t("Type in here the default 'about me' page that will be presented until users create their own pages.");
+  $form['about_me_default_contents'] = array(
+    '#type' => 'textarea',
+    '#title' => t("Default 'about me' page"),
+    '#default_value' => variable_get('about_me_default_contents', $about_me_default_page),
+    '#cols' => 60,
+    '#rows' => 15,
+    '#description' => $description,
+  );
+  return $form;
+}
+
+
+function theme_about_me_view($value, $args = array()) {
+  $output = '<div class="about_me"><fieldset>';
+  $output .= strtr($value, $args);
+  $output .= '</fieldset></div>';
+  return $output;
+}
+
+function theme_about_me_description($items = array()) {
+  $description = '<div class="about_me_description">';
+  $description .= t('Use this space to describe yourself, the things you like, etc. ');
+  if ($items) {
+    $description .= t('You can use any of the following tags: ');
+    $description .= '<ul>';
+    foreach($items as $tag_name => $tag_item) {
+      $description .= '<li>' . t("<b>%name</b> to include %description" . '</li>', array('%name' => "%$tag_name", '%description' => $tag_item['description']));
+    }
+    $description .= '</ul>';
+  }
+  $output .= '</div>';
+  return $description;
+}
+
+/*
+ * Returns an array of items that include 'name' and either 'value' or 'description'
+ */
+function _about_me_get_items($account) {
+  $items = array();
+  // add the default items
+  $items['user_name'] = array('description' => t('the user name'), 'value' => $account->name);
+  $items['email'] = array('description' => t('the user email address'), 'value' => $account->mail);
+  $items['user_id'] = array('description' => t('the user id'), 'value' => $account->uid);
+  
+  foreach (module_implements('about_me_items') as $module) {
+    $new_items = module_invoke($module, 'about_me_items', $account);
+    if ($new_items) {
+      $items = array_merge($items, $new_items);
+    }
+  }
+  return $items;
+}
+

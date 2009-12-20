@@ -1,0 +1,184 @@
+<?php
+class OgSubscribe extends OgTestCase {
+  function get_info() {
+    return array('name'  => t('Og subscription test'),
+                 'desc'  => t('Tests og subscription functionality and asserts correct behavior with all og_selective settings'),
+                 'group' => 'og tests');
+  }
+  
+  function testAddOg() {
+    $web_user = $this->drupalCreateUserRolePerm(array('access content', 'create pages', 'create groups'));
+    $this->drupalLoginUser($web_user);
+    $gid = $this->addOg(OG_OPEN);
+    $node = node_load($gid);
+    
+    // $b will be the "admin browser, sometimes backed up in _browser, sometimes used explictly"
+    $b = $this->_browser;
+    $this->_browser = new SimpleBrowser();
+
+    
+    $join_user = $this->drupalCreateUserRolePerm(array('access content'));
+    $this->drupalLoginUser($join_user);
+    
+    /* Test subscribing a new user */
+    $url = url('og/subscribe/' . $gid, NULL, NULL, TRUE);
+    $ret = $this->_browser->get($url);
+    $this->assertTrue($ret, " [browser] GET $url");
+    // No theme, "Text" only
+    $this->assertWantedText(t('Subscribed to the %group group', array('%group' => $node->title)),
+                            'User subscribed to group - text found.');
+    $this->assertNoUnwantedText(t('Page not found'), 'page not not found.');
+
+    /* Find user in list */
+    $url = url('og/users/' . $gid, NULL, NULL, TRUE);
+    $ret = $b->get($url);
+    $this->assertTrue($ret, " [browser] GET $url");
+    $this->assert(new TextExpectation($join_user->name),
+                    $b->getContentAsText(), $message);
+    
+    /** @TODO: Test Posting etc... */
+    
+    // Test subscribing a new user 
+    $url = url('og/unsubscribe/' . $gid, NULL, NULL, TRUE);
+    $ret = $this->_browser->get($url);
+    $this->assertTrue($ret, " [browser] GET $url");
+    $this->assertWantedText(t('User unsubscribed from group.'), 'User unsubscribed to group - text found.');
+    $this->assertNoUnwantedText(t('Page not found'), 'page not not found.');
+
+    $this->_browser = $b;
+    
+    // Find user in list */
+    $url = url('og/users/' . $gid, NULL, NULL, TRUE);
+    $ret = $b->get($url);
+    $this->assertTrue($ret, " [browser] GET $url");
+    $this->assertNoUnwantedText($join_user->name, 'User name not found.');
+
+    // CLOSED GROUP ************************************************************
+    $gid = $this->addOg(OG_CLOSED);
+    $node = node_load($gid);
+   
+    $b = $this->_browser;
+    $this->_browser = new SimpleBrowser();
+    $this->drupalLoginUser($join_user);
+
+    // Test subscribing a new user 
+    $url = url('og/subscribe/' . $gid, NULL, NULL, TRUE);
+    $ret = $this->_browser->get($url);
+    $this->assertTrue($ret, " [browser] GET $url");
+    $this->assertNoUnwantedText(t('Subscribed to the %group group', array('%group' => $node->title)),
+                                'User subscribed to group - text not found.');
+
+    $this->assertNoUnwantedText(t('Page not found'), 'page not not found.');
+    
+    $this->assertWantedText(t('Subscription request to the %group group was rejected, only group administrators can add users to this group.',
+                                           array('%group' => $node->title)), 'Rjected text found.');
+    // Find user in list 
+    $url = url('og/users/' . $gid, NULL, NULL, TRUE);
+    $ret = $b->get($url);
+    $this->assertTrue($ret, " [browser] GET $url");
+    $this->assert(new NoTextExpectation($join_user->name),
+                    $b->getContentAsText(), 'Username not found');
+
+    $this->_browser = $b;
+    
+    /* INVITE ONLY GROUP ********************************************************/
+    $gid = $this->addOg(OG_INVITE_ONLY);
+    $node = node_load($gid);
+
+    $b = $this->_browser;
+    $this->_browser = new SimpleBrowser();
+
+    $this->drupalLoginUser($join_user);
+
+    // Test subscribing a new user 
+    $url = url('og/subscribe/' . $gid, NULL, NULL, TRUE);
+    $ret = $this->_browser->get($url);
+    $this->assertTrue($ret, " [browser] GET $url");
+    $this->assertNoUnwantedText(t('Subscribed to the %group group', array('%group' => $node->title)),
+                                'User subscribed to group - text not found.');
+
+    $this->assertNoUnwantedText(t('Page not found'), 'page not not found.');
+    
+    $this->assertWantedText(t('Subscription request to the %group group was rejected, only group administrators can add users to this group.',
+                                           array('%group' => $node->title)), 'Rjected text found.');
+
+                                           // Find user in list 
+    $url = url('og/users/' . $gid, NULL, NULL, TRUE);
+    $ret = $b->get($url);
+    $this->assertTrue($ret, " [browser] GET $url");
+    $this->assert(new NoTextExpectation($join_user->name),
+                    $b->getContentAsText(), 'Username not found');
+
+
+    $this->_browser = $b;
+    // MODERATED GROUP ---------------------------------------------
+    $gid = $this->addOg(OG_MODERATED);
+    $node = node_load($gid);
+    
+    $b = $this->_browser;
+    $this->_browser = new SimpleBrowser();
+
+    $this->drupalLoginUser($join_user);
+
+    // Test subscribing a new user 
+    $url = url('og/subscribe/' . $gid, NULL, NULL, TRUE);
+    $ret = $this->_browser->get($url);
+    $this->assertTrue($ret, " [browser] GET $url");
+    $this->assertNoUnwantedText(t('Subscribed to the %group group', array('%group' => $node->title)),
+                                'User subscribed to group - text not found.');
+
+    $this->assertNoUnwantedText(t('Page not found'), 'page not not found.');
+    
+    $this->assertWantedText(t('Subscription request to the %group group awaits approval by an administrator.',
+                                           array('%group' => $node->title)), 'Approval text found.');
+
+    // Find user in list, Inactive users _ARE_ listed
+    $this->_browser = $b; // Switch back to admin view
+    $url = url('og/users/' . $gid, NULL, NULL, TRUE);
+    $this->get($url);
+    $this->assertTrue($ret, " [browser] GET $url");
+    $this->assertWantedText($join_user->name, 'Username found');
+    
+    $this->clickLink(t('deny'));
+
+    $this->assertWantedText(t('Subscription request denied.'), 'Denied text found.');
+    
+
+    $url = url('og/users/' . $gid, NULL, NULL, TRUE);
+    $this->get($url);
+    $this->assertNoUnwantedText($join_user->name, 'Username not found');
+
+    // Now try this again
+    $this->_browser = new SimpleBrowser();
+
+    $this->drupalLoginUser($join_user);
+
+    // Test subscribing a new user 
+    $url = url('og/subscribe/' . $gid, NULL, NULL, TRUE);
+    $ret = $this->_browser->get($url);
+    $this->assertTrue($ret, " [browser] GET $url");
+    $this->assertNoUnwantedText(t('Subscribed to the %group group', array('%group' => $node->title)),
+                                'User subscribed to group - text not found.');
+
+    $this->assertNoUnwantedText(t('Page not found'), 'page not not found.');
+    
+    $this->assertWantedText(t('Subscription request to the %group group awaits approval by an administrator.',
+                                           array('%group' => $node->title)), 'Approval text found.');
+
+    // Find user in list, Inactive users _ARE_ listed
+    $this->_browser = $b; // Switch back to admin view
+    $url = url('og/users/' . $gid, NULL, NULL, TRUE);
+    $ret = $this->_browser->get($url);
+    $this->assertTrue($ret, " [browser] GET $url");
+    $this->assertWantedText($join_user->name, 'Username found');
+    
+    $this->clickLink(t('approve'));
+
+    $this->assertWantedText(t('Subscription request approved.'), 'Approved text found.');
+    
+    $url = url('og/users/' . $gid, NULL, NULL, TRUE);
+    $ret = $this->_browser->get($url);
+    $this->assertTrue($ret, " [browser] GET $url");
+    $this->assertWantedText($join_user->name, 'Username found again');
+  }
+}

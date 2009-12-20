@@ -1,0 +1,2128 @@
+<?php
+// $Id: event.module,v 1.183.2.8 2006/08/23 20:00:03 killes Exp $ 
+
+define('EVENT_PATH', drupal_get_path('module', 'event'));
+
+include(EVENT_PATH .'/event.theme');
+include(EVENT_PATH .'/ical.inc');
+
+/**
+ * @defgroup event_core Core drupal hooks
+ */
+
+/**
+ * Provides the links that should be displayed when viewing events.
+ *
+ * @ingroup event_core
+ * @param $type the type of link (for example, 'node', 'page', or 'system') being requested
+ * @param $node the node that is requesting the link.  This is used in conjunction with $type to further determine
+ *        what sort of link to display.
+ * @param $main unused in this method.
+ * @return an array of links, or an empty array if no links apply for the criteria passed to this method.
+ */
+function event_link($type, $node = NULL, $teaser = FALSE) {
+  $links = array();
+
+  if ($type == 'node') {
+    // node links
+    if (event_enabled_state($node->type) == 'all') {
+      $links[] = l(t('calendar'), 'event/'. format_date($node->event_start, 'custom', 'Y/m/d'));
+    }
+    elseif (event_enabled_state($node->type) == 'solo') {
+      $links[] = l(t('calendar'), 'event/'. format_date($node->event_start, 'custom', 'Y/m/d') .'/month/'. $node->type);
+    }
+  }
+  elseif (user_access('access content')) {
+    // calendar links
+    // build a full list of links...
+    $base = "event/$node->year/$node->month/$node->day/";
+    $links['month'] = l(t('month'), $base .'month/'. $node->filter, array('title' => t('Month view')));
+    $links['week']  = l(t('week'),  $base .'week/'.  $node->filter, array('title' => t('Week view')));
+    $links['day']   = l(t('day'),   $base .'day/'.   $node->filter, array('title' => t('Day view')));
+    $links['table'] = l(t('table'), $base .'table/'. $node->filter, array('title' => t('Table view')));
+    $links['list']  = l(t('list'),  $base .'list/'.  $node->filter, array('title' => t('List view')));
+    // ...then subtract out the one we're viewing.
+    switch ($type) {
+      case 'event_month':
+        unset($links['month']);
+        break;
+      case 'event_week':
+        unset($links['week']);
+        break;
+      case 'event_day':
+        unset($links['day']);
+        break;
+      case 'event_table':
+        unset($links['table']);
+        break;
+      case 'event_list':
+        unset($links['list']);
+        break;
+      default:
+        $links = array();
+    }
+  }
+  return $links;
+}
+
+/**
+ * Implementation of hook_menu()
+ *
+ * @ingroup event_core
+ */
+function event_menu($may_cache) {
+  global $user;
+
+  $items = array();
+  if ($may_cache) {
+    $items[] = array('path' => 'event',
+                     'title' => t('events'),
+                     'callback' => 'event_page',
+                     'access' => user_access('access content'),
+                     'type' => MENU_CALLBACK);
+    $items[] = array('path' => 'event/type',
+                     'title' => t('filter by content type'),
+                     'callback' => 'event_type',
+                     'access' => user_access('access content'),
+                     'type' => MENU_CALLBACK);
+    $items[] = array('path' => 'event/term',
+                     'title' => t('filter by taxonomy'),
+                     'callback' => 'event_term',
+                     'access' => user_access('access content'),
+                     'type' => MENU_CALLBACK);
+    $items[] = array('path' => 'event/feed',
+                     'title' => t('event rss feed'),
+                     'callback' => 'event_feed',
+                     'access' => user_access('access content'),
+                     'type' => MENU_CALLBACK);
+    $items[] = array('path' => 'event/dst',
+                     'title' => t('event dst view'),
+                     'callback' => 'event_dst',
+                     'access' => user_access('access content'),
+                     'type' => MENU_CALLBACK);
+    $items[] = array('path' => 'event/ical',
+                     'title' => t('event ical feed'),
+                     'callback' => 'event_ical',
+                     'access' => user_access('access content'),
+                     'type' => MENU_CALLBACK);
+  }
+  else {
+    theme_add_style(EVENT_PATH .'/event.css');
+
+    if (arg(0) == 'node' && is_numeric(arg(1))) {
+      $type = db_result(db_query("SELECT type FROM {node} WHERE nid=%d", arg(1)));
+      if (event_is_enabled($type)) {
+          $items[] = array('path' => 'node/'.arg(1).'/ical',
+                           'title' => t('event ical'),
+                           'callback' => 'event_node_ical',
+                           'access' => user_access('access content'),
+                           'type' => MENU_CALLBACK);
+      }
+    }
+  }
+  return $items;
+}
+
+/**
+ * Displays and allows an administrator to change the settings for this module.
+ *
+ * @ingroup event_core
+ * @return the content for a settings page.
+ */
+function event_settings() {
+
+  $form['event_settings_default'] = array(
+    '#type' => 'fieldset',
+    '#title' => t('Timezone settings'));
+  if (variable_get('configurable_timezones', 0)) {
+    $form['event_settings_default']['event_timezone_input'] = array(
+      '#type' => 'radios',
+      '#title' => t('Event time zone input'),
+      '#default_value' =>  variable_get('event_timezone_input', 'site'),
+      '#options' => array('site' => t('Use the sitewide time zone'), 'user' => t('Use the time zone of the user editing or creating the event'), 'input' => t('Allow users to set event time zones')),
+      '#description' => t('Events are saved with a time zone value. This setting allows you to determine how the time zone is determined when creating or editing an event.'),
+      '#required' => TRUE);
+
+    $form['event_settings_default']['event_timezone_display'] = array(
+      '#type' => 'radios',
+      '#title' => t('Event time zone display'),
+      '#default_value' =>  variable_get('event_timezone_display', 'event'),
+      '#options' => array('event' => t("Use the event's time zone"), 'user' => t("Use the user's time zone"), 'site' => t('Use the sitewide time zone')),
+      '#description' => t("Events are saved with a time zone value. This setting allows you to determine if the event's time zone, the sitewide time zone, or the user's personal time zone setting is used to display the time for an event."),
+      '#required' => TRUE);
+  }
+  else {
+    if (variable_get('event_timezone_input', 'site') == 'user') {
+      variable_set('event_timezone_input', 'site');
+    }
+    variable_set('event_timezone_display', 'event');
+
+    $form['event_settings_default']['event_timezone_input'] = array(
+      '#type' => 'radios', 
+      '#title' => t('Event time zone input'),
+      '#default_value' => variable_get('event_timezone_input', 'site'),
+      '#options' => array('site' => t('Use the sitewide time zone'), 'user' => t('Use the time zone of the user editing or creating the event'), 'input' => t('Allow users to set event time zones')),
+      '#description' => t("Events are saved with a time zone value. This setting allows you to determine how the time zone is determined when creating or editing an event. You must have 'Configurable time zones' enabled in %url before you can enable user's time zones for this feature.", array('%url' => l(t('site configuration'), 'admin/settings'))),
+      '#required' => TRUE);
+
+    $form['event_settings_default']['event_timezone_display'] = array(
+      '#type' => 'radios',
+      '#title' => t('Event time zone display'),
+      '#default_value' => variable_get('event_timezone_display', 'event'),
+      '#options' => array('event' => t("Use the event's time zone"), 'site' => t('Use the sitewide time zone')),
+      '#description' => t("Events are saved with a time zone value. This setting allows you to determine if the event's time zone, the sitewide time zone, or the user's personal time zone setting is used to display the time for an event. You must have 'Configurable time zones' enabled in %url before you can enable user's time zones for this feature.", array('%url' => l(t('site configuration'), 'admin/settings'))),
+      '#required' => TRUE);
+  }
+  $form['event_settings_default']['event_ampm'] = array(
+    '#type' => 'radios',
+    '#title' =>  t('Time notation preference'),
+    '#default_value' => variable_get('event_ampm', '0'),
+    '#options' => array('0' => t('24h'),'1' => t('12h')),
+    '#description' => t('The time notation system used for entering event times.'),
+    '#required' => TRUE);
+  $form['event_settings_default']['event_upcoming_limit'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Upcoming event block limit'),
+    '#default_value' => variable_get('event_upcoming_limit', '6'),
+    '#maxlength' => 5,
+    '#size' => 2,
+    '#description' => t('Limit the amount of events displayed in the upcoming events block by this amount.'));
+
+  $form['event_overview_options'] = array('#type' => 'fieldset', '#title' => t('Event overview options'));
+  $form['event_overview_options']['event_overview'] = array(
+    '#type' => 'radios',
+    '#title' => t('Default overview'),
+    '#default_value' =>  variable_get('event_overview', 'month'),
+    '#options' => array('day' => t('Day'), 'week' => t('Week'), 'month' => t('Month'), 'table' => t('Table'), 'list' => t('List')),
+    '#description' => t('The default event view to display when no format is specifically requested. This is also the view that will be displayed from the block calendar links.'));
+  $form['event_overview_options']['event_table_duration'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Table view default period'),
+    '#default_value' => variable_get('event_table_duration', '30'),
+    '#maxlength' =>  5,
+    '#size' => 3,
+    '#description' => t('The default number of days to display in the table view. You can specify a different number of days in the url. More info on the event url format %link', array('%link' => l(t('here'), 'admin/help/event#url-format'))));
+
+  if (module_exist('taxonomy')) {
+    $form['event_overview_options']['event_taxonomy_control'] = array(
+      '#type' => 'radios',
+      '#title' => t('Taxonomy filter controls'),
+      '#default_value' => variable_get('event_taxonomy_control', 'all'),
+      '#options' => array('all' => t('Show taxonomy filter control on calendar views'), 'request' => t('Only show taxonomy filter control when taxonomy filter view is requested'), 'never' => t('Never show taxonomy filter control')));
+  }
+  $form['event_overview_options']['event_type_control'] = array(
+    '#type' => 'radios',
+    '#title' => t('Content type filter controls'), '#default_value' => variable_get('event_type_control', 'all'),
+    '#options' => array('all' => t('Show content type filter control on calendar views'), 'request' => t('Only show content type filter control when content type filter view is requested'), 'never' => t('Never show content type filter control')));
+
+  return $form;
+}
+
+/**
+ * @defgroup event_callback Functions which are the menu callbacks for this module
+ */
+
+/**
+ * Displays a page containing event information.  The page layout defaults to a
+ * graphical calendar.
+ *
+ * @ingroup event_callback
+ * @return the content for the event page.
+ */
+function event_page($year = NULL, $month = NULL, $day = NULL, $view = NULL, $types = NULL, $tids = NULL, $duration = NULL) {
+
+  // get local timestamp value
+  $now = _event_user_time();
+
+  // create request timestamp and date values
+  $stamp = gmmktime(0, 0, 0, ($month ? $month : gmdate('m', $now)), ($day ? $day : gmdate('d', $now)), ($year ? $year : gmdate('Y', $now)));
+  $year = gmdate('Y', $stamp);
+  $month = gmdate('m', $stamp);
+  $day = gmdate('d', $stamp);
+
+  $view = $view ? $view : variable_get('event_overview', 'month');
+
+  if ($_POST['edit']['event_type_select']) {
+    drupal_goto('event/'. $year .'/'. $month .'/'. $day .'/'. $view .'/'. $_POST['edit']['event_type_select'] .'/'. $tids);
+  }
+
+  if ($_POST['edit']['event_term_select']) {
+    drupal_goto('event/'. $year .'/'. $month .'/'. $day .'/'. $view .'/'. ($types ? $types : 'all') .'/'. $_POST['edit']['event_term_select']);
+  }
+
+  $breadcrumbs[] = l(t('Home'), NULL);
+  $breadcrumbs[] = l(t('Events'), 'event');
+  $links = array();
+
+  if ($types) {
+    // The '+' character in a query string may be parsed as ' '.
+    $types = preg_split('/[+ ]/', $types);
+    foreach ($types as $type) {
+      if (is_numeric($type)) {
+        $ctype = module_invoke('flexinode', 'load_content_type', $type);
+        if ($ctype->name) {
+          $temp[$ctype->name] = 'flexinode-'. $type;
+          $filter[] = $ctype->name;
+        }
+      }
+      elseif (substr($type, 0, 10) == 'flexinode-') {
+        $ctype = module_invoke('flexinode', 'load_content_type', substr($type, 10));
+        if ($ctype->name) {
+          $temp[$ctype->name] = $type;
+          $filter[] = $ctype->name;
+        }
+      }
+      elseif ($name = node_get_name($type)) {
+        $x = module_invoke($type, 'node_name', $node);
+        $temp[$x] = $type;
+        $filter[] = module_invoke($type, 'node_name', $node);
+      }
+    }
+
+    if (is_array($filter)) {
+      $links[] = l(t('view all'), 'event/'. $year .'/'. $month .'/'. $day .'/'. $view .'/');
+      $title =  t('Filter') .': ' .implode(', ', $filter);
+      $types = $temp;
+    }
+    else {
+      $types = null;
+    }
+  }
+
+  $terms = null;
+  if ($tids && $tids != 'all') {
+    $links[] = l(t('view all'), 'event/'.$year.'/'.$month.'/'.$day.'/day');
+    if (preg_match('/^([0-9]+[+ ])+[0-9]+$/', $tids)) {
+      // The '+' character in a query string may be parsed as ' '.
+      $terms = preg_split('/[+ ]/', $tids);
+    }
+    else if (preg_match('/^([0-9]+,)*[0-9]+$/', $tids)) {
+      $terms = explode(',', $tids);
+    }
+  }
+
+  // add taxonomy filter controls to top of calendar
+  if (variable_get('event_taxonomy_control', 'all') == 'all' || (variable_get('event_taxonomy_control', 'all') == 'request' && isset($terms))) {
+    $output .= _event_get_taxonomy_control($terms);
+  }
+  // add content type filter controls to top of calendar
+  if (variable_get('event_type_control', 'all') == 'all' || (variable_get('event_type_control', 'all') == 'request' && isset($types))) {
+    $output .= _event_get_type_control($types);
+  }
+
+  switch ($view) {
+    case 'day':
+        // day view
+        $headertitle = t('%weekday %month %day, %year', array('%weekday' => t(gmdate('l', $stamp)), '%month' => t(gmdate('F', $stamp)), '%day' => $day, '%year' => $year));
+        $rows = event_calendar_day('page', $stamp, $types, $terms);
+      break;
+    case 'week':
+        // week view
+        // setup calendar table header
+        $temp = $stamp - (_event_day_of_week($stamp) * (86400));
+        $headertitle = t('Week of %month %day, %year', array('%month' => t(gmdate('F', $temp)), '%day' => gmdate('d', $temp), '%year' => $year));
+        $colspan = 5;
+        $rows = event_calendar_week('page', $stamp, $types, $terms);
+      break;
+    case 'month':
+        // month view
+        $headertitle = t('%month %year', array('%month' => t(gmdate('F', $stamp)), '%year' => $year));
+        $colspan = 5;
+        $rows = event_calendar_month('page', $stamp, $types, $terms);
+      break;
+    case 'table':
+        // table view
+        // next 30 day view, $duration can be set for different ranges
+        // but set a maximum $duration of 1 year.
+        $duration = $duration && $duration <= 366 ? $duration : variable_get('event_table_duration', '30');
+        $endstamp = $stamp + ($duration * 86400);
+        $headertitle = t('%startmonth %startdate, %startyear - %endmonth %enddate, %endyear', array('%startmonth' => t(gmdate('F', $stamp)), '%startdate' => gmdate('d', $stamp), '%startyear' => gmdate('Y', $stamp), '%endmonth' => t(gmdate('F', $endstamp)), '%enddate' => gmdate('d', $endstamp), '%endyear' => gmdate('Y', $endstamp)));
+        $rows = event_calendar_table('page', $stamp, $endstamp, $types, $terms);
+      break;
+    case 'list':
+        // list view
+        // next 30 day view, $duration can be set for different ranges
+        // but set a maximum $duration of 1 year.
+        $duration = $duration && $duration <= 366 ? $duration : variable_get('event_table_duration', '30');
+        $endstamp = $stamp + ($duration * 86400);
+        $headertitle = t('%startmonth %startdate, %startyear - %endmonth %enddate, %endyear', array('%startmonth' => t(gmdate('F', $stamp)), '%startdate' => gmdate('d', $stamp), '%startyear' => gmdate('Y', $stamp), '%endmonth' => t(gmdate('F', $endstamp)), '%enddate' => gmdate('d', $endstamp), '%endyear' => gmdate('Y', $endstamp)));
+        $rows = event_calendar_list('page', $stamp, $endstamp, $types, $terms);
+      break;
+    case 'feed':
+        // rss feed
+        drupal_set_header('Content-Type: text/xml; charset=utf-8');
+        $duration = $duration ? $duration : variable_get('event_table_duration', '30');
+        print event_calendar_rss($stamp, $duration, $types, $terms, $title);
+      break;
+    case 'ical':
+        // ical feed
+        drupal_set_header('Content-Type: text/calendar; charset=utf-8');
+        drupal_set_header('Content-Disposition: attachment; filename="calendar.ics"; ');
+        $duration = $duration ? $duration : variable_get('event_table_duration', '30');
+        print event_calendar_ical($stamp, $duration, $types, $terms, $title);
+      break;
+  }
+
+  if($view != 'feed' && $view != 'ical') {
+    // build header navigation
+    $prev = _event_nav($stamp, 'prev', $view, $types, $terms, $duration);
+    $next = _event_nav($stamp, 'next', $view, $types, $terms, $duration);
+
+    // setup calendar table header
+    $header = array(
+      array('class' => 'prev', 'data' => $prev),
+      array('class' => 'heading', 'data' => $headertitle, 'colspan' => $colspan),
+      array('class' => 'next', 'data' => $next));
+
+    $node->day = $day;
+    $node->month = $month;
+    $node->year = $year;
+    $node->filter = ($types ? implode('+', $types) : 'all') .'/'. ($terms ? implode('+', $terms) : 'all');
+
+    $output .= theme('event_links', array_merge(module_invoke_all('link', 'event_'. $view, $node, FALSE), $links), $view);
+
+    $output .= theme('event_calendar_'. $view, 'page', $header, $rows);
+    $output .= theme('event_ical_link', 'event/ical/'. $node->filter);
+
+    // Add RSS feed and icon to events page
+    drupal_add_link(array('rel' => 'alternate',
+                          'type' => 'application/rss+xml',
+                          'title' => t('RSS'),
+                          'href' => url('event/feed', NULL, NULL, TRUE)));
+    $output .= theme('feed_icon', url('event/feed'));
+
+    drupal_set_title(t('Events') . ($title ? ' - '. $title : ''));
+    drupal_set_breadcrumb($breadcrumbs);
+    return $output;
+  }
+}
+
+/**
+ * Url wrapper function for static link to calendar by content type.
+ *
+ * @ingroup event_callback
+ * @return redirect to the event page for calendar node type.
+ */
+function event_type($types = NULL, $view = NULL, $terms = NULL) {
+  drupal_goto('event/'. format_date(_event_user_time(), 'custom', 'Y/m/d') .'/'. ($view ? $view : variable_get('event_overview', 'month')) .'/'. $types);
+}
+
+/**
+ * Url wrapper function for static link to calendar by taxonomy terms.
+ *
+ * @ingroup event_callback
+ * @return redirect to the event page for calendar taxonomy term.
+ */
+function event_term($filter = NULL, $view = NULL) {
+  drupal_goto('event/'. format_date(_event_user_time(), 'custom', 'Y/m/d') .'/'. ($view ? $view : variable_get('event_overview', 'month')) .'/all/'. $filter);
+}
+
+/**
+ * Url wrapper function for rss feeds
+ *
+ * @ingroup event_callback
+ * @return redirect to the event rss feed page at current day
+ */
+function event_feed($types = 'all', $terms = 'all', $duration = NULL) {
+  drupal_goto('event/'. format_date(_event_user_time(), 'custom', 'Y/m/d') .'/feed/'. $types .'/'. $terms .'/'. $duration);
+}
+
+/**
+ * Url wrapper function for ical feeds
+ *
+ * @ingroup event_callback
+ * @return redirect to the event ical feed page at current day
+ */
+function event_ical($types = 'all', $terms = 'all', $duration = NULL) {
+
+  drupal_goto('event/'. format_date(_event_user_time(), 'custom', 'Y/m/d') .'/ical/'. $types .'/'. $terms .'/'. $duration);
+
+  drupal_set_title(t('iCal support not enabled'));
+  return $output;
+}
+
+/**
+ * @defgroup event_view Functions which handle the display of event nodes
+ */
+
+/**
+ * Displays a monthly event calendar.
+ *
+ * @ingroup event_view
+ * @return a themed monthly event calendar.
+ */
+function event_calendar_month($op, $stamp, $types = NULL, $terms = NULL) {
+
+  $year = gmdate('Y', $stamp);
+  $month = gmdate('m', $stamp);
+  $day = gmdate('d', $stamp);
+
+  switch ($op) {
+    case 'page':
+        // setup callback for data population
+        $callback = 'event_render_day';
+        $view = 'month';
+      break;
+
+    case 'block':
+        // create navigation links
+        $prev = _event_nav($stamp, 'prev', 'month', $types, $terms);
+        $next = _event_nav($stamp, 'next', 'month', $types, $terms);
+
+        $headertitle = l(t(gmdate('F', $stamp)) .' '. $year, 'event/'. $year .'/'. $month .'/'. $day .'/month');
+        $header = array(
+          array('class' => 'prev', 'data' => $prev),
+          array('class' => 'heading', 'data' => $headertitle, 'colspan' => 5),
+          array('class' => 'next', 'data' => $next));
+
+        $callback = 'event_render_day_single';
+        $view = 'block';
+      break;
+  }
+
+  // get weekdays array and header information
+  $weekdays = event_week_days();
+  $rows[] = event_week_header();
+
+  // get GMT current date value
+  $today = _event_user_date();
+
+  // name of the month
+  $month_name = gmdate('M', $stamp);
+
+  // timestamp of first day of month
+  $curstamp = gmmktime(0, 0, 0, $month, 01, $year);
+
+  // timestamp of last day in month
+  $lastday = gmmktime(0, 0, 0, $month, gmdate('t', $stamp), $year);
+
+  // pad the first week row array to fill up days in the previous month we don't build
+  $row = array_fill(0, 6, '');
+  // get the day of week offset value for the first day of the month
+  $start = $offset = _event_day_of_week($curstamp);
+  // render the month calendar
+  while ($curstamp <= $lastday) {
+    for ($x = $start; $x < 7; $x++) {
+      $cur_day = (($week * 7) + ($x + 1) - $offset);
+      $row[$x] = array(
+        'class' => strtolower("$month_name ". $weekdays[$x]['day'] . ($curstamp == $today ? ' today' : '') . ($cur_day == $day ? ' selected' : '')),
+        'id' => strtolower($month_name . $cur_day),
+        'data' => $callback($year, $month, $cur_day, $view, $types, $terms));
+      $curstamp += 86400;
+      if ($curstamp > $lastday) {
+        $x = 8;
+      }
+    }
+    $week++;
+    $start = 0;
+    $rows[] = array_pad($row, 7, '&nbsp;');
+    $row = array();
+  }
+
+  switch ($op) {
+    case 'page':
+        return $rows;
+      break;
+    case 'block':
+        return theme("event_calendar_month", $op, $header, $rows);
+      break;
+  }
+}
+
+/**
+ * Displays a weekly event calendar.
+ *
+ * @ingroup event_view
+ * @return a themed weekly event calendar.
+ */
+function event_calendar_week($op, $stamp, $types = NULL, $terms = NULL) {
+  // get weekdays array and header information
+  $weekdays = event_week_days();
+  $rows[] = event_week_header();
+
+  // get GMT current date value
+  $today = _event_user_date();
+
+  // apply offset to goto first day of week
+  $stamp -= (_event_day_of_week($stamp) * (86400));
+
+  for ($x = 0; $x < 7; $x++) {
+    $year = gmdate('Y', $stamp);
+    $month = gmdate('m', $stamp);
+    $cur_day = gmdate('j', $stamp);
+    $month_name = gmdate('M', $stamp);
+
+    $row[$x] = array(
+      'class' => strtolower("$month_name ". $weekdays[$x]['day'] . ($stamp == $today ? ' today' : '') . ($cur_day == $day ? ' selected' : '')),
+      'id' => strtolower($month_name . $cur_day),
+      'data' => event_render_day($year, $month, $cur_day, 'week', $types, $terms));
+    $stamp += 86400;
+  }
+  $rows[] = $row;
+  return $rows;
+}
+
+/**
+ * Displays a daily event calendar.
+ *
+ * @ingroup event_view
+ * @return a themed daily event calendar.
+ */
+function event_calendar_day($op, $stamp, $types = NULL, $terms = NULL) {
+
+  $today = _event_user_date();
+
+  $year = gmdate('Y', $stamp);
+  $month = gmdate('m', $stamp);
+  $day = gmdate('j', $stamp);
+  $dow = _event_day_of_week($stamp);
+  $month_name = gmdate('M', $stamp);
+  $weekdays = event_week_days();
+
+  $rows[][] = array(
+    'class' => strtolower("$month_name ". $weekdays[$dow]['day'] . ($stamp == $today ? ' today' : '')),
+    'id' => strtolower($month_name . $day),
+    'data' => event_render_day($year, $month, $day, 'day', $types, $terms),
+    'colspan' => 3);
+
+  return $rows;
+}
+
+/**
+ * Creates a themed table of events.
+ *
+ * @ingroup event_view
+ * @param $op 
+ * @param $stamp The timestamp
+ * @param $endstamp end of the menu
+ * @param $types limit to given event node types
+ * @param $terms limit to nodes with these 
+ * @return A fully themed table.
+ */
+function event_calendar_table($op, $stamp, $endstamp, $types = NULL, $terms = NULL) {
+
+  $today = _event_user_date();
+
+  while ($stamp <= $endstamp) {
+    $year = gmdate('Y', $stamp);
+    $month = gmdate('m', $stamp);
+    $cur_day = gmdate('j', $stamp);
+    $month_name = gmdate('M', $stamp);
+    $dow = _event_day_of_week($stamp);
+    $weekdays = event_week_days();
+
+    $rows[][] = array('colspan' => 3,
+                      'class' => strtolower("$month_name ". $weekdays[$dow]['day'] . ($stamp == $today ? ' today' : '') . ($cur_day == $day ? ' selected' : '')),
+                      'id' => strtolower($month_name . $cur_day),
+                      'data' => event_render_day($year, $month, $cur_day, 'table', $types, $terms));
+    $stamp += 86400;
+  }
+
+  return $rows;
+}
+
+/**
+ * Creates a themed list of events.
+ *
+ * @ingroup event_view
+ * @param $op 
+ * @param $stamp The timestamp
+ * @param $endstamp end of the menu
+ * @param $types
+ * @param $terms
+ * @return A themed list of events.
+ */
+function event_calendar_list($op, $stamp, $endstamp, $types = NULL, $terms = NULL) {
+
+  $today = _event_user_date();
+  $rows = '';
+
+  while ($stamp <= $endstamp) {
+    $year = gmdate('Y', $stamp);
+    $month = gmdate('m', $stamp);
+    $cur_day = gmdate('j', $stamp);
+    $month_name = gmdate('M', $stamp);
+    $dow = _event_day_of_week($stamp);
+    $weekdays = event_week_days();
+
+    $rows .= event_render_day($year, $month, $cur_day, 'list', $types, $terms);
+    $stamp += 86400;
+  }
+
+  return $rows;
+}
+
+/**
+ * Creates an rss feed of events.
+ *
+ * @ingroup event_view
+ * @param $stamp The GMT starting date for the feed.
+ * @param $duration The number of days the feeds duration is.
+ * @param $types The content types to filter the feed by.
+ * @param $terms The taxonomy term tids to filter the feed by.
+ * @param $title The filter title to append to the channel description.
+ * @return A formatted rss feed.
+ */
+function event_calendar_rss($stamp, $duration, $types = NULL, $terms = NULL, $title = NULL) {
+  global $base_url, $locale;
+
+  $endstamp = $stamp + ($duration * 86400);
+  $headertitle = t('%startmonth %startdate, %startyear - %endmonth %enddate, %endyear', array('%startmonth' => t(gmdate('F', $stamp)), '%startdate' => gmdate('d', $stamp), '%startyear' => gmdate('Y', $stamp), '%endmonth' => t(gmdate('F', $endstamp)), '%enddate' => gmdate('d', $endstamp), '%endyear' => gmdate('Y', $endstamp)));
+
+  $result = db_query(db_rewrite_sql('SELECT n.nid, e.event_start FROM {node} n INNER JOIN {event} e ON n.nid = e.nid WHERE n.status = 1 AND ((e.event_start > %d AND e.event_start < %d) OR (e.event_end > %d AND e.event_end < %d) OR (e.event_start < %d AND e.event_end > %d)) ORDER BY event_start '), $stamp, $endstamp, $stamp, $endstamp, $stamp, $endstamp);
+
+  $nodes = array();
+  while ($nid = db_fetch_object($result)) {
+    $node = node_load($nid->nid);
+    $nodes[] = $node;
+  }
+
+  $filtered = event_filter_nodes($nodes, $types, $terms);
+
+  foreach($filtered as $node) {
+    $body = '<div class="start">'. t('Start') .': '. $node->start_format .'</div>'."\n";
+    $body .= '<div class="end">'. t('End') .': '. $node->end_format .'</div>'."\n";
+    $body .= check_markup($node->teaser);
+    $link = url("node/$node->nid", NULL, NULL, 1);
+    // Allow modules to add additional item fields
+    $extra = node_invoke_nodeapi($node, 'rss item');
+    $extra = array_merge($extra, array(array('key' => 'pubDate', 'value' =>  date('r', $node->changed))));
+    $items .= format_rss_item($node->title, $link, $body, $extra);
+  }
+
+  $description = $headertitle . ($title ? ' | '. $title : '');
+
+  $output = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n";
+  $output .= "<rss version=\"2.0\" xml:base=\"". $base_url ."\">\n";
+  $output .= format_rss_channel(variable_get('site_name', 'drupal') . t(' - Events Feed'), $base_url . '/event/feed', $description, $items, $locale);
+  $output .= "</rss>\n";
+
+  return $output;
+}
+
+/**
+ * Creates an ical feed of events.
+ *
+ * @ingroup event_view
+ * @param $stamp The GMT starting date for the feed.
+ * @param $duration The number of days the feeds duration is.
+ * @param $types The content types to filter the feed by.
+ * @param $terms The taxonomy term tids to filter the feed by.
+ * @param $title The filter title to append to the channel description.
+ * @return A formatted ical feed.
+ */
+function event_calendar_ical($stamp, $duration, $types = NULL, $terms = NULL, $title = NULL) {
+  global $base_url, $locale;
+
+  $endstamp = $stamp + ($duration * 86400);
+  $headertitle = t('%startmonth %startdate, %startyear - %endmonth %enddate, %endyear', array('%startmonth' => t(gmdate('F', $stamp)), '%startdate' => gmdate('d', $stamp), '%startyear' => gmdate('Y', $stamp), '%endmonth' => t(gmdate('F', $endstamp)), '%enddate' => gmdate('d', $endstamp), '%endyear' => gmdate('Y', $endstamp)));
+
+  $result = db_query(db_rewrite_sql('SELECT n.nid, e.event_start FROM {node} n INNER JOIN {event} e ON n.nid = e.nid WHERE n.status = 1 AND ((e.event_start > %d AND e.event_start < %d) OR (e.event_end > %d AND e.event_end < %d) OR (e.event_start < %d AND e.event_end > %d)) ORDER BY event_start '), $stamp, $endstamp, $stamp, $endstamp, $stamp, $endstamp);
+
+  $events = array();
+  while ($nid = db_fetch_object($result)) {
+    $node = node_load($nid->nid);
+    if (event_filter_node($node, $types, $terms)) {
+      $events[] = _event_node_ical($node);
+    }
+  }
+
+  $description = $headertitle . ($title ? ' | '. $title : '');
+
+  return ical_export($events, $description);
+}
+
+/**
+ * Return an ical for a specific event
+ */
+function event_node_ical() {
+  $node = node_load(arg(1));
+  $event = _event_node_ical($node);
+  drupal_set_header('Content-Type: text/calendar; charset=utf-8');
+  drupal_set_header('Content-Disposition: attachment; filename="calendar.ics"; ');
+  print ical_export(array($event), $event['summary']);
+}
+
+function _event_node_ical($node) {
+  $event = array();
+  // Allow modules to affect item fields
+  node_invoke_nodeapi($node, 'ical item');
+  $event['start'] = $node->event_start;
+  $event['end'] = $node->event_end;
+  $event['location'] = $node->event_location;
+  $event['summary'] = $node->title;
+  $event['description'] = check_markup($node->teaser ? $node->teaser : $node->body);
+  $event['uid'] = url("node/$node->nid", NULL, NULL, 1);
+  $event['url'] = url("node/$node->nid", NULL, NULL, 1);
+
+  return $event;
+}
+
+
+/**
+ * Returns a calendar in the requested format, populated with the provided nodes.
+ * This is not used internally, rather it is an API funciton for external modules
+ * to use for rendering calendars when constructing thier own event objects.
+ *
+ * @ingroup event_view
+ *
+ * @param $view - The format of calendar to return. Possible values:
+ *                "table": A tabular calendar.
+ *                "month": A month calendar.
+ *                "week": A week calendar.
+ *                "day": A day calendar.
+ *  @param $nodes – An associative array of nodes with nids for key values.
+ *           Node objects must have GMT timestamp values for start ($node->event_start).
+ *           Optionally, an end value ($node->event_end) and a time zone offset value
+ *           in the same format as drupal core ($node->tz). If a node has no end
+ *           value, it is rendered on only one day. If no time zone value is displayed
+ *           the time is rendered with no time zone offset (GMT).
+ *  @param $module - String containing the name of the module calling the function
+ *  @param $title - A string value that will be printed into the header of the calendar
+ *  @return Themed calendar view of nodes
+ */
+function event_get_calendar($view, $nodes, $module, $title = NULL) {
+  $today = _event_user_date();
+
+  foreach ($nodes as $node) {
+    $event = new stdClass();
+    $node->event_links = module_invoke_all('link', 'event_node_'. $view, $node, FALSE);
+    $nodes[$node->nid] = $node;
+    $event->nid = $node->nid;
+
+    // $node_start and $node_end are local timestamp values
+    $node_start = gmmktime(0, 0, 0, _event_date('m', $node->event_start, $node->start_offset), _event_date('d', $node->event_start, $node->start_offset), _event_date('Y', $node->event_start, $node->start_offset));
+    if ($node->event_end) {
+      $node_end = gmmktime(0, 0, 0, _event_date('m', $node->event_end, $node->end_offset), _event_date('d', $node->event_end, $node->end_offset), _event_date('Y', $node->event_end, $node->end_offset));
+    }
+    else {
+      $node_end = $node_start;
+    }
+
+    if ($node_start == $node_end) {
+      $event->event_state = 'singleday';
+      $event->stamp = $node_start;
+      $data[gmdate('Y', $node_start)][gmdate('m', $node_start)][gmdate('j', $node_start)][] = $event;
+    }
+    else {
+      // roll through each day the event occurs and set an entry for each
+      for ($x = $node_start; $x <= $node_end; $x += 86400) {
+        if ($x == $node_end) {
+          $event->event_state = 'end';
+          $event->stamp = $x;
+          $data[gmdate('Y', $x)][gmdate('m', $x)][gmdate('j', $x)][] = $event;
+        }
+        elseif ($x == $node_start) {
+          $event->event_state = 'start';
+          $event->stamp = $x;
+          $data[gmdate('Y', $x)][gmdate('m', $x)][gmdate('j', $x)][] = $event;
+        }
+        else {
+          $event->event_state = 'ongoing';
+          $event->stamp = $x;
+          $data[gmdate('Y', $x)][gmdate('m', $x)][gmdate('j', $x)][] = $event;
+        }
+      }
+    }
+  }
+
+  // order the years, months and days
+  ksort($data, SORT_NUMERIC);
+  foreach($data as $year => $months) {
+    ksort($data[$year], SORT_NUMERIC);
+    foreach($data[$year] as $month => $days) {
+      ksort($data[$year][$month], SORT_NUMERIC);
+    }
+  }
+
+  $weekdays = event_week_days();
+  switch ($view) {
+    case 'day':
+    case 'table':
+        foreach ($data as $year => $months) {
+          if(count($data) > 1) {
+            // add year heading
+            $rows[][] = array(
+                        'class' => 'heading year',
+                        'id' => 'year'.$year,
+                        'data' => $year);
+          }
+          foreach($months as $month => $days) {
+            foreach($days as $day => $events) {
+              $content = theme('event_calendar_date_box', $year, $month, $day, 'table');
+              foreach($events as $event) {
+                if(!$month_name) {
+                  $month_name = gmdate('M', $event->stamp);
+                  $dow = _event_day_of_week($event->stamp);
+                }
+                $node = $nodes[$event->nid];
+
+                $node->event_state = $event->event_state;
+                if($output = module_invoke($module, 'event_node_'. $view, $node)) {
+                  $content .= $output;
+                }
+                else {
+                  $content .= theme('event_node_'. $view, $node);
+                }
+              }
+              $rows[][] = array(
+                'class' => strtolower("$month_name ". $weekdays[$dow]['day'] . ($event->stamp == $today ? ' today' : '')),
+                'id' => strtolower($month_name . $day),
+                'data' => $content);
+              $month_name = NULL;
+            }
+          }
+        }
+      break;
+
+    case 'week':
+    case 'month':
+        $colspan = '7';
+        foreach ($data as $year => $months) {
+          if(count($data) > 1) {
+            // add year heading
+            $rows[][] = array(
+                        'class' => 'heading year',
+                        'id' => 'year'. $year,
+                        'data' => $year,
+                        'colspan' => $colspan);
+          }
+          foreach ($months as $month => $days) {
+            // timestamp of first day in month
+            $curstamp = gmmktime(0, 0, 0, $month, 1, $year);
+            // timestamp of last day in month
+            $lastday = gmmktime(0, 0, 0, $month, gmdate('t', $curstamp), $year);
+            // pad the first week row array to fill up days in the previous month we don't build
+            $row = array_fill(0, 6, '');
+            // get the day of week offset value for the first day of the month
+            $start = $offset = _event_day_of_week($curstamp);
+            // get name of month
+            $month_name = gmdate('M', $curstamp);
+            // set week counter
+            $week = 0;
+            // add month header
+            $rows[][] = array(
+                        'class' => 'heading month',
+                        'id' => 'month'. $month,
+                        'data' => $month_name,
+                        'colspan' => $colspan);
+            $rows[] = event_week_header();
+
+            while ($curstamp <= $lastday) {
+              for ($x = $start; $x < 7; $x++) {
+                $cur_day = (($week * 7) + ($x + 1) - $offset);
+
+                $content = theme('event_calendar_date_box', $year, $month, $cur_day, $view);
+
+                // render nodes for the day
+                if(is_array($days[$cur_day])) {
+                  foreach($days[$cur_day] as $event) {
+                    $node = $nodes[$event->nid];
+                    $node->event_state = $event->event_state;
+                    if($output = module_invoke($module, 'event_node_'. $view, $node)) {
+                      $content .= $output;
+                    }
+                    else {
+                      $content .= theme('event_node_'. $view, $node);
+                    }
+                  }
+                }
+
+                $row[$x] = array(
+                  'class' => strtolower("$month_name ". $weekdays[$x]['day'] . ($curstamp == $today ? ' today' : '')),
+                  'id' => strtolower($month_name . $day),
+                  'data' => $content);
+
+                $curstamp += 86400;
+                if ($curstamp > $lastday) {
+                  $x = 8;
+                }
+              }
+              $week++;
+              $start = 0;
+              $rows[] = array_pad($row, 7, '&nbsp;');
+              $row = array();
+            }
+          }
+        }
+      break;
+  }
+
+  $header[] = ($title ? array('class' => 'heading', 'data' => $title, 'colspan' => $colspan) : array());
+  return theme('event_calendar_'. $view, 'page', $header, $rows);
+}
+
+/**
+ * @defgroup event_support Functions that support the event system
+ */
+
+
+/**
+ * Returns an array of nodes that occur on a given date.
+ * Handles content type and taxonomy filters.
+ *
+ * @ingroup event_support
+ * @param $year The year the event is taking place.
+ * @param $month The month the event is taking place.
+ * @param $day The day the event is taking place. No leading zeroes.
+ * @param $view Who's calling this 
+ * @param $types Limit to nodes of these types
+ * @param $terms Limit to events with these taxonomy terms
+ * @return An array containing all of the events taking place on the specified date, or an empty array if none exist.
+ */
+function event_calendar_data($year, $month, $day, $view = NULL, $types = NULL, $terms = NULL) {
+  static $data;
+  global $user;
+
+  $day_start = _event_mktime(0, 0, 0, $month, $day, $year);
+
+  if (!is_array($data[$year][$month])) {
+    $data[$year][$month] = array();
+
+    //call the event_load function in all modules
+    module_invoke_all('event_load', $year, $month, $day, $view, $types, $terms);
+
+    // get GMT values from local date values for db query
+    $first = _event_mktime(0, 0, 0, $month, 1, $year);
+    $last = _event_mktime(23, 59, 59, $month + 1, 0, $year);
+
+    $result = db_query(db_rewrite_sql('SELECT n.nid, e.event_start FROM {node} n INNER JOIN {event} e ON n.nid = e.nid WHERE n.status = 1 AND ((e.event_start > %d AND e.event_start < %d) OR (e.event_end > %d AND e.event_end < %d) OR (e.event_start < %d AND e.event_end > %d)) ORDER BY event_start '), $first, $last, $first, $last, $first, $last);
+
+    while ($nid = db_fetch_object($result)) {
+      $node = node_load($nid->nid);
+
+      // we have to load these here since there is no way to pass the $view parameter to nodeapi through node_load :/
+      $node->event_links = module_invoke_all('link', 'event_node_'. $view, $node, FALSE);
+
+      // this array contains the loaded nodes for the month, so we dont have them stored for every day they occur
+      $data[$year][$month]['nodes'][$nid->nid] = $node;
+
+      $node_start = gmmktime(0, 0, 0, _event_date('m', $node->event_start, $node->start_offset), _event_date('d', $node->event_start, $node->start_offset), _event_date('Y', $node->event_start, $node->start_offset));
+      $node_end = gmmktime(0, 0, 0, _event_date('m', $node->event_end, $node->end_offset), _event_date('d', $node->event_end, $node->end_offset), _event_date('Y', $node->event_end, $node->end_offset));
+
+      if (($node_start == $node_end) && (gmdate('m', $node_start) == $month)) {
+        $nid->event_state = 'singleday';
+        $data[$year][$month][gmdate('j', $node_start)][] = $nid;
+      }
+      else {
+        // because $first is a local timestamp we compensate for the tz offset here so we dont have to do repetitive day value comparisons below
+        $first -= ($first % 86400);
+        // roll through each day the event occurs and set an entry for each
+        for ($x = ($first > $node_start ? $first : $node_start); $x < $last; $x += 86400) {
+          if (gmdate('m', $x) == $month) {
+            if ($x == $node_end) {
+              $nid->event_state = 'end';
+              $data[$year][$month][gmdate('j', $x)][] = $nid;
+              $x = $last + 1;
+            }
+            elseif ($x == $node_start) {
+              $nid->event_state = 'start';
+              $data[$year][$month][gmdate('j', $x)][] = $nid;
+            }
+            else {
+              $nid->event_state = 'ongoing';
+              $data[$year][$month][gmdate('j', $x)][] = $nid;
+            }
+          }
+        }
+      }
+    }
+  }
+
+  $nodes = array();
+  $event_types = event_get_types();
+  if ($data[$year][$month][$day]) {
+    if (isset($types)) {
+      // content type filters set
+      if (isset($terms)) {
+        // taxonomy and content type filters set
+        foreach ($data[$year][$month][$day] as $nid) {
+          $node = $data[$year][$month]['nodes'][$nid->nid];
+          if (in_array($node->type, $types) && event_taxonomy_filter($node, $terms)) {
+            // this node is the content type and taxonomy term requested
+            if (count($types) == 1 && in_array($node->type, $event_types['solo'])) {
+              // only display solo types if there is only one event type requested
+              $node->event_current_date = $day_start;
+              $node->event_state = $nid->event_state;
+              $nodes[] = $node;
+            }
+            elseif (in_array($node->type, $event_types['all'])) {
+              $node->event_current_date = $day_start;
+              $node->event_state = $nid->event_state;
+              $nodes[] = $node;
+            }
+          }
+        }
+      }
+      else {
+        // only content type filters
+        foreach ($data[$year][$month][$day] as $nid) {
+          $node = $data[$year][$month]['nodes'][$nid->nid];
+          if (in_array($node->type, $types)) {
+            if (count($types) == 1 && in_array($node->type, $event_types['solo'])) {
+              // only display solo types if there is only one event type requested
+              $node->event_current_date = $day_start;
+              $node->event_state = $nid->event_state;
+              $nodes[] = $node;
+            }
+            elseif (in_array($node->type, $event_types['all'])) {
+              $node->event_current_date = $day_start;
+              $node->event_state = $nid->event_state;
+              $nodes[] = $node;
+            }
+          }
+        }
+      }
+    }
+    elseif (isset($terms)) {
+      // no types, only taxonomy filters
+      foreach ($data[$year][$month][$day] as $nid) {
+        $node = $data[$year][$month]['nodes'][$nid->nid];
+        if (event_taxonomy_filter($node, $terms) && in_array($node->type, $event_types['all'])) {
+          $node->event_current_date = $day_start;
+          $node->event_state = $nid->event_state;
+          $nodes[] = $node;
+        }
+      }
+    }
+    else {
+      foreach ($data[$year][$month][$day] as $nid) {
+        // no filters set, only show events with content types states of 'all'
+        $node = $data[$year][$month]['nodes'][$nid->nid];
+        if (in_array($node->type, $event_types['all'])) {
+          $node->event_current_date = $day_start;
+          $node->event_state = $nid->event_state;
+          $nodes[] = $node;
+        }
+      }
+    }
+  }
+
+  return $nodes;
+}
+
+/**
+ * @param $node
+ * @param $types
+ * @param $terms
+ * @return boolean
+ */
+function event_filter_node($node, $types, $terms) {
+  $event_types = event_get_types();
+
+  if (isset($types)) {
+    // content type filters set
+    if (isset($terms)) {
+      // taxonomy and content type filters set
+      if (in_array($node->type, $types) && event_taxonomy_filter($node, $terms)) {
+        // this node is the content type and taxonomy term requested
+        if (count($types) == 1 && in_array($node->type, $event_types['solo'])) {
+          // only display solo types if there is only one event type requested
+          return TRUE;
+        }
+        elseif (in_array($node->type, $event_types['all'])) {
+          return TRUE;
+        }
+      }
+    }
+    else {
+      // only content type filters
+      if (in_array($node->type, $types)) {
+        if (count($types) == 1 && in_array($node->type, $event_types['solo'])) {
+          // only display solo types if there is only one event type requested
+          return TRUE;
+        }
+        elseif (in_array($node->type, $event_types['all'])) {
+          return TRUE;
+        }
+      }
+    }
+  }
+  elseif (isset($terms)) {
+    // no types, only taxonomy filters
+    if (event_taxonomy_filter($node, $terms) && in_array($node->type, $event_types['all'])) {
+      return TRUE;
+    }
+  }
+  else {
+    // no filters set, only show events with content types states of 'all'
+    if (in_array($node->type, $event_types['all'])) {
+      RETURN TRUE;
+    }
+  }
+  return FALSE;
+}
+
+function event_filter_nodes($nodes, $types, $terms) {
+  $event_types = event_get_types();
+
+  $results = array();
+  if (isset($types)) {
+    // content type filters set
+    if (isset($terms)) {
+      // taxonomy and content type filters set
+      foreach ($nodes as $node) {
+        if (in_array($node->type, $types) && event_taxonomy_filter($node, $terms)) {
+          // this node is the content type and taxonomy term requested
+          if (count($types) == 1 && in_array($node->type, $event_types['solo'])) {
+            // only display solo types if there is only one event type requested
+            $results[] = $node;
+          }
+          elseif (in_array($node->type, $event_types['all'])) {
+            $results[] = $node;
+          }
+        }
+      }
+    }
+    else {
+      // only content type filters
+      foreach ($nodes as $node) {
+        if (in_array($node->type, $types)) {
+          if (count($types) == 1 && in_array($node->type, $event_types['solo'])) {
+            // only display solo types if there is only one event type requested
+            $results[] = $node;
+          }
+          elseif (in_array($node->type, $event_types['all'])) {
+            $results[] = $node;
+          }
+        }
+      }
+    }
+  }
+  elseif (isset($terms)) {
+    // no types, only taxonomy filters
+    foreach ($nodes as $node) {
+      if (event_taxonomy_filter($node, $terms) && in_array($node->type, $event_types['all'])) {
+        $results[] = $node;
+      }
+    }
+  }
+  else {
+    // no filters set, only show events with content types states of 'all'
+    foreach ($nodes as $node) {
+      if (in_array($node->type, $event_types['all'])) {
+        return $nodes;
+      }
+    }
+  }
+  return $results;
+}
+
+function event_taxonomy_filter($node, $terms) {
+  if ($tids = taxonomy_node_get_terms($node->nid)) {
+    foreach ($tids as $tid => $term) {
+      if (in_array($tid, $terms)) {
+        return TRUE;
+      }
+    }
+  }
+  return FALSE;
+}
+
+/**
+ * Returns a link to the event page for a single day.
+ *
+ * @ingroup event_support
+ * @param $year The year the event is taking place.
+ * @param $month The month the event is taking place.
+ * @param $day The day the event is taking place. No leading zeroes
+ * @param $types Limit to nodes of these types
+ * @param $terms Limit to events with these taxonomy terms
+ * @return The value of the day requested. If the day has events, the value will be a link to a more detailed page of that day's events.
+ */
+function event_render_day_single($year, $month, $day, $view, $types, $terms) {
+  return count(event_calendar_data($year, $month, $day, $view, $types, $terms)) ? l($day, "event/$year/$month/$day/day") : $day;
+}
+
+/**
+ * Returns an day of events for a calendar.
+ *
+ * @ingroup event_support
+ * @param $year The year the event is taking place.
+ * @param $month The month the event is taking place.
+ * @param $day The day the event is taking place. No leading zeroes.
+ * @param $types Limit to nodes of these types
+ * @param $terms Limit to events with these taxonomy terms
+ * @return A string containing all of the events taking place.
+ */
+function event_render_day($year, $month, $day, $view, $types, $terms) {
+
+  $nodes = event_calendar_data($year, $month, $day, $view, $types, $terms);
+
+  if (count($nodes)) {
+    $output = theme('event_calendar_date_box', $year, $month, $day, $view);
+    foreach ($nodes as $node) {
+      $output .= theme('event_node_'. $view, $node);
+    }
+  }
+  else {
+    $output .= theme('event_empty_day', $year, $month, $day, $view);
+  }
+
+  return $output;
+}
+
+/**
+ * Returns week day names and thier translated values, corrected for the start of week day settings (mon or sun)
+ *
+ * @ingroup event_support
+ * @return an associative array containing weekday names
+ */
+function event_week_days() {
+  static $weekdays;
+
+  if (!$weekdays) {
+    if (variable_get('date_first_day', 1)) {
+      $weekdays = array(array('day' => 'Mon', 't' => t('Mon')), array('day' => 'Tue', 't' => t('Tue')), array('day' => 'Wed', 't' => t('Wed')), array('day' => 'Thu', 't' => t('Thu')), array('day' => 'Fri', 't' => t('Fri')), array('day' => 'Sat', 't' => t('Sat')), array('day' => 'Sun', 't' => t('Sun')));
+    }
+    else {
+      $weekdays = array(array('day' => 'Sun', 't' => t('Sun')), array('day' => 'Mon', 't' => t('Mon')), array('day' => 'Tue', 't' => t('Tue')), array('day' => 'Wed', 't' => t('Wed')), array('day' => 'Thu', 't' => t('Thu')), array('day' => 'Fri', 't' => t('Fri')), array('day' => 'Sat', 't' => t('Sat')));
+    }
+  }
+  return $weekdays;
+}
+
+/**
+ * Formats the weekday information into table header format
+ *
+ * @ingroup event_support
+ * @return array with weekday table header data
+ */
+function event_week_header() {
+  // create week header
+  $days = event_week_days();
+
+  foreach ($days as $day) {
+    $row[] = array('class' => strtolower("days ". $day['day']), 'data' => $day['t']);
+  }
+
+  return $row;
+}
+
+/**
+ * Formats a GMT timestamp to local date values using time zone offset supplied.
+ * All timestamp values in event nodes are GMT and translated for display here.
+ *
+ * Time zone settings are applied in the following order
+ * 1. If supplied, time zone offset is applied
+ * 2. If user time zones are enabled, user time zone offset is applied
+ * 3. If neither 1 nor 2 apply, the site time zone offset is applied
+ *
+ * @param $format The date() format to apply to the timestamp.
+ * @param $timestamp The GMT timestamp value.
+ * @param $offset Time zone offset to apply to the timestamp.
+ * @ingroup event_support
+ * @return gmdate() formatted date value
+ */
+function _event_date($format, $timestamp, $offset = null) {
+  global $user;
+
+  if (isset($offset)) {
+    $timestamp += $offset;
+  }
+  elseif (variable_get('configurable_timezones', 1) && $user->uid && strlen($user->timezone)) {
+    $timestamp += $user->timezone;
+  }
+  else {
+    $timestamp += variable_get('date_default_timezone', 0);
+  }
+
+  // make sure we apply the site first day of the week setting for dow requests
+  if ($format == 'w') {
+    $result = _event_day_of_week($timestamp);
+  }
+  else {
+    $result = gmdate($format, $timestamp);
+  }
+  return  $result;
+}
+
+/**
+ * Return the day of week with start of week offset applied
+ * @param $stamp GMT timestamp
+ * @return integer day of the week
+ */
+function _event_day_of_week($stamp) {
+  $dow = gmdate('w', $stamp);
+  $dow = (variable_get('date_first_day', 1) ? ($dow == 0 ? 6 : --$dow ) : $dow);
+  return $dow;
+}
+
+/**
+ * Formats local time values to GMT timestamp using time zone offset supplied.
+ * All time values in the database are GMT and translated here prior to insertion.
+ *
+ * Time zone settings are applied in the following order:
+ * 1. If supplied, time zone offset is applied
+ * 2. If user time zones are enabled, user time zone offset is applied
+ * 3. If neither 1 nor 2 apply, the site time zone offset is applied
+ *
+ * @param $format The date() format to apply to the timestamp.
+ * @param $timestamp The GMT timestamp value.
+ * @param $offset Time zone offset to apply to the timestamp.
+ * @ingroup event_support
+ * @return gmdate() formatted date value
+ */
+function _event_mktime($hour, $minute, $second, $month, $day, $year, $offset = NULL) {
+  global $user;
+  $timestamp = gmmktime($hour, $minute, $second, $month, $day, $year);
+  if (isset($offset)) {
+    return $timestamp - $offset;
+  }
+  elseif (variable_get('configurable_timezones', 1) && $user->uid && strlen($user->timezone) && (variable_get('event_timezone_display', 'event') == 'user')) {
+    return $timestamp - $user->timezone;
+  }
+  else {
+    return $timestamp - variable_get('date_default_timezone', 0);
+  }
+}
+
+/**
+ * Returns a local timestamp based on the user or site time zone.
+ * @return integer timestamp
+ */
+function _event_user_time() {
+  global $user;
+
+  if (variable_get('configurable_timezones', 1) && $user->uid && strlen($user->timezone)) {
+    return (time() - date("Z")) + $user->timezone;
+  }
+  else {
+    return (time() - date("Z")) + variable_get('date_default_timezone', 0);
+  }
+}
+
+/**
+ * Returns a local timestamp (as defined by the user or site's timezone) for
+ * midnight GMT.
+ * @return integer timestamp
+ */
+function _event_user_date() {
+  static $date;
+  if (!$date) {
+    $now = _event_user_time();
+    $date = gmmktime(0, 0, 0, gmdate('m', $now), gmdate('j', $now), gmdate('Y', $now));
+  }
+  return $date;
+}
+
+/**
+ * Constructs the time select boxes.
+ *
+ * @ingroup event_support
+ * @param $timestamp The time GMT timestamp of the event to use as the default
+ *   value.
+ * @param $prefix The value to prepend to the select element names ('start' or
+ *   'end').
+ * @param $offset timezone offset
+ * @return An array of form elements for month, day, year, hour, and minute
+ */
+function event_form_date($timestamp, $prefix = 'start', $offset) {
+  // populate drop down values...
+  // ...months
+  $months = array(1 => t('January'), t('February'), t('March'), t('April'), t('May'), t('June'), t('July'), t('August'), t('September'), t('October'), t('November'), t('December'));
+  // ...hours
+  if (variable_get('event_ampm', '0')) {
+    $hour_format = t('g');
+    $hours = drupal_map_assoc(range(1, 12));
+    $am_pms = array('am' => t('am'), 'pm' => t('pm'));
+  }
+  else {
+    $hour_format = t('H');
+    $hours = drupal_map_assoc(range(0, 23));
+  }
+  // ...minutes (with leading 0s)
+  for ($i = 0; $i <= 59; $i++) $minutes[$i] = $i < 10 ? "0$i" : $i;
+
+  // This is a GMT timestamp, so the _event_date() wrapper to display local times.
+  $form[$prefix .'_day'] = array(
+    '#prefix' => '<div class="container-inline"><div class="day">',
+    '#type' => 'textfield',
+    '#default_value' => _event_date('d', $timestamp, $offset),
+    '#maxlength' => 2,
+    '#size' => 2,
+    '#description' => t('day'),
+    '#required' => TRUE);
+  $form[$prefix .'_month'] = array(
+    '#type' => 'select',
+    '#default_value' => _event_date('m', $timestamp, $offset),
+    '#options' => $months,
+    '#description' => t('month'),
+    '#required' => TRUE);
+  $form[$prefix .'_year'] = array(
+    '#type' => 'textfield',
+    '#default_value' => _event_date('Y', $timestamp, $offset),
+    '#maxlength' => 4,
+    '#size' => 4,
+    '#description' => t('year'),
+    '#required' => TRUE);
+  $form[$prefix .'_hour'] = array(
+    '#prefix' => '</div><div class="time">',
+    '#type' => 'select',
+    '#default_value' => _event_date($hour_format, $timestamp, $offset),
+    '#options' => $hours,
+    '#required' => TRUE,
+    '#description' => t('hour'));
+  $form[$prefix .'_minute'] = array(
+    '#prefix' => ':',
+    '#type' => 'select',
+    '#default_value' => _event_date('i', $timestamp, $offset),
+    '#options' => $minutes,
+    '#required' => TRUE,
+    '#description' => t('minutes'));
+  if (isset($am_pms)) {
+    $form[$prefix .'_ampm'] = array(
+      '#type' => 'radios',
+      '#default_value' => _event_date('a', $timestamp, $offset),
+      '#options' => $am_pms,
+      '#required' => TRUE);
+  }
+  $form[$prefix .'_close'] = array(
+    '#type' => 'markup',
+    '#value' => '</div></div>');
+
+  return $form;
+}
+
+/**
+ * Validates the start and end times in a node form submission.
+ * - Changes 24 hour time to 12 hour time (if the module is configured to do this).
+ *  - Adjusts times for time zone offsets.
+ *
+ * @ingroup event_support
+ * @param $node The submitted node with form data.
+ * @param $date The name of the event's date ('start' or 'end') to validate and set.
+ */
+function event_validate_form_date(&$node, $date) {
+  $prefix = $date .'_';
+
+  /**
+   *  If using javascript pop-up calendar, convert input date back to individual date parts expected by the validator
+   */
+  if (module_exist('jscalendar')) {
+    $get = $prefix . 'date';
+    $this_date = $node->$get;
+    $timestamp = mktime(substr($this_date, 11, 2), substr($this_date, 14, 2), substr($this_date, 17, 2), substr($this_date, 5, 2), substr($this_date, 8, 2), substr($this_date, 0, 4));
+    $node->{$prefix . 'year'} = date('Y', $timestamp);
+    $node->{$prefix . 'month'} = date('n', $timestamp);
+    $node->{$prefix . 'day'} = date('d', $timestamp);
+    $node->{$prefix . 'hour'} = variable_get('event_ampm', '0') ? date('H', $timestamp) : date('g', $timestamp);
+    $node->{$prefix . 'minute'} = date('i', $timestamp);
+  }
+
+  // If we have all the parameters, re-calculate $node->event_$date .
+  if (isset($node->{$prefix . 'year'}) && isset($node->{$prefix . 'month'}) && isset($node->{$prefix . 'day'}) && isset($node->{$prefix . 'hour'}) && isset($node->{$prefix . 'minute'})) {
+    $hour = $node->{$prefix . 'hour'};
+    if (variable_get('event_ampm', '0')) {
+      if (($node->{$prefix . 'ampm'} == 'pm') && ($hour != 12)) {
+        $hour += 12;
+      }
+      elseif (($node->{$prefix . 'ampm'} == 'am') && ($hour == 12)) {
+        $hour -= 12;
+      }
+    }
+    // translate the input values to GMT and set the node property value
+    $offset = event_get_offset($node->timezone, gmmktime($hour, $node->{$prefix . 'minute'}, 0, $node->{$prefix . 'month'}, $node->{$prefix . 'day'}, $node->{$prefix . 'year'}));
+    $node->{'event_'. $date} = _event_mktime($hour, $node->{$prefix . 'minute'}, 0, $node->{$prefix . 'month'}, $node->{$prefix . 'day'}, $node->{$prefix . 'year'}, $offset);
+  }
+  elseif (!$node->$date) {
+    // Round to nearest hour:
+    $now = _event_user_time();
+    $node->$date = $now - ($now % (60 * 60));
+  }
+}
+
+/**
+ * Build the navigation links for the calendar views
+ *
+ * @ingroup event_support
+ * @param $date The GMT date we are viewing
+ * @param $dir The 'direction' we want (prev or next)
+ * @param $view The view we are navigating, month, week, day or table
+ * @param $types The content types to filter by
+ * @param $terms The taxonomy terms to filter by
+ * @param $duration The duration of the current view in multiples of view type
+ * @return Themed navigation link.
+ */
+function _event_nav($date, $dir, $view, $types, $terms, $duration = NULL) {
+
+  // first, retrieve the stored timestamp of the first/last event
+  $range = variable_get('event_range_'. $dir, -1);
+  // If the variable isn't set, set it and try again
+  if ($range == -1) {
+    event_set_range();
+    $range = variable_get('event_range_'. $dir, $date);
+  }
+
+  // if we are beyond the range of the stored events, dont display navigation
+  if (($dir == 'prev' && $range < $date) || ($dir == 'next' && $range > $date)) {
+    $inc = ($dir == 'prev' ? -1 : 1);
+    $duration = ($duration ? $duration : 1);
+
+    switch ($view) {
+      case 'day':
+      case 'table':
+          // Increment by $duration*days
+          $date += ($inc * ($duration * 86400));
+        break;
+      case 'week':
+          // Increment by $duration*weeks
+          $date += ($inc * ($duration * (86400 * 7)));
+        break;
+      case 'month':
+          // Increment by $duration*months
+          $date = gmmktime(0, 0, 0, gmdate('m', $date) + ($duration * $inc), gmdate('j', $date), gmdate('Y', $date));
+        break;
+    }
+
+    $url[] = 'event';
+    $url[] = gmdate('Y', $date);
+    $url[] = gmdate('m', $date);
+    $url[] = gmdate('d', $date);
+    $url[] = $view;
+    $url[] = ($types ? implode('+', $types) : 'all');
+    $url[] = ($terms ? implode('+', $terms) : 'all');
+    $url[] = $duration;
+    return theme('event_nav_'. $dir, implode('/', $url));
+  }
+}
+
+/**
+* Returns a dropdown event taxonomy term input control.
+*
+* @ingroup event_support.
+* @param $curterm The current term id.
+* @param $submit Adds 'onChange' form submit javascript command to control.
+* @return A form with a dropdown event taxonomy term input control.
+*/
+function _event_get_taxonomy_control($curterm = NULL, $autosubmit = TRUE) {
+  if (module_exist('taxonomy')) {
+    $types = event_get_types();
+    $vs = array();
+    foreach ($types['all'] as $type) {
+      $results = taxonomy_get_vocabularies($type);
+      foreach ($results as $vocab) {
+        $vs[$vocab->vid] = $vocab;
+      }
+    }
+
+    $results = null;
+    foreach ($types['solo'] as $type) {
+      $results = taxonomy_get_vocabularies($type);
+      foreach ($results as $vocab) {
+        $vs[$vocab->vid] = $vocab;
+      }
+    }
+
+    $items['all'] = t('(all)');
+    foreach ($vs as $vid => $vocab) {
+      $tree = taxonomy_get_tree($vid);
+      foreach ($tree as $term) {
+        $items[$term->tid] = $vocab->name.' - '.$term->name;
+      }
+    }
+
+    $form['event_term_select'] = array(
+      '#type' => 'select',
+      '#default_value' => $curterm,
+      '#options' => $items,
+      '#description' => t('Select event terms to filter by'));
+    if ($autosubmit) {
+      $form['event_term_select']['#attributes'] = array('onChange'=>'this.form.submit()');
+    }
+
+    $form = drupal_get_form('event_taxonomy_filter', $form);
+
+    return theme('event_filter_control', $form);
+  }
+}
+
+/**
+* Returns a dropdown event-enabled content type input control.
+*
+* @ingroup event_support.
+* @param $tid The current term id.
+* @param $submit Adds 'onChange' form submit javascript command to control.
+* @return A form with a dropdown event taxonomy term input control.
+*/
+function _event_get_type_control($curtype = NULL, $autosubmit = TRUE) {
+  if (module_exist('taxonomy')) {
+    $results = event_get_types('all');
+
+    $items['all'] = t('(all)');
+    foreach ($results as $type) {
+      if($name = node_get_name($type)) {
+        $items[$type] = $name;
+      }
+    }
+
+    $form['event_type_select'] = array(
+      '#type' => 'select',
+      '#default_value' => $curtype,
+      '#options' => $items,
+      '#description' => t('Select event type to filter by'));
+    if ($autosubmit) {
+      $form['event_type_select']['#attributes'] = array('onChange'=>'this.form.submit()');
+    }
+
+    $form = drupal_get_form('event_type_filter', $form);
+
+    return theme('event_filter_control', $form);
+  }
+}
+
+/**
+ * @defgroup event_block Functions for event blocks.
+ */
+
+/**
+ * Provides the blocks that this module is capable of displaying.
+ *
+ * @ingroup event_block
+ * @param $op the operation that is being requested.  This defaults to 'list', which indicates that the method should
+ *        return which blocks are available.
+ * @param $delta the specific block to display.  This is actually the offset into an array.
+ * @return one of two possibilities.  The first is an array of available blocks.  The other is an array containing a
+ *        block.
+ */
+function event_block($op = 'list', $delta = 0) {
+  switch ($op) {
+    case 'list' :
+      $blocks[0]['info'] = t('Calendar to browse events.');
+      $blocks[1]['info'] = t('List of upcoming events.');
+      return $blocks;
+      break;
+    case 'view' :
+      if (user_access('access content')) {
+        switch ($delta) {
+          case 0:
+            $time = _event_user_date();
+            if (arg(0) == 'event' && is_numeric(arg(1))) {
+              // follow event calendar
+              $year = (arg(1) ? arg(1) : gmdate('Y', $time));
+              $month = (arg(2) ? arg(2) : gmdate('m', $time));
+              $day = (arg(3) ? arg(3) : gmdate('d', $time));
+              $stamp = gmmktime(0, 0, 0, $month, $day, $year);
+            }
+            else {
+              $stamp = _event_user_date();
+            }
+            $block['subject'] = t('Events');
+            $block['content'] = event_calendar_month('block', $stamp);
+            return $block;
+          case 1:
+            $block['subject'] = t('Upcoming events');
+            $block['content'] = event_block_upcoming(variable_get('event_upcoming_limit', '6'));
+            return $block;
+        }
+      }
+      if (event_is_enabled($node->type)) {
+        $length = strlen(ical_export(_event_node_ical($node), $node->title));
+        return array(array('key' => 'enclosure',
+                           'attributes' => array('url' => url('node/'.$node->nid .'/ical', NULL, NULL, TRUE),
+                                                 'length' => $length,
+                                                 'type' => 'text/calendar')));
+      }
+      break;
+  }
+}
+
+/**
+ * Creates a block that contains upcoming events.
+ *
+ * @ingroup event_block
+ * @param $limit The number of events that can be displayed in the block.
+ * @return A string containing the fully themed block.
+ */
+function event_block_upcoming($limit = 6) {
+  global $user;
+  // For two hours, we display "NOW"
+  $time = time() - (2 * 60 * 60);
+  $result = db_query(db_rewrite_sql('SELECT n.nid, n.title, n.type, n.status, n.moderate, n.changed, e.event_start FROM {node} n INNER JOIN {event} e ON n.nid = e.nid WHERE n.status = 1 AND n.moderate = 0 AND e.event_start >= %d ORDER BY event_start'), $time);
+
+  while (($node = db_fetch_object($result)) && $limit) {
+
+    //call the event_edit_upcoming hook in all modules.  note that modules can prevent display of a node by setting
+    //it's status to 0 here.
+    foreach (module_implements('event_edit_upcoming') as $module) {
+      $function = $module .'_event_edit_upcoming';
+      $function($node);
+    }
+    $minutesleft = floor(($node->event_start - time()) / 60);
+
+    if ($minutesleft < 0) {
+      $timeleft = t('NOW');
+    }
+    else if ($minutesleft < 60) {
+      $timeleft = format_plural($minutesleft, '1 minute', '%count minutes');
+    }
+    else if ($minutesleft >= 60 && $minutesleft < (24 * 60)) {
+      $timeleft = format_plural(floor($minutesleft / 60), '1 hour', '%count hours');
+    }
+    else if ($minutesleft >= (24 * 60)) {
+      $days = floor($minutesleft / (24 * 60));
+      // hours remainder
+      $hours = ($minutesleft % (24 * 60)) / 60;
+      // hours left in the day
+      $hours_left = 24 - date('G', time());
+      // see if the remainder of hours on the event date is greater than the hours left in today, if so increase the days by one so that the days remaining mimics the date rather than how many 24 hour periods there are between now and then.
+      if ($hours > $hours_left) {
+        $days++;
+      }
+      $timeleft = format_plural($days, '1 day', '%count days');
+    }
+
+    $node->timeleft = $timeleft;
+    $ctype = module_invoke('flexinode', 'load_content_type', substr($node->type, 10));
+    $node->typename = ($ctype->name ? $ctype->name : $node->type);
+
+    if ($node->status) {
+      $items[] = theme('event_upcoming_item', $node);
+      $limit--;
+    }
+  }
+  if(!$items) {
+    $items[] = t('no upcoming events available');
+  }
+
+  $output = theme('event_upcoming_block', $items);
+  $output .= theme('event_ical_link', 'event/ical');
+  $output .= theme('event_more_link', 'event');
+
+  return $output;
+}
+
+/**
+ * @defgroup event_nodeapi Functions for nodeapi integration
+ */
+
+function event_form_alter($form_id, &$form) {
+  global $user;
+  $type = (isset($form['type']) && isset($form['type']['#value'])) ? $form['type']['#value'] : NULL;
+  $node = isset($form['#node']) ? $form['#node'] : NULL;
+
+  switch ($form_id) {
+    // node settings form
+    case $type .'_node_settings':
+      $form['workflow']['event_nodeapi_'. $type] = array(
+        '#type' => 'radios',
+        '#title' => t('Show in event calendar'),
+        '#default_value' => variable_get('event_nodeapi_'. $type, 'never'),
+        '#options' => array('all' => t('All views'), 'solo' => t('Only in views for this type'), 'never' => t('Never')),
+        '#description' => t('All views: This content type will be available for display on all calendar views, including with other events.<br />Only in views for this type: This content type will only appear in calendar views specific to this type and never with other events.<br />Never: This content type will not be associated with the events calendar.')
+      );
+      break;
+    // node edit form
+    case $type .'_node_form':
+      if (variable_get('event_nodeapi_'. $type, 'never') != 'never') {
+        include_once(EVENT_PATH .'/event_timezones.inc');
+        /**
+         *  Check to see if jscalendar is installed
+         *  If so, display it, otherwise default to normal drop-down list selectors
+         */
+        if (module_exist('jscalendar')) {
+
+          $form['start_date'] = array(
+            '#title' => t('Start Date'),
+            '#type' => 'textfield',
+            '#default_value' => _event_date('Y-m-d H:i', $node->event_start ? $node->event_start : _event_user_time(), $node->start_offset),
+            '#attributes' => array('class' => 'jscalendar'),
+            '#jscalendar_ifFormat' => '%Y-%m-%d %H:%M',
+            '#jscalendar_showsTime' => 'true',
+            '#jscalendar_timeFormat' => variable_get('event_ampm', '0') == 0 ? '24' : '12',
+            '#size' => 19,
+            '#maxlength' => 19,
+            '#weight' => -15,
+            '#description' => t('YYYY-MM-DD HH:MM'),
+            );
+          $form['end_date'] = array(
+            '#title' => t('End Date'),
+            '#type' => 'textfield',
+            '#default_value' => _event_date('Y-m-d H:i', $node->event_end ? $node->event_end : _event_user_time(), $node->end_offset),
+            '#attributes' => array('class' => 'jscalendar'),
+            '#jscalendar_ifFormat' => '%Y-%m-%d %H:%M',
+            '#jscalendar_showsTime' => 'true',
+            '#jscalendar_timeFormat' => variable_get('event_ampm', '0') == 0 ? '24' : '12',
+            '#size' => 19,
+            '#maxlength' => 19,
+            '#weight' => -14,
+            '#description' => t('YYYY-MM-DD HH:MM'),
+            );
+        }
+        else {
+          $form['event_start'] = array(
+            '#type' => 'fieldset',
+            '#title' => t('Start'),
+            '#description' => t('Start date.'),
+            '#weight' => -15
+            );
+          $form['event_start']['date'] = event_form_date($node->event_start ? $node->event_start : _event_user_time(), 'start', $node->start_offset);
+
+          $form['event_end'] = array(
+            '#type' => 'fieldset',
+            '#title' => t('End'),
+            '#description' => t('End date.'),
+            '#weight' => -14
+            );
+          $form['event_end']['date'] = event_form_date(($node->event_end ? $node->event_end : _event_user_time()), 'end', $node->end_offset);
+
+        }
+
+        if (variable_get('event_timezone_input', 'site') == 'input') {
+          $form['timezone'] = array(
+            '#type' => 'select',
+            '#title' => t('Time zone'),
+            '#default_value' => ($node->timezone ? $node->timezone : event_timezone_map(variable_get('date_default_timezone', 0))),
+            '#options' => event_zonelist(),
+            '#description' => t('Select the time zone this event occurs in.'),
+            '#weight' => -13
+            );
+        }
+        elseif (variable_get('configurable_timezones', 1) && $user->uid && strlen($user->timezone) && (variable_get('event_timezone_input', 'site') == 'user')) {
+          $form['timezone'] = array(
+            '#type' => 'hidden',
+            '#value' =>  event_timezone_map($user->timezone)
+            );
+        }
+        else {
+          $form['timezone'] = array(
+            '#type' => 'hidden',
+            '#value' => event_timezone_map(variable_get('date_default_timezone', 0))
+            );
+        }
+      }
+      break;
+  }
+}
+
+/**
+ * hook_nodeapi implementation
+ *
+ * @ingroup event_nodeapi
+ */
+function event_nodeapi(&$node, $op, $teaser = NULL, $page = NULL) {
+  // make sure it's an event enabled node
+  if(variable_get('event_nodeapi_'. $node->type, 'never') != 'never') {
+    switch ($op) {
+      case 'validate':
+        // no break. both need a node with a formatted date and event_start
+        // and event_end set, 'validate' for the previewing and 'submit' for
+        // update/insert.
+      case 'submit':
+        event_validate_form_date($node, 'start');
+        event_validate_form_date($node, 'end');
+        if ($node->event_end < $node->event_start) {
+          $node->event_end = $node->event_start;
+        }
+        switch (variable_get('event_timezone_display', 'event')) {
+          case 'event' :
+            $node->start_offset = event_get_offset($node->timezone, $node->event_start);
+            $node->end_offset = event_get_offset($node->timezone, $node->event_end);
+            break;
+          case 'user' :
+            global $user;
+            $node->start_offset = $node->end_offset = $user->timezone;
+            break;
+          case 'site' :
+            $node->start_offset = $node->end_offset = variable_get('date_default_timezone', 0);
+            break;
+        }
+        $node->start_format = format_date($node->event_start, 'small', '', $node->start_offset);
+        $node->end_format = format_date($node->event_end, 'small', '', $node->end_offset);
+        break;
+
+      case 'insert':
+        db_query('INSERT INTO {event} (nid, event_start, event_end, timezone) VALUES (%d, %d, %d, %d)', $node->nid, $node->event_start, $node->event_end, $node->timezone);
+        event_set_range();
+        break;
+
+      case 'update':
+        // While the DELETE/INSERT is less efficient than single UPDATE, the
+        // UPDATE only works if there's an existing record in the events
+        // table. I.e. if you create a node and then enable the event module,
+        // there will be no record in the event table, so the dates cannot be
+        // changed.
+        db_query('DELETE FROM {event} WHERE nid = %d', $node->nid);
+        db_query('INSERT INTO {event} (nid, event_start, event_end, timezone) VALUES (%d, %d, %d, %d)', $node->nid, $node->event_start, $node->event_end, $node->timezone);
+        event_set_range();
+        break;
+
+      case 'delete':
+        db_query('DELETE FROM {event} WHERE nid = %d', $node->nid);
+        event_set_range();
+        break;
+
+      case 'load':
+        $object = db_fetch_object(db_query('SELECT event_start, event_end, timezone FROM {event} WHERE nid = %d', $node->nid));
+        switch (variable_get('event_timezone_display', 'event')) {
+          case 'event' :
+	          include_once(EVENT_PATH .'/event_timezones.inc');
+            $start_offset = event_get_offset($object->timezone, $object->event_start);
+            $end_offset = event_get_offset($object->timezone, $object->event_end);
+            break;
+          case 'user' :
+            global $user;
+            $start_offset = $end_offset = $user->timezone;
+            break;
+          case 'site' :
+            $start_offset = $end_offset = variable_get('date_default_timezone', 0);
+            break;
+        }
+        $ctype = module_invoke('flexinode', 'load_content_type', $node->ctype_id);
+
+        return array(
+          'event_start'       => $object->event_start,
+          'event_end'         => $object->event_end,
+          'timezone'          => $object->timezone,
+          'start_offset'      => $start_offset,
+          'start_format'      => format_date($object->event_start, 'small', '', $start_offset),
+          'start_time_format' => format_date($object->event_start, 'custom', (variable_get('event_ampm', '0') ? 'g:i a' : 'H:i'), $start_offset),
+          'end_offset'        => $end_offset,
+          'end_format'        => format_date($object->event_end, 'small', '', $end_offset),
+          'end_time_format'   => format_date($object->event_end, 'custom', (variable_get('event_ampm', '0') ? 'g:i a' : 'H:i'), $end_offset),
+          'event_node_title'  => ($ctype->name ? $ctype->name : $node->type));
+        break;
+
+      case 'ical item':
+        break;
+
+      case 'view':
+        // no break, 'view' and 'rss item' both use the same case
+      case 'rss item':
+        $node->body = theme('event_nodeapi', $node). $node->body;
+        $node->teaser = theme('event_nodeapi', $node). $node->teaser;
+        break;
+    }
+  }
+}
+
+/**
+ * Get an array of nodes with a given state. If no state is provided an array
+ * with all nodes keyed by state will be returned. The possible states are:
+ * 'all' Always shown in the calendar.
+ * 'solo' Only shown with nodes of its type.
+ * 'never' Never show in the calendar.
+ *
+ * @param $state string state name
+ * @return array of node types
+ */
+function event_get_types($state = NULL) {
+  static $types;
+  if (!is_array($types)) {
+    $types['all'] = array();
+    $types['solo'] = array();
+    $types['never'] = array();
+    $result = db_query("SELECT * FROM {variable} WHERE name like 'event_nodeapi_%'");
+    while ($type = db_fetch_object($result)) {
+      $types[unserialize($type->value)][] = substr($type->name, 14);
+    }
+  }
+  switch ($state) {
+    case 'all':
+      return $types['all'];
+      break;
+    case 'solo':
+      return $types['solo'];
+      break;
+    case 'never':
+      return $types['never'];
+      break;
+    default:
+      return $types;
+      break;
+  }
+}
+
+/**
+ * Find the state of a node type. The state determines if and how those nodes
+ * will be displayed in the calendar. The state values are:
+ * 'all' Always shown in the calendar.
+ * 'solo' Only shown with nodes of its type.
+ * 'never' Never show in the calendar.
+ *
+ * @param $type node type
+ * @return state value
+ */
+function event_enabled_state($type) {
+  $states = event_get_types();
+  foreach ($states as $key => $state) {
+    if (in_array($type, $state)) {
+      return $key;
+    }
+  }
+}
+
+/**
+ * Find out if a node type is shown in all calendars.
+ * @param $type node type
+ * @return boolean
+ */
+function event_is_enabled($type) {
+  $states = event_get_types();
+  return in_array($type, $states['all']);
+}
+
+/**
+ * Update the variables the module uses to track the first and last events.
+ */
+function event_set_range() {
+  $range = db_fetch_object(db_query('select MIN(e.event_start) AS event_start, MAX(e.event_end) AS event_end FROM {event} e'));
+  variable_set('event_range_prev', $range->event_start);
+  variable_set('event_range_next', $range->event_end);
+}
+
+/**
+ * Display a page with the timezone and daylight savings time regions.
+ */
+function event_dst() {
+  include_once(EVENT_PATH .'/event_timezones.inc');
+
+  $timestamp = time();
+
+  $zones = event_get_timezones();
+  foreach($zones as $key => $zone) {
+    if($zone['dst_region']) {
+      $list[$zone['dst_region']][] = $zone['timezone'] .', '. (event_is_dst($zone['dst_region'], $timestamp) ? 'In DST' : 'Not in DST') . ': '. event_get_offset($key, $timestamp);
+    }
+    else {
+      $list[$zone['dst_region']][] = $zone['timezone'] .': '. event_get_offset($key, $timestamp);
+    }
+  }
+  $regions = event_get_dst_regions();
+  foreach($list as $key => $region) {
+    $output .= theme('box', $regions[$key], theme('item_list', $region));
+  }
+
+  drupal_set_title(t('Daylight Savings Regions | Current GMT: %date', array('%date' => gmdate('m-d-Y, H:i', $timestamp))));
+
+  return $output;
+}
+
+/**
+ * Displays the help text for this module.
+ *
+ * @ingroup event_core
+ * @param $section the page which is requesting help
+ * @return the help text
+ */
+function event_help($section) {
+  switch ($section) {
+    case 'admin/help#event':
+      $output = '<p>'. t('The event module allows for any type of content to be event enabled,  meaning content can have a start and end time, and appear in calendars.  The ability to event enable any content type combined with the ability to create new types of content make it possible to create unlimited types of calendars.  The ability to broadly event enable content will allow for creative applications combining information and real world events.') .'</p>';
+      $output .= '<p>' .t('The administrator can decide which content types should be events for their site.  In content type configuration, administrators can select the calendar view options: never, all views, or only views for this type. For example, this makes it possible to have a general calendar which shows all meetups and house parties in the same calendar, and have a separate calendar for rallies which only contains the rallies content type. Calendars can be customized to view a specific content type or a category of content, using taxonomies.') .'</p>';
+      $output .= '<p>'. t('Administrators can also set two types of options for events; general event options, and event overview options.  General event options are for timezone configuration, time notation formats, and event block configuration.  Event overview options allow calendar and table event default views.  Administrators can also set general filter controls for content types and categories, via the event taxonomy controls.') .'</p>';
+      $output .= t('<p>You can</p>
+<ul>
+<li>enable content types to be event enabled at <a href="%admin-node-configure-types" title="content type configuration">administer &gt;&gt; content &gt;&gt; content types </a> then click configure for a content type.</li>
+<li>administer general event options <a href="%admin-settings-event" title="administer events">administer &gt;&gt; settings &gt;&gt; events</a>.</li>
+<li><a href="%node-add" title="list of content types that can be created">create content</a> and set a start and end time, if the administrator has set that content type to be event enabled.</li>
+<li>use <a href="%external-http-drupal-org-handbook-modules-eventfinder">eventfinder, <a href="http://drupal.org/handbook/modules/volunteer">volunteer</a>, and <a href="%external-http-drupal-org-handbook-modules-rsvp">RSVP</a> modules to invite users to events.</li>
+', array('%admin-node-configure-types' => url('admin/node/configure/types'), '%admin-settings-event' => url('admin/settings/event'), '%node-add' => url('node/add'), '%external-http-drupal-org-handbook-modules-eventfinder' => 'http://drupal.org/handbook/modules/eventfinder', '%external-http-drupal-org-handbook-modules-rsvp' => 'http://drupal.org/handbook/modules/rsvp')) .'</ul>';
+      $output .= '<p>'. t('For more information please read the configuration and customization handbook <a href="%event">Event page</a>.', array('%event' => 'http://www.drupal.org/handbook/modules/event/')) .'</p>';
+      return $output;
+    case 'admin/modules#description':
+      return t('Lets users make events and keep calendars.');
+    case 'event/dst':
+      return t('This is a listing of all the event system\'s time zones, sorted by daylight savings time regions, and thier respective offsets from GMT in seconds. Time zones in the \'None\' region do not observe daylight savings time. If you believe there is an error, please first search for the locale on %timeanddate and confirm it. If there is indeed an error please submit a %bugreport on drupal.org so we can fix it.', array('%timeanddate' => l('http://timeanddate.com/worldclock/search.html', 'http://timeanddate.com/worldclock/search.html'), '%bugreport' => l('bug report', 'http://drupal.org/node/add/project_issue/event')));
+  }
+}

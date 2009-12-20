@@ -1,0 +1,73 @@
+# LANGUAGE translation of Drupal (audio_images.module)
+# Copyright YEAR NAME <EMAIL@ADDRESS>
+# Generated from file: audio_images.module,v 1.1.2.4 2006/08/14 20:26:54 drewish
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: PROJECT VERSION\n"
+"POT-Creation-Date: 2006-08-18 17:34-0700\n"
+"PO-Revision-Date: YYYY-mm-DD HH:MM+ZZZZ\n"
+"Last-Translator: NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <EMAIL@ADDRESS>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=INTEGER; plural=EXPRESSION;\n"
+
+#: audio_images.module:13
+msgid "Adds the ability to attach album art to audio nodes."
+msgstr ""
+
+#: audio_images.module:21
+msgid "images"
+msgstr ""
+
+#: audio_images.module:67
+msgid "There was a problem saving the image."
+msgstr ""
+
+#: audio_images.module:71
+msgid "There was a problem uploading the image."
+msgstr ""
+
+#: audio_images.module:209
+msgid "Image size"
+msgstr ""
+
+#: audio_images.module:218
+msgid "The size (in pixels) that the theme will display the images.  Default is <strong>170 X 170</strong>."
+msgstr ""
+
+#: audio_images.module:222
+msgid "Default image type"
+msgstr ""
+
+#: audio_images.module:225
+msgid "Select the image type you would like displayed.  <strong>NOTE:</strong> If an audio node does not have an image of this type associated with it, a random image will be chosen."
+msgstr ""
+
+#: audio_images.module:240
+msgid "Audio Images"
+msgstr ""
+
+#: audio_images.module:242
+msgid "Cover art or other images."
+msgstr ""
+
+#: audio_images.module:263
+msgid "New image type"
+msgstr ""
+
+#: audio_images.module:269
+msgid "Add a new image"
+msgstr ""
+
+#: audio_images.module:270
+msgid "Click \"Browse...\" to select an image to add to this audio file. <strong>NOTE:</strong> Supported image types include GIF, JPG, and PNG.  Suggested dimensions: 170 X 170 pixels."
+msgstr ""
+
+#: audio_images.module:0
+msgid "audio_images"
+msgstr ""
+

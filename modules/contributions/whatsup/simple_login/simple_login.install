@@ -1,0 +1,11 @@
+<?php
+// $Id$
+
+/**
+ * Implementation of hook_update_1().  This is a placeholder in case table
+ * installation is ever necessary for the module.
+ */
+function simple_login_update_1() {
+  return array();
+}
+

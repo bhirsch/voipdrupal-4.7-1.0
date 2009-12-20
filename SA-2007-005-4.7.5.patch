@@ -1,0 +1,69 @@
+Index: modules/comment.module
+===================================================================
+RCS file: /cvs/drupal/drupal/modules/Attic/comment.module,v
+retrieving revision 1.455.2.14
+diff -u -p -r1.455.2.14 comment.module
+--- modules/comment.module	3 Jan 2007 21:56:58 -0000	1.455.2.14
++++ modules/comment.module	29 Jan 2007 21:04:18 -0000
+@@ -1367,24 +1367,26 @@ function comment_form_add_preview($form,
+ 
+   $output = '';
+ 
+-  comment_validate($edit);
+-  $comment = (object)_comment_form_submit($edit);
+-
+-  // Attach the user and time information.
+-  if ($edit['author']) {
+-    $account = user_load(array('name' => $edit['author']));
+-  }
+-  elseif ($user->uid && !isset($edit['is_anonymous'])) {
+-    $account = $user;
+-  }
+-  if ($account) {
+-    $comment->uid = $account->uid;
+-    $comment->name = check_plain($account->name);
+-  }
+-  $comment->timestamp = $edit['timestamp'] ? $edit['timestamp'] : time();
+-
+-  // Preview the comment with security check.
++  // Invoke full validation for the form, to protect against cross site
++  // request forgeries (CSRF) and setting arbitrary values for fields such as
++  // the input format. Preview the comment only when form validation does not
++  // set any errors.
++  drupal_validate_form($form['form_id']['#value'], $form);
+   if (!form_get_errors()) {
++    $comment = (object)_comment_form_submit($edit);
++
++    // Attach the user and time information.
++    if ($edit['author']) {
++      $account = user_load(array('name' => $edit['author']));
++    }
++    elseif ($user->uid && !isset($edit['is_anonymous'])) {
++      $account = $user;
++    }
++    if ($account) {
++      $comment->uid = $account->uid;
++      $comment->name = check_plain($account->name);
++    }
++    $comment->timestamp = $edit['timestamp'] ? $edit['timestamp'] : time();
+     $output .= theme('comment_view', $comment);
+   }
+   $form['comment_preview'] = array(
+Index: modules/node.module
+===================================================================
+RCS file: /cvs/drupal/drupal/modules/Attic/node.module,v
+retrieving revision 1.641.2.31
+diff -u -p -r1.641.2.31 node.module
+--- modules/node.module	4 Jan 2007 20:50:02 -0000	1.641.2.31
++++ modules/node.module	29 Jan 2007 21:04:20 -0000
+@@ -1724,6 +1724,10 @@ function node_form_add_preview($form) {
+ 
+   $op = isset($_POST['op']) ? $_POST['op'] : '';
+   if ($op == t('Preview')) {
++    // Invoke full validation for the form, to protect against cross site
++    // request forgeries (CSRF) and setting arbitrary values for fields such as
++    // the input format. Preview the node only when form validation does not
++    // set any errors.
+     drupal_validate_form($form['form_id']['#value'], $form);
+     if (!form_get_errors()) {
+       // Because the node preview may display a form, we must render it

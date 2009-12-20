@@ -1,0 +1,433 @@
+<?php
+// $Id: og_civicrm.module,v 1.8 2006/03/30 01:54:42 torenware Exp $
+
+/**
+ *
+ * CiviCRM integration support for Organic Groups
+ *
+ * Note: this version should work with Drupal 4.6 and
+ * CiviCRM 1.4 beta or more recent.  This code may work
+ * with Drupal 4.7, but has not yet been tested on that
+ * release.
+ *
+ */
+
+
+
+/**
+ * Implementation of hook_help().
+ *
+ */
+function og_civicrm_help($section) {
+  switch ($section) {
+    case 'admin/modules#description':
+      return t('Organic groups for CiviCRM');
+  }
+}
+
+/**
+ * Implementation of hook_nodeapi().
+ *
+ * We create a new CiviCRM group for each new OG and use the og_civicrm module to keep track.
+ */
+function og_civicrm_nodeapi(&$node, $op, $teaser = NULL, $page = NULL) {
+  if ($node->type == 'og') {
+    civicrm_initialize(TRUE);
+    switch ($op) {
+      case 'insert':
+      	//grab the baton to prevent loops
+      	if (!_og_civicrm_grab_baton("drupal"))
+      	  return;
+        // new OG, create CiviCRM group
+        $count = db_result(db_query('SELECT COUNT(*) FROM {og_civicrm} WHERE nid = %d AND did = %d', $node->nid, CIVICRM_DOMAIN_ID));
+        if (!$count) {
+          if (!isset($node->civicrm)) { // loop protection
+            $group = array('title' => $node->title, 'name' => $node->title, 'description' => $node->description, 'source' => 'og_civicrm', 'is_active' => 1, 'domain_id' => CIVICRM_DOMAIN_ID);
+            $group = crm_create_group($group);
+          }
+          $group_id = isset($group->id) ? $group->id : $node->civicrm;
+          db_query('INSERT INTO {og_civicrm} (nid, gid, did) VALUES (%d, %d, %d)', $node->nid, $group_id, CIVICRM_DOMAIN_ID);
+        }
+        break;
+      case 'update':
+        // updated OG, update CiviCRM group
+        if (!isset($node->civicrm)) {
+          $gid = db_result(db_query('SELECT gid FROM {og_civicrm} WHERE nid = %d AND did = %d', $node->nid, CIVICRM_DOMAIN_ID));
+          if ($gid) {
+            $update = array('id' => $gid, 'title' => $node->title, 'name' => $node->title, 'description' => $node->description, 'source' => 'og_civicrm', 'is_active' => 1, 'domain_id' => CIVICRM_DOMAIN_ID);
+            $group = array('id' => $gid, 'domain_id' => CIVICRM_DOMAIN_ID);
+            $groups = crm_get_groups($group);
+            $group = crm_update_group($groups[0], $update);
+          }
+          else {
+            og_civicrm_nodeapi($node, 'insert', $teaser, $page);
+          }
+        }
+        break;
+      case 'delete':
+        // OG deleted, delete groups (should we inactivate instead?)
+        $gid = db_result(db_query('SELECT gid FROM {og_civicrm} WHERE nid = %d AND did = %d', $node->nid, CIVICRM_DOMAIN_ID));
+        if ($gid) {
+          // we need to delete first in order to avoid an infinite loop with civicrm_post hook
+          db_query('DELETE FROM {og_civicrm} WHERE nid = %d AND did = %d AND gid = %d', $node->nid, CIVICRM_DOMAIN_ID, $gid);
+          $group = array('id' => $gid, 'title' => $node->title);
+          $groups = crm_get_groups($group);
+          crm_delete_group($groups[0]);
+        }
+        break;
+    }
+  }
+}
+
+
+/**
+ * implementation of hook_og();
+ *
+ * @param $op string, 'user create', 'user delete'
+ * @param $nid node ID of the group 
+ * @param $uid the user ID
+ * @param array $args (changed March 06)
+ */
+function og_civicrm_og($op, $nid, $uid, $args = array()) {
+  
+  //If a user is subscribed to a group via Drupal's UI, then the user has
+  //already been subscribed on the Drupal side, and we will need to subscribe
+  //the user on the CRM side here as well.
+ 
+  if (!_og_civicrm_grab_baton("drupal")) {
+    //But if we're here, CRM subscribed the user, and called og.
+    //Since we are done, we leave without going further.
+    return;
+  }
+
+  $status = $args['is_active'] ? "Added" :  "Pending";
+  civicrm_initialize(TRUE);
+  $gid = db_result(db_query('SELECT gid FROM {og_civicrm} WHERE nid = %d AND did = %d', $nid, CIVICRM_DOMAIN_ID));
+  if (!$gid)
+    return; //not mirrored
+  $group = array('id' => $gid, 'domain_id' => CIVICRM_DOMAIN_ID);
+  if ($gid) {
+    $groups = crm_get_groups($group);
+    $group = $groups[0];
+  }
+  $contact_id = crm_uf_get_match_id($uid);
+
+  // If the user isn't a contact yet, make him.
+  if (!$contact_id) {
+    $user = user_load(array('uid' => $uid));
+    $contact_user = object2array($user);
+    $contact_user['email'] = $contact_user['mail'];
+    $contact = crm_create_contact($contact_user);
+    $contact_id = crm_uf_get_match_id($uid);
+  }
+  switch ($op) {
+  	//TO DO: API has changed (3/06), and you can get
+  	//a 'user update' event. Not clear if we
+  	//need to do anything with it, though.
+    case 'user insert':
+      $user_groups = crm_contact_get_groups($contact_id);
+      $group_ids = array(0);
+      if (count($user_groups)) {
+        foreach ($user_groups as $key => $value) {
+          $group_ids[] = $value['group_id'];
+        }
+      }
+      //RMT: why are "all contacts added as pending"?  Does not seem to work.
+      // all contacts are added as pending
+      if (!in_array($group->id, $group_ids)) {
+        $contact = crm_get_contact(array('contact_id' => $contact_id));
+	    $contacts = array($contact);
+        crm_add_group_contacts($group, $contacts, $status, 'API');
+      }
+      if ($approved) {
+        $contact = crm_get_contact(array('contact_id' => $contact_id));
+        $contacts = array($contact);
+        crm_confirm_group_contacts($group, $contacts);
+      }
+      break;
+    case 'user delete':
+      $contact = crm_get_contact(array('contact_id' => $contact_id));
+      $contacts = array($contact);
+      crm_delete_group_contacts($group, $contacts);
+      break;
+  }
+}
+
+/**
+ * Implementation of hook_user()
+ */
+function og_civicrm_user($op, &$edit, &$account, $category = NULL) {
+  global $user;
+
+  switch ($op) {
+    case 'delete':
+      civicrm_initialize(TRUE);
+      // Get contact
+      $contact = crm_get_contact(array('email' => $user->mail));
+      $contact = array($contact);
+      if (strtolower(get_class($contact)) == 'crm_contact_bao_contact') {
+        // get all groups where user is contact
+        foreach ($groups as $group) {
+          crm_delete_group_contacts($group, $contact);
+        }
+      }
+      break;
+  }
+}
+
+
+
+/**
+ * This hook will be called on any operation on some core CiviCRM 
+ * objects. We will extend the functionality over a period of time 
+ * to make it similar to Drupal's user hook, where the external module 
+ * can inject and collect form elements and form information into a 
+ * Drupal form (specifically the registration page and the account 
+ * information page) 
+ * 
+ * @param string $op         the type of operation being performed 
+ *                           'view', 'insert', 'update', 'delete', 'form'
+ *                           'validate'
+ * @param string $objectName the name of the object 
+ * 'Individual'
+ * 'Household'
+ * 'Organization'
+ * 'Group'
+ *
+ * @param int    $objectId   the unique identifier for the object 
+ * @param int    $objectRef  the reference to the object if available 
+ *  
+ * @return mixed             based on op. pre-hooks return a boolean and/or
+ *                           an error message which aborts the operation
+ * @access public 
+ */
+function og_civicrm_civicrm_post( $op, $objectName, $objectId, $objectRef ) {
+  switch ($objectName) {
+  case 'Group':
+    switch ($op) {
+    case 'create':
+    case 'edit':
+    case 'delete':
+      //Grab the baton
+      if (!_og_civicrm_grab_baton("crm"))
+        return;
+      og_civicrm_handle_group_callback( $op, $objectId, $objectRef );
+      break;
+      //RMT:
+    }
+    break;
+  case 'GroupContact':
+    //New calling conventions as
+    //of CRM 1.4beta3
+    $arrayOfIDs = $objectRef;
+    $groupID = $objectId;
+    //First, we need to check to make sure that CRM
+    //inserted these users, and not Drupal.  If CRM,
+    //we process them here.  If not, this will be done
+    //in the hook_og code above.
+	  
+    if (!_og_civicrm_grab_baton("crm")) {
+      //The group contacts have already been added,
+      //so nothing more to do here.
+      return;
+    }
+    if ($op == 'create' or $op == 'delete')
+      og_civicrm_handle_group_contacts_callback( $op, $groupID, $arrayOfIDs );
+    break;
+     
+    default:
+      break;
+  }
+
+  return TRUE;
+}
+
+
+/**
+ * Some minor factoring to make the post handler easier to understand. Handle
+ * creation or updates of a CRM Group object, and mirroring to the organic
+ * group.
+ *
+ * @param  string $op 'create', 'edit' or 'delete'
+ * @param  int    $objectID CRM Group ID
+ * @param  obj    $objectRef CRM Group Object
+ * @return 
+ *
+ */
+
+
+function og_civicrm_handle_group_callback( $op, $objectId, &$objectRef ){
+  $objectName = 'Group';
+  if ($op == 'edit' or $op == 'create') {
+    $group =& $objectRef;
+    if (!$group->saved_search_id) {
+      $result = db_query('SELECT * FROM {og_civicrm} WHERE gid = %d AND did = %d', $objectId, CIVICRM_DOMAIN_ID);
+      if (db_num_rows($result) && $node = db_fetch_object($result)) { // group existed
+	$result = db_query("UPDATE {node} SET title = '%s' WHERE nid = %d", $group->title, $node->nid);
+	if (db_affected_rows($result)) {
+	  $vid = db_result(db_query('SELECT vid FROM {node} WHERE nid = %d', $node->nid));
+	  db_query("UPDATE {node_revisions} SET title = '%s' WHERE vid = %d", $group->title, $vid);
+	}
+      }
+      else if (arg(0) != 'node' && arg(1) != 'add') { // create new OG
+	global $user;
+	$node = new StdClass();
+	$node->uid = $user->uid;
+	$node->title = $group->title;
+	$node->type = 'og';
+	$node->description = $group->description;
+	$node->civicrm = $objectId; // marker to avoid infinite loop in nodeapi
+	// TO DO: These should be configurable
+	$node->status = 1;
+	$node->og_selective = OG_OPEN;
+	$node->og_register = 0;
+	$node->og_directory = 1;
+	$nid = node_save($node);
+	if ($nid or $node->nid) {
+	  //Try to be 4.7 and 4.6 compatible
+	  $nid = $nid ? $nid : $node->nid;
+	  db_query('INSERT INTO {og_civicrm} (nid, gid, did) VALUES (%d, %d, %d)', $nid, $objectId, CIVICRM_DOMAIN_ID);
+	}
+	//TO DO: might want to see if this worked,
+	//although there isn't much we can do to
+	//recover if not... 4.7 compatible call.
+      }
+    }
+    elseif ($op == 'delete') {
+      $result = db_query('SELECT * FROM {og_civicrm} WHERE gid = %d AND did = %d', $objectId, CIVICRM_DOMAIN_ID);
+      if ($node = db_fetch_object($result)) { // group existed
+	db_query('DELETE FROM {og_civicrm} WHERE nid = %d AND did = %d AND gid = %d', $node->nid, CIVICRM_DOMAIN_ID, $objectId);
+	node_delete($node->nid);
+      }
+
+
+    }
+  }
+  return TRUE; //if nothing went wrong, keep going.
+
+}
+
+/**
+ * Group contacts handler.  This requires CiviCRM 1.4 or later, or it will never
+ * be called.
+ *
+ * @param string $op either 'create' or 'delete'
+ * @param int $gID CRM Group (not GroupContact!) ID 
+ * @param array $idArray array of CRM ContactID
+ * @return TRUE if we handled this, FALSE otherwise.  
+ *
+ */
+
+function og_civicrm_handle_group_contacts_callback( $op, $gID, $idArray ){
+    $drupalGID = og_civicrm_get_drupal_gid($gID);
+    if (!$drupalGID)
+      return FALSE; //not mirrored, do not bother
+
+    civicrm_initialize(TRUE);
+    switch ($op) {
+    case 'create':
+      foreach($idArray as $cid){
+	$uid = crm_uf_get_uf_id($cid);
+	if ($uid) {
+	  //If it is not a drupal user, ignore
+	  //Recent change in og API
+	  og_save_subscription($drupalGID, $uid, array('is_active' => 1));
+	  //og_create_subscription($drupalGID, $uid);
+	}
+      }  
+    
+      return TRUE;
+
+    case 'delete':
+      //A little counter-intuitive, but 'edit' is used for remove.
+      foreach($idArray as $cid){
+	$uid = crm_uf_get_uf_id($cid);
+	if ($uid) {
+	  //If it is not a drupal user, ignore
+	  og_delete_subscription($drupalGID, $uid);
+	}
+      }  
+    
+      return TRUE;
+    }      
+  }
+
+// A few utility functions
+
+/**
+ * Since we need to worry about getting called into
+ * loops, we need to track who gets to create objects.
+ * Rule is:  if you created the drupal side, you get to create the CRM object.
+ * If CRM gets in first, it creates drupal objects as well.
+ * values are "crm" and "drupal"
+ *
+ * @param string $side who is trying to grab the baton.
+ * @return TRUE if we are entitled to go on, FALSE if someone else has the baton.
+ */
+function _og_civicrm_grab_baton($side){
+  static $last_side = FALSE;
+  if (!$last_side)
+    $last_side = $side;
+  return $last_side == $side;
+}
+
+
+/**
+ * Get the Drupal user object corresponding to this
+ * contact, if one exists.
+ *
+ * @param &obj $contactObj CRM Contact Object
+ * @return obj $user or NULL
+ */
+
+function og_civicrm_get_drupal_user(&$contactObj){
+  civicrm_initialize(TRUE);
+  $uid = crm_uf_get_uf_id ($contactObj->contact_id);
+  if (!$uid)
+    return NULL;
+  $user = user_load(array('uid' => $uid));
+  return $user;
+}
+
+
+/**
+ * Get the Drupal NID of the organic group corresponding
+ * to this CRM Group.
+ *
+ * @param obj $groupObj CRM Group Object
+ * @return int Drupal NID, or 0 if there isn't one.
+ */
+function og_civicrm_get_drupal_group(&$groupObj){
+  //We only need a gid...
+  if (isset($groupObj->id)){
+    return og_civicrm_get_drupal_gid($groupObj->id);
+  }
+  return 0;
+}
+
+
+/**
+ * Get the CRM Group ID for this Drupal group
+ *
+ * @param int $drupal_gid
+ * @return int CRM Group ID or NULL
+ */
+function og_civicrm_get_crm_gid($drupal_gid){
+    $sql = "SELECT gid FROM {og_civicrm} WHERE did = %d AND nid = %d";
+    $gid = db_result(db_query($sql, CIVICRM_DOMAIN_ID, $drupal_gid));
+    return $gid;  
+}
+
+/**
+ * Get the Drupal NID of the organic group corresponding
+ * to this CRM Group's group_id.
+ *
+ * @param int $crm_gid CRM Group Object ID
+ * @return int Drupal NID, or NULL if there isn't one.
+ */
+
+function og_civicrm_get_drupal_gid($crm_gid){
+    $sql = "SELECT nid FROM {og_civicrm} WHERE did = %d AND gid = %d";
+    $nid = db_result(db_query($sql, CIVICRM_DOMAIN_ID, $crm_gid));
+    return $nid;  
+}

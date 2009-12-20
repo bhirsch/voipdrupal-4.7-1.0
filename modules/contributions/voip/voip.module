@@ -1,0 +1,2982 @@
+<?php
+/* $Id: voip.module,v 1.16 2007/03/28 16:33:57 leob Exp $ */
+
+/**
+ * @file
+ * VoIP integration with Drupal.  This module provides basic functionality pertaining voip extension numbers
+ * and is required by most of the other Drupal modules that implement VoIP functionality.
+ */
+
+/**
+ * Required files
+ */
+
+foreach (array( 'voip_error_codes.inc') as $file) {
+  require_once('includes/' . $file);
+}
+  
+/**
+* Implementation of hook_node_info().
+*/
+function voip_node_info() {
+  return array('voip' => array('name' => t('voip extension'), 'base' => 'voip'));
+}
+
+/**
+ * Implementation of hook_help().
+ */
+function voip_help($section) {
+  switch ($section) {
+    case 'admin/modules#description':
+      return t('Provides basic VoIP functionality to Drupal sites.  With this module enabled, users may have personal voip extension numbers with unique phone passwords.  This module also allows specified Drupal nodes to have their own extension numbers.');
+    case 'admin/help#voip':
+      return t("<p>This module offers basic VoIP functionality to Drupal sites.");
+  }
+}
+
+/**
+ * Implementation of hook_perm()
+ */
+function voip_perm() {
+  return array('have a personal voip extension', 
+               'access voip extension information',
+               'administer voip extensions',
+               'allow anonymous access to voip extension');
+}
+
+/*
+ * Implementation of hook_access()
+ */
+function voip_access($op, $node) {
+  global $user;
+
+  switch ($op) {
+    case 'create':
+    case 'update' :
+    case 'view':
+      return FALSE;  // users should not be allowed to handle voip extensions directly
+    case 'delete':
+      $node_contents = node_load($node->voip_extension_info['nid_contents']);
+      $access = node_access('delete', $node_contents);
+      return $access;
+  }
+}
+
+/**
+ * Implementation of hook_settings()
+ */
+function voip_settings() {
+  foreach (node_get_types() as $type => $name) {
+    $voip_node_type_options[$type] = t($name);
+  }
+  $f['voip_node_types'] = array(
+    '#type' => 'select', 
+    '#title' => t('VoIP node types'), 
+    '#default_value' => variable_get('voip_node_types', array()), 
+    '#options' => $voip_node_type_options, 
+    '#description' => t("Select the node types which will have VoIP extensions." ), '#multiple' => TRUE);
+  
+  return $f;
+}
+
+function voip_is_voip_type($type) {
+  return in_array($type, variable_get('voip_node_types', array()));
+}
+
+
+/**
+ * Implementation of hook_nodeapi()
+ */
+function voip_nodeapi(&$node, $op, $teaser = NULL, $page = NULL) {
+
+  // process audio files that may have just been uploaded as audio nodes for a particular voip extension
+  switch ($op) {
+    case 'update':
+    case 'insert':
+      _voip_add_audio_node($node);
+      break;
+  }
+
+  // process nodes that have been voip-enabled
+  if (voip_is_voip_type($node->type)) {
+    switch ($op) {
+      case 'insert':
+        // create the extension node for the node being created
+        $extension_node = new stdClass();
+        $extension_node->type = 'voip';
+        $extension_node->title = $node->title; // default value for extension name
+        $extension_node->uid = $node->uid;
+        $extension_node->status = 1;
+// todo: how to make sure this node remains public?
+$extension_node->og_public = TRUE;
+        $extension_info = array();
+        $extension_info['is_active']=$node->voip_form_is_active;
+        $extension_info['is_listed']= $node->voip_form_is_listed;
+        $extension_info['nid_contents'] = $node->nid;
+        $extension_info['type_contents'] = $node->type;
+        // update taxonomy fields (check voip_form_alter()...)
+        $extension_node->voip_extension_info = $extension_info;
+        if (isset($node->voip_form_taxonomy)) {
+   	      $extension_node->taxonomy = $node->voip_form_taxonomy;
+   	      $node->voip_form_taxonomy = NULL;
+        }
+        node_save($extension_node);
+        break;
+      
+      case 'update':
+        $update_extension = FALSE;
+        $extension_node = new stdClass();
+        $extension_info = array();
+        // determine the extension fields that need to be updated
+        if (isset($node->voip_form_is_active)) {
+   	      $extension_info['is_active'] = $node->voip_form_is_active;
+   	      $node->voip_form_is_active = NULL;
+   	      $update_extension = TRUE;
+        }
+        if (isset($node->voip_form_phone_pin)) {
+   	      $extension_info['phone_pin'] = $node->voip_form_phone_pin;
+   	      $node->voip_form_phone_pin = NULL;
+   	      $update_extension = TRUE;
+        }
+        if (isset($node->voip_form_is_listed)) {
+   	      $extension_info['is_listed'] = $node->voip_form_is_listed;
+   	      $node->voip_form_is_listed = NULL;
+   	      $update_extension = TRUE;
+        }
+        // update taxonomy fields (check voip_form_alter()...)
+        if (isset($node->voip_form_taxonomy)) {
+   	      $extension_node->taxonomy = $node->voip_form_taxonomy;
+   	      $node->voip_form_taxonomy = NULL;
+   	      $update_extension = TRUE;
+        }
+        // update node title / extension name...)
+        if (isset($node->title)) {
+   	      $extension_node->title = $node->title;
+   	      $update_extension = TRUE;
+        }
+        if ($update_extension) {
+          // determine the voip node associated with the node being updated
+          $query = "SELECT `nid_extension` FROM {voip_extensions} WHERE `nid_contents` = %d";
+          $nid_contents = $node->nid;
+          $db_entry = db_fetch_array(db_query($query, $nid_contents));
+          $nid_extension = $db_entry['nid_extension']; 
+          // update the extension node
+          $extension_node->nid = $nid_extension;
+          $extension_node->voip_extension_info = $extension_info;
+  	      node_save($extension_node);
+        }
+        break;
+
+      case 'load':
+        $r = voip_get_extension_info_from_nid($node->nid);
+        $additions = array('voip_extension_info' => $r['extension_info']);
+        return $additions;
+
+      case 'view':
+        $extension_info = $node->voip_extension_info; 
+        $access = user_access('access voip extension information');
+        global $user;
+        if ($access) {
+          // retrieve generic extension info form items
+          $items = _voip_get_view_items($extension_info, $teaser);
+          // add them to the telephony group
+          $fields = array(t('Phone settings') => $items);
+          // now retrieve form items from the other voip modules by invoking their hook_voip_node_extension_view()
+          $other_fields = array();
+          foreach (module_implements('voip_get_view_fields') as $module) {
+            $data = module_invoke($module, 'voip_get_view_fields', $extension_info, $user, $teaser, $page);
+            if ($data) {
+              $other_fields[] = $data;
+            }
+          }
+          foreach($other_fields as $other_module_fields) {
+            foreach($other_module_fields as $category => $items) {
+              $fields[$category] = $items;
+            }
+          }
+          // render the view
+          $node->voip_profile = theme('voip_profile', $fields);
+          $node->body = $node->voip_profile . $node->body;
+          $node->teaser = $node->voip_profile . $node->teaser;
+        }
+        break;
+      
+      case 'submit':  // prepare node to be saved
+        break;
+      
+      case 'validate': // validate the node and set form errors if necessary
+        break;
+      
+      case 'prepare': // prepare to show node on add/edit form
+        break;
+      
+      case 'delete':
+        $nid_extension = $node->voip_extension_info['nid_extension']; 
+        // delete the voip extension node
+        node_delete($nid_extension);
+        break;
+    }
+  }
+}
+
+/*
+ * Returns the extension info of all the owners of the given extension
+ */
+function voip_get_extension_owners($extension_info) {
+  $owners = array();
+  if ($extension_info['uid']) {
+  	$owner = user_load(array('uid' => $extension_info['uid']));
+  	$owners[] = $owner->voip_extension_info;
+  }
+  else {
+  	$r = module_invoke($extension_info['type_contents'], 'voip_get_owners', $extension_info);
+  	if ($r === NULL) {
+  	  watchdog('voip', '%module is missing implementation of hook_get_extension_owners.', array('%module' => $extension_info['type_contents']), WATCHDOG_WARNING);
+  	}
+  	else {
+  	  $owners = $r;
+  	}
+  }
+  return $owners;
+}
+
+/*
+ * Check if the specified user is a owner of the given extension
+ */
+function voip_is_owner($extension_info, $account = NULL) {
+  global $user;
+  if (is_null($account)) {
+    $account = $user;
+  }
+  if ($extension_info['uid']) {
+  	$is_owner = ($extension_info['uid'] == $account->uid);
+  }
+  else {
+  	$owners = module_invoke($extension_info['type_contents'], 'voip_get_owners', $extension_info);
+    $is_owner = FALSE;
+  	if ($owners === NULL) {
+  	  watchdog('voip', '%module is missing implementation of hook_get_extension_owners.', array('%module' => $extension_info['type_contents']), WATCHDOG_WARNING);
+  	}
+  	else {
+  	  foreach ($owners as $owner_extension_info) {
+  	    if ($owner_extension_info['uid'] == $account->uid) {
+  	      $is_owner = TRUE;
+  	      break;
+  	    }
+  	  }
+  	}
+  }
+  return $is_owner;
+}
+
+
+/**
+ * Add specified audio node to the voip extension associated with the node's audio_key
+ */
+function _voip_add_audio_node(&$node) {
+  // if the new node is associated with the audio name field of a voip extension...
+  if (isset($node->voip_audio_key_name)) {
+    $query = "SELECT `nid_extension` FROM {voip_extensions} WHERE `audio_key_name` = '%s'";
+    $nid_extension = db_result(db_query($query, $node->voip_audio_key_name));
+    $extension_node = node_load($nid_extension);
+    $extension_node->voip_extension_info['nid_audio_name'] = $node->nid;
+    $extension_node->voip_extension_info['audio_key_name'] = 0;
+    node_save($extension_node);
+  }
+
+  // if the new node is associated with the audio greetings field of a voip extension...
+  if (isset($node->voip_audio_key_greetings)) {
+    $query = "SELECT `nid_extension` FROM {voip_extensions} WHERE `audio_key_greetings` = '%s'";
+    $nid_extension = db_result(db_query($query, $node->voip_audio_key_greetings));
+    $extension_node = node_load($nid_extension);
+    $extension_node->voip_extension_info['nid_audio_greetings'] = $node->nid;
+    $extension_node->voip_extension_info['audio_key_greetings'] = 0;
+    node_save($extension_node);
+  }
+
+  // if the new node is associated with the audio description field of a voip extension...
+  if (isset($node->voip_audio_key_description)) {
+    $query = "SELECT `nid_extension` FROM {voip_extensions} WHERE `audio_key_description` = '%s'";
+    $nid_extension = db_result(db_query($query, $node->voip_audio_key_description));
+    $extension_node = node_load($nid_extension);
+    $extension_node->voip_extension_info['nid_audio_description'] = $node->nid;
+    $extension_node->voip_extension_info['audio_key_description'] = 0;
+    node_save($extension_node);
+  }
+  
+}
+
+/**
+ * Implementation of hook_form_alter()
+ **/
+function voip_form_alter($form_id, &$form) {
+  global $user;
+  $type = (isset($form['type']) && isset($form['type']['#value'])) ? $form['type']['#value'] : NULL;
+  $node = isset($form['#node']) ? $form['#node'] : NULL;
+
+  if (isset($type) && (voip_is_voip_type($type))) {
+    switch ($form_id) {
+      // node settings form
+      case $type .'_node_settings':
+        break;
+
+      // node edit form
+      case $type .'_node_form':
+        if (isset($node) && ($node->nid)) {
+          $extension_info = $node->voip_extension_info;
+          _voip_get_edit_items($extension_info, $form);
+        }
+        break;
+    }
+  }
+}
+
+function _voip_get_edit_items($extension_info, &$form) {
+  // create a collapsible field set for voip/telephony information
+  $form['voip_edit_form'] = array( 
+    '#type' => 'fieldset',
+    '#title' => t('Phone information'),
+    '#collapsible' => TRUE,
+    '#collapsed' => FALSE,
+    '#weight' => 3,
+  );
+  
+  if ($extension_info['uid']) {
+    $form['voip_edit_form']['voip_form_uid'] = array(
+      '#type' => 'textfield',
+      '#title' => t('User id'),
+      '#default_value' => $extension_info['uid'],
+      '#size' => 30,
+      '#maxlength' => 30,
+      '#attributes' => array('disabled' => 'disabled'),    // Need to add this attribute in order to have a read-only field
+    );
+  }
+
+  $form['voip_edit_form']['voip_form_extension_number'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Telephone extension'),
+    '#default_value' => $extension_info['number'],
+    '#size' => 30,
+    '#maxlength' => 30,
+    '#attributes' => array('disabled' => 'disabled'),    // Need to add this attribute in order to have a read-only field
+  );
+  
+  if (user_access('administer voip extensions')) {
+    $form['voip_edit_form']['voip_form_is_active'] = array(
+      '#type' => 'radios',
+      '#title' => t('Extension status'),
+      '#default_value' => $extension_info['is_active'],
+      '#options' => array(t('deactivated'), t('activated')),
+      );
+  }
+  else {
+    if (!$extension_info['is_active']) {
+      $form['voip_edit_form']['voip_form_is_active_text'] = array(
+        '#type' => 'textfield',
+        '#title' => t('Extension status'),
+        '#default_value' => t('This extension is not currently active.'),
+        '#size' => 60,
+        '#maxlength' => 60,
+        '#attributes' => array('disabled' => 'disabled'),    // Need to add this attribute in order to have a read-only field
+        );
+    }
+  }
+
+  if ($extension_info['is_active']) {
+    if ($extension_info['uid']) {
+      $form['voip_edit_form']['voip_form_phone_pin'] = array(
+        '#type' => 'textfield',
+        '#title' => t('Telephone PIN'),
+        '#default_value' => $extension_info['phone_pin'],
+        '#size' => 30,
+        '#maxlength' => 30,
+        '#required' => TRUE,
+        '#description' => t('This is your password for telephone features. It should consist of just digits (eg. 1542).'));
+  	
+  	  $form['voip_edit_form']['voip_form_directory_name'] = array(
+        '#type' => 'textfield',
+        '#title' => t('Directory name'),
+        '#default_value' => $extension_info['name'],
+        '#size' => 60,
+        '#maxlength' => 60,
+        '#description' => t('Name to be used in the extensions directory.'),
+      );
+    }
+   
+    $form['voip_edit_form']['voip_form_is_listed'] = array(
+      '#type' => 'radios',
+      '#title' => t('List extension in phone directory?'),
+      '#default_value' => $extension_info['is_listed'],
+      '#options' => array(t('no'), t('yes')),
+     );
+
+
+    // display extension's audio fields (Note: in the future, this will be replaced by the audio upload functionality)
+    $field_name = 'nid_audio_name';
+    $field_label = t('extension name');
+    $form['voip_edit_form'][] = voip_display_audio_field_form($extension_info, $field_name, $field_label);
+   
+    $field_name = 'nid_audio_description';
+    $field_label = t('extension description');
+    $form['voip_edit_form'][] = voip_display_audio_field_form($extension_info, $field_name, $field_label);
+   
+    $field_name = 'nid_audio_greetings';
+    $field_label = t('extension greetings');
+    $form['voip_edit_form'][] = voip_display_audio_field_form($extension_info, $field_name, $field_label);
+  
+/*******************   
+  // add the form elements associated with the extension audio fields
+  $field_name = 'nid_audio_name';
+  $field_label = t('extension name');
+  $form['voip_edit_form'][] = voip_upload_audio_field_form($extension_info, $field_name, $field_label);
+   
+  $field_name = 'nid_audio_description';
+  $field_label = t('extension description');
+  $form['voip_edit_form'][] = voip_upload_audio_field_form($extension_info, $field_name, $field_label);
+   
+  $field_name = 'nid_audio_greetings';
+  $field_label = t('extension greetings');
+  $form['voip_edit_form'][] = voip_upload_audio_field_form($extension_info, $field_name, $field_label);
+*********************/   
+    
+    // add the taxonomy form elements and activate the entire taxonomy system for the voip node
+    $form_taxonomy = array();
+    $form_taxonomy_id = 'voip' . '_node_form';
+    $form_taxonomy['type'] = array('#value' => 'voip');
+    $voip_node = node_load($extension_info['nid_extension']);
+    $form_taxonomy['#node'] = $voip_node;
+    taxonomy_form_alter($form_taxonomy_id, $form_taxonomy);
+    $form['voip_edit_form']['voip_form_taxonomy'] = $form_taxonomy['taxonomy']; 
+    $form['voip_edit_form']['voip_form_taxonomy']['#title'] = t('Extension categories');    
+    $form['voip_edit_form']['voip_form_taxonomy']['#weight'] = 10;    
+
+/********  
+  // add submit and cancel buttons
+  $form['voip_edit_form']['submit'] = array('#type' => 'submit', '#value' => t('submit'), '#weight' => 15);
+  $form['voip_edit_form']['cancel'] = array('#type' => 'submit', '#value' => t('cancel'), '#weight' => 15);
+*********/
+  }
+  return;  
+}
+
+
+/* *
+ *  Add a small form to upload a new audio file to the specified extension_info field (will create a new audio node for each file uploaded)
+ */
+function voip_upload_audio_field_form($extension_info, $field_name, $field_label) {
+
+  $form = array();
+  $form['#attributes'] = array("enctype" => "multipart/form-data");
+  $form_name = 'voip_upload-' . $field_name;
+  $form[$form_name] = array(
+    '#type' => 'fieldset',
+    '#title' => t('Upload new audio file for %field_label', array('%field_label' => $field_label)),
+    '#collapsible' => TRUE,
+    '#collapsed' => FALSE,
+    '#tree' => TRUE,
+    '#weight' => -3
+  );
+  
+
+  if ($extension_info[$field_name]) {
+    $audio_node = node_load($extension_info[$field_name]);
+    $audio_name = audio_get_player($audio_node); 
+  }
+  else {
+    $audio_name = t('Undefined');
+  }
+
+  $item_name = 'show_' . $field_name;
+  $item_title = t('Current value for %field_label', array('%field_label' => $field_label));
+  $form[$form_name][$item_name] = array(
+    '#type' => 'markup',
+    '#value' => '<div class="form-item"><label for="edit-voip_upload-' . $item_name . '">' . $item_title . ': </label>' . $audio_name,
+  );
+  
+  $form[$form_name]['extension_number'] = array('#type' => 'hidden' , '#value' => $extension_info['number']);
+  $form[$form_name]['field_name'] = array('#type' => 'hidden' , '#value' => $field_name);
+  $form[$form_name]['audio_upload'] = array(
+    '#type' => 'file', '#title' => t('Upload a new audio file for %field_label', array('%field_label' => $field_label)),
+    '#description' => t('Click "Browse..." to select an audio file to upload. <strong>NOTE:</strong> the current PHP configuration limits uploads to %maxsize. ', array('%maxsize' => format_size(audio_get_max_upload_size()))),
+  );
+  $form[$form_name]['submit'] = array('#type' => 'submit', '#value' => t('Upload %field_label', array('%field_label' => $field_label)));
+
+//  $output = drupal_get_form('voip_upload_audio_field', $form);
+  
+  return $form; //$output;
+//  return $output;
+}
+
+/* *
+ *  Add a small form to display the specified extension audio field
+ */
+function voip_display_audio_field_form($extension_info, $field_name, $field_label) {
+
+  if ($extension_info[$field_name]) {
+    $audio_node = node_load($extension_info[$field_name]);
+    $audio_name = audio_get_player($audio_node); 
+  }
+  else {
+    $audio_name = t('Undefined') . "<p>";
+  }
+
+  $item_name = 'show_' . $field_name;
+  $item_title = t('Current value for %field_label', array('%field_label' => $field_label));
+  $form = array();
+  $form[$item_name] = array(
+    '#type' => 'markup',
+    '#value' => '<div class="form-item"><label for="edit-voip_display-' . $item_name . '">' . $item_title . ': </label>' . $audio_name,
+  );
+  
+  return $form; 
+}
+
+
+/**
+ * Based on theme_user_profile() and CiviCRM profile functions
+ */
+function theme_voip_profile($categories) {
+  $output = '<div class="profile"><fieldset>';
+/*******  
+  foreach ($fields as $category => $items) {
+    if (strlen($category) > 0) {
+      $output .= '<h2 class="title">'. $category .'</h2>';
+    }
+    $output .= '<dl>';
+    foreach ($items as $item) {
+      if (isset($item['title'])) {
+        $output .= '<dt class="'. $item['class'] .'">'. $item['title'] . ':</dt>';
+      }
+      $output .= '<dd class="'. $item['class'] .'">'. $item['value'] .'</dd>';
+    }
+    $output .= '</dl>';
+    if (strlen($category) > 0) {
+    }
+  }
+*******/
+/********/
+  // NOTE: the following is an alternative to the above commented code. It puts all the profile items into a single category
+  //$output .= '<h2 class="title">'. t('Phone profile') .'</h2>';
+  $output .= '<table>';
+  foreach ($categories as $fields) {
+    foreach ($fields as $item) {
+      $output .= '<tr>';
+      $title = (isset($item['title']))?$item['title']:'';
+      $output .= '<td class="'. $item['class'] .'">'. $title . ':</td>';
+      $output .= '<td class="'. $item['class'] .'">'. $item['value'] .'</td>';
+      $output .= '</tr>';
+    }
+  }
+  $output .= '</table>';
+/**********/
+//$output .= 'Hello there!';  
+  $output .= '</fieldset></div>';
+
+
+  return $output;
+}
+
+
+/**
+ * Implementation of hook_xmlrpc()
+ */
+function voip_xmlrpc() {
+  return array(
+    array(
+      'voip.addLogEntry',
+      'voip_log',
+      array('array', 'array', 'string', 'string', 'int', 'string'),
+      t('adds entry to the log.')
+    ),
+    array(
+      'voip.changePhonePin',
+      '_voip_xmlrpc_change_phone_pin',
+      array('array', 'array', 'int', 'int'),
+      t("change user's phone pin.")
+    ),
+    array(
+      'voip.changeVoiceId',
+      '_voip_xmlrpc_change_voice_id',
+      array('array', 'array', 'int'),
+      t("change the system voice for the specified user.")
+    ),
+    array(
+      'voip.getCategoryList',
+      '_voip_xmlrpc_get_category_list',
+      array('array'),
+      t('returns a list of all categories defined for voip extensions.')
+    ),
+    array(
+      'voip.getDirectory',
+      '_voip_xmlrpc_get_extension_directory',
+      array('array', 'array', 'array', 'int', 'int'),
+      t('returns all the extensions that fit the specified criteria.')
+    ),
+    array(
+      'voip.getRecentExtensions',
+      '_voip_xmlrpc_get_recent_extensions',
+      array('array', 'array', 'int', 'int'),
+      t('returns all the extensions that have been modified after the specified date.')
+    ),
+    array(
+      'voip.extensionActivate',
+      '_voip_xmlrpc_extension_activate',
+      array('array', 'array', 'int', 'boolean'),
+      t('activates or deactivates the specified extension.')
+    ),
+    array(
+      'voip.extensionCheckAccess',
+      '_voip_xmlrpc_extension_check_access',
+      array('array', 'array', 'int', 'string'),
+      t('checks if the user may perform the given operation on the specified extension.')
+    ),
+    array(
+      'voip.extensionDelete',
+      '_voip_xmlrpc_extension_delete',
+      array('array', 'array', 'int'),
+      t('Returns extension associated with the specified node id.')
+    ),
+    array(
+      'voip.extensionGetInfo',
+      '_voip_xmlrpc_extension_get_info',
+      array('array', 'array', 'int'),
+      t('returns basic information associated with the specified extension.')
+    ),
+    array(
+      'voip.extensionGetInfoFromNid',
+      '_voip_xmlrpc_extension_get_info_from_nid',
+      array('array', 'array', 'int'),
+      t('returns extension associated with the specified node id.')
+    ),
+    array(
+      'voip.extensionGetInfoFromUid',
+      '_voip_xmlrpc_extension_get_info_from_uid',
+      array('array', 'array', 'string'),
+      t('returns extension associated with the specified user id.')
+    ),
+    array(
+      'voip.extensionSetAudioField',
+      '_voip_xmlrpc_extension_set_audio_field',
+      array('array', 'array', 'string', 'string'),
+      t('sets either the audio name or audio description field of the specified extension.')
+    ),
+    array(
+      'voip.extensionSetCategories',
+      '_voip_xmlrpc_extension_set_categories',
+      array('array', 'array', 'int', 'array'),
+      t('sets the categories for the specified extension.')
+    ),
+    array(
+      'voip.userGetInfo',
+      '_voip_xmlrpc_user_get_info',
+      array('array', 'int', 'int'),
+      t('returns information about the user associated with the specified extension and phone pin.')
+    ),
+  );
+} 
+
+/*
+ * Make sure user is allowed to run specified operation on given extension
+ * 
+ * @param $extension_info
+ * array with information concerning the voip extension being checked
+ * 
+ * @param $op
+ * string with the operation to be performed on the extension
+ * 
+ * @param $account
+ * the user object carrying the operation
+ * 
+ * @return
+ * boolean TRUE if access is permitted; FALSE otherwise
+ */
+function voip_extension_access($extension_info, $op, $account = NULL) {
+  global $user;
+  $access = TRUE;
+  
+  if (!$account) {
+    $account = $user;
+  }
+  
+  if ($account->uid == 1) {
+    return TRUE;
+  }
+  
+  if ($extension_info['uid']) {    
+    // if extension is associated with a Drupal user...
+    switch($op) {
+      case 'view':
+        $access = (user_access('access voip extension information', $account)
+                   || ($account->uid == $extension_info['uid']));
+        if ($access) {
+      	  $extension_owner = user_load(array('uid' => $extension_info['uid']));
+          $access = (($account->uid) || (!$account->uid && user_access('allow anonymous access to voip extension', $extension_owner))); 
+        }
+        break;
+      case 'insert': // note: it's currently not possible for telephone users to create a new user in the system
+        $access = user_access('have a personal voip extension', $account);
+        break;
+      case 'delete':
+      case 'update':
+        $access = ($account->uid == $extension_info['uid']);
+        break;
+      default:
+        $access = FALSE;
+        break;
+    }
+  }
+  else {
+    // if extension is associated with a Drupal node, assume the access privileges of the node
+
+    // Note: assume node is voip-enabled... it should be, otherwise it wouldn't be in a voip extension...
+    $node = node_load($extension_info['nid_contents']);
+    
+    switch($op) {
+      case 'view':
+        $access = node_access('view', $node, $account->uid);
+        break;
+      case 'delete':
+        $access = node_access('delete', $node, $account->uid);
+        break;
+      case 'insert':
+        $access = node_access('create', $node, $account->uid);
+        break;
+      case 'update':
+        $access = node_access('update', $node, $account->uid);
+        break;
+      default:
+        $access = FALSE;
+        break;
+    }
+  }
+  return $access;
+}
+
+
+/**
+ * Retrieve information about the specified extension
+ *
+ * @param $extension_number
+ *   integer. extension number
+ *
+ * @return
+ *   array with
+ *     ['error_code'] :: VOIP_SUCCESS, VOIP_EXTENSION_DOES_NOT_EXIST, VOIP_PROCESSING_FAILURE
+ *     ['error_msg'] :: string with eventual error message
+ *     ['extension_info''] :: array with extension info, NULL in case of invalid extension/pin combination
+ */
+function voip_get_extension_info($extension_number) {
+  $rc = array();
+
+  // determine the extension node associated with the given extension number
+  $query = "SELECT `nid_extension` FROM {voip_extensions} WHERE `number` = %d";
+  $db_result = db_query($query, $extension_number);
+  if (!$db_result) {
+    $rc['error_code'] = VOIP_PROCESSING_FAILURE;
+    $rc['error_msg'] = t('Processing error: could not query voip extension: %e', array('%e' => db_error()));
+    return $rc;;
+  }
+
+  $db_entry = db_fetch_array($db_result);
+  if (!$db_entry) {
+    $rc['error_code'] = VOIP_EXTENSION_DOES_NOT_EXIST;
+    $rc['error_msg'] = t('Extension %x does not exist: %e', array('%x' => $extension_number, '%e' => db_error()));
+    return $rc;
+  }
+  
+  $extension_node = node_load($db_entry['nid_extension']);
+  $rc['error_code'] = VOIP_SUCCESS;
+  $rc['extension_info'] = $extension_node->voip_extension_info;	
+  
+  return $rc;
+}
+
+/*
+ * Implementation of hook_load()
+ */
+function voip_load($extension_node) {
+  // retrieve info from voip_extensions
+  $query = "SELECT * FROM {voip_extensions} WHERE `nid_extension` = %d";
+  $extension_info = db_fetch_array(db_query($query, $extension_node->nid));
+  // if user extension, also retrieve info from voip_users
+  if ($extension_info['uid']) {
+    $query = "SELECT * FROM {voip_users} WHERE `number` = %d";
+    $user_info = db_fetch_array(db_query($query, $extension_info['number']));
+    $extension_info = array_merge($extension_info, $user_info);
+  }
+
+  // retrieve info from the node itself  
+  $extension_info['name'] = $extension_node->title;
+  
+  // NOTE: although this sort of duplicates the effort of taxonomy_nodeapi(), I am leaving this code here at least for now so that I won't have to replicate it for every voip_get_extension function.
+  $categories = array();
+  $terms = taxonomy_node_get_terms($extension_node->nid);
+  if (!empty($terms)) {
+    foreach ($terms as $term) {
+      $categories[] = array('category_name' => $term->name, 'category_id' => $term->tid);
+    }
+  }
+  $extension_info['categories'] = $categories;
+  $additions = new stdClass();
+  $additions->voip_extension_info =  $extension_info;	
+  return $additions;
+}
+
+/**
+ * Retrieve information about the extension associated with the specified node
+ *
+ * @param $nid
+ *   integer. the id of the node that has the desired voip extension
+ *
+ * @return
+ *   array with
+ *     ['error_code'] :: VOIP_SUCCESS, VOIP_EXTENSION_DOES_NOT_EXIST, VOIP_PROCESSING_FAILURE
+ *     ['error_msg'] :: string with eventual error message
+ *     ['extension_info''] :: array with extension info
+ */
+function voip_get_extension_info_from_nid($nid_contents) {
+
+  $rc = array();
+
+  $query = "SELECT `nid_extension` FROM {voip_extensions} WHERE `nid_contents` = %d";
+  $db_result = db_query($query, $nid_contents);
+  if (!$db_result) {
+    $rc['error_code'] = VOIP_PROCESSING_FAILURE;
+    $rc['error_msg'] = t('Processing error: could not query voip extension: %e', array('%e' => db_error()));
+    return $rc;;
+  }
+
+  $db_entry = db_fetch_array($db_result);
+  if (!$db_entry) {
+    $rc['error_code'] = VOIP_EXTENSION_DOES_NOT_EXIST;
+    $rc['error_msg'] = t('Extension for node %n does not exist: %e', array('%n' => $nid_contents, '%e' => db_error()));
+    return $rc;
+  }
+
+  $extension_node = node_load($db_entry['nid_extension']); 
+   $rc['error_code'] = VOIP_SUCCESS;
+  $rc['extension_info'] = $extension_node->voip_extension_info;	
+  
+  return $rc;
+}
+
+/**
+ * Return voip extension associated with the specified user
+ *
+ * @param $uid
+ * id of the Drupal user associated with the extension
+ * 
+ * @return
+ *     ['error_code'] :: VOIP_SUCCESS, VOIP_EXTENSION_DOES_NOT_EXIST, VOIP_PROCESSING_FAILURE
+ *     ['error_msg'] :: string with eventual error message
+ *     ['extension_info''] :: array with extension info
+ */
+function voip_get_extension_info_from_uid($uid) {
+  
+  $rc = array();
+  $rc['error_code'] = VOIP_SUCCESS;
+
+  $query = "SELECT `nid_extension` FROM {voip_extensions} WHERE `uid` = %d";
+  $db_result = db_query($query, $uid);
+  if (!$db_result) {
+    $rc['error_code'] = VOIP_PROCESSING_FAILURE;
+    $rc['error_msg'] = t('Processing error: could not query voip extension: %e', array('%e' => db_error()));
+    return $rc;;
+  }
+
+  $db_entry = db_fetch_array($db_result);
+  if (!$db_entry) {
+    $rc['error_code'] = VOIP_EXTENSION_DOES_NOT_EXIST;
+    $rc['error_msg'] = t('Extension for uid %u does not exist: %e', array('%u' => $uid, '%e' => db_error()));
+    return $rc;
+  }
+  
+  $extension_node = node_load($db_entry['nid_extension']); 
+  $rc['extension_info'] = $extension_node->voip_extension_info;	
+  
+  return $rc;
+}
+      
+
+/**
+ * Implementation of hook_user()
+ */
+function voip_user($op, &$edit, &$account, $category = NULL) {
+  switch($op) {
+    case 'categories':
+      if (user_access('have a personal voip extension')) {
+        $categories = array(
+                        array('name' => 'voip', 'title' => t('Phone profile'), 'weight' => 4),
+ 	                  );
+        return $categories;
+      }
+      break;
+    case 'login':
+      // create an extension in case the user still does not have one
+      if (user_access('have a personal voip extension', $account)) {
+      	if (!isset($account->voip_extension_info)) {
+          // create a new user extension with default values
+          $extension_node = new stdClass();
+          $extension_node->type = 'voip';
+          $extension_node->title = $account->name; // default value for the extension name
+          $extension_node->uid = $account->uid;
+          $extension_node->status = 1;
+$extension_node->og_public = TRUE;
+          $extension_info = array();
+          $extension_info['is_active']= 0;
+          $extension_info['is_listed'] = 1;
+          $extension_info['uid'] = $account->uid;
+          $extension_info['user_name'] = $account->name;
+          $extension_info['password'] = $edit['pass'];
+          $extension_info['phone_pin'] = mt_rand(00000, 99999);
+          $extension_node->voip_extension_info = $extension_info;
+          node_save($extension_node);
+          $extension_node = node_load($extension_node->nid);
+          $account->extension_info = $extension_node->voip_extension_info;
+          watchdog('voip', t('Gave user %user a new extension: %number.', array('%user' => $account->uid, '%number' => $account->extension_info['number'])), WATCHDOG_WARNING);
+      	}
+        // record login statistics
+        $extension_number = $account->voip_extension_info['number'];
+        $user_info = array('extension_number' => $extension_number, 'uid' => $account->uid);
+        voip_log($user_info, 'user', 'logged in', NULL, 'from the website');
+      }
+      break;
+    case 'logout':
+      // record statistics
+      if ($account->voip_extension_info) {
+        $user_info = array('extension_number' => $account->voip_extension_info['number'], 'uid' => $account->uid);
+        voip_log($user_info, 'user', 'logout', NULL, 'from the website');
+      }
+      break;
+    case 'delete':
+      if ($account->voip_extension_info) {
+      	// record statistics
+        $user_info = array('extension_number' => $account->voip_extension_info['number'], 'uid' => $account->uid);
+        voip_log($user_info, 'user', 'deleted');
+      	
+        node_delete($account->voip_extension_info['nid_extension']);        
+      }
+      break;
+    case 'form':
+      if ($category == 'voip') {
+        $f = array();
+        if (user_access('have a personal voip extension')) {
+          $extension_info = $account->voip_extension_info;
+          // our form additions
+          _voip_get_edit_items($extension_info, $f);
+        }
+        return $f;
+      }
+      break;
+    case 'insert':
+//xdebug_break();
+      if (user_access('have a personal voip extension', $account)) {
+        // create a new user extension with default values
+        $extension_node = new stdClass();
+        $extension_node->type = 'voip';
+        $extension_node->title = $account->name; // default value for the extension name
+        $extension_node->uid = $account->uid;
+        $extension_node->status = 1;
+$extension_node->og_public = TRUE;
+        $extension_info = array();
+        $extension_info['is_active']= 0;
+        $extension_info['is_listed'] = 1;
+        $extension_info['uid'] = $account->uid;
+        $extension_info['user_name'] = $account->name;
+        $extension_info['password'] = $edit['pass'];
+        $extension_info['phone_pin'] = mt_rand(00000, 99999);
+        $extension_node->voip_extension_info = $extension_info;
+        node_save($extension_node);
+      }
+      break;
+    case 'load':
+      if (user_access('have a personal voip extension', $account)) {
+        // retrieve extension node associated with the user
+        $query = "SELECT `nid_extension` FROM {voip_extensions} WHERE `uid` = '%d'";
+        $db_entry = db_fetch_array(db_query($query, $account->uid));
+        if (!$db_entry) {
+          // This situation usually happens when voip-related permissions are changed after some of the users have already been created)
+          // Note that this problem gets solved the next time the user logs in
+          watchdog('voip', t('No extension associated with user %user.', array('%user' => $account->uid)), WATCHDOG_WARNING);
+          return FALSE;
+        }
+        $extension_node = node_load($db_entry['nid_extension']);
+        $account->voip_extension_info = $extension_node->voip_extension_info;
+      }
+      break;
+    case 'register':
+      break;
+    case 'update':  
+      // execute the update even if category != 'voip': local user name and password may have changed...
+      $update_extension = FALSE;
+      $extension_node = new stdClass();
+      $extension_info = array();
+      // determine the extension fields that need to be updated
+      if (isset($edit['voip_form_is_active'])) {
+        $extension_info['is_active'] = $edit['voip_form_is_active'];
+        $edit['voip_form_is_active'] = NULL;
+   	    $update_extension = TRUE;
+      }
+      if (isset($edit['voip_form_directory_name'])) {
+        $extension_node->title = $edit['voip_form_directory_name'];
+        $edit['voip_form_directory_name'] = NULL;
+   	    $update_extension = TRUE;
+      }
+      if (isset($edit['voip_form_is_listed'])) {
+        $extension_info['is_listed'] = $edit['voip_form_is_listed'];
+        $edit['voip_form_is_listed'] = NULL;
+   	    $update_extension = TRUE;
+      }
+      if ($edit['name']) { 
+        $extension_info['user_name'] = $edit['name'];
+   	    $update_extension = TRUE;
+      }
+      if ($edit['pass']) {
+        $extension_info['password'] = $edit['pass'];
+   	    $update_extension = TRUE;
+      }
+      if (isset($edit['voip_form_phone_pin'])) {
+        $extension_info['phone_pin'] = $edit['voip_form_phone_pin'];
+        $edit['voip_form_phone_pin'] = NULL;
+   	    $update_extension = TRUE;
+      }
+      // update taxonomy fields (check _voip_user_form()...)
+      if (isset($edit['voip_form_taxonomy'])) {
+        $extension_node->taxonomy = $edit['voip_form_taxonomy'];
+        $edit['voip_form_taxonomy'] = NULL;
+        $update_extension = TRUE;
+      }
+      if ($update_extension) {
+        // determine the voip node associated with the user being updated
+        $query = "SELECT `nid_extension` FROM {voip_extensions} WHERE `uid` = '%d'";
+        $db_entry = db_fetch_array(db_query($query, $account->uid));
+        $nid_extension = $db_entry['nid_extension']; 
+        // update the extension node
+        $extension_node->nid = $nid_extension;
+        $extension_node->type = 'voip';
+        $extension_node->voip_extension_info = $extension_info;
+        node_save($extension_node);
+      }
+      break;
+    case 'validate':
+      // Validate the phone pin
+      if (isset($edit['voip_form_phone_pin']) && !is_numeric($edit[voip_form_phone_pin])) {
+        form_set_error('voip_form_phone_pin', t('Phone pins have to be numeric (eg. 3470).'));
+      }
+      break;
+    case 'view':
+      // TODO: display different info if user is account owner, anonymous, or extension administrator...
+      $rc = array();
+      if (user_access('access voip extension information') && ($account->voip_extension_info)) {
+        $extension_info =& $account->voip_extension_info;
+        global $user;
+        if ($user->uid) {
+          if (($user->uid == $account->uid) || user_access('administer voip extensions')) {
+            $items = _voip_get_view_items($extension_info, FALSE);
+          }
+          else {
+            $items = _voip_get_view_items($extension_info, TRUE);
+          }
+        }
+        else if (user_access('allow anonymous access to voip extension', $account)) { 
+          $items = _voip_get_view_items($extension_info, TRUE);
+        }
+        $profile = array();
+        $profile_items = array('title' => t('Phone settings'), 
+                              'value' => theme('voip_profile', array('profile category' => $items)),
+                              'class' => 'voip_profile');
+        $profile[] = $profile_items;
+        $rc = array(t('Phone profile') => $profile);
+watchdog('voip_user', 'rc: ' . print_r($rc, TRUE));
+      }
+      return $rc;
+  }
+}
+
+/**
+ * Implementation of hook_update()
+ */
+function voip_update($extension_node) {
+  // initialize local variables
+  $voip_extensions_types = array('number' => '%d', 'nid_extension' => "'%d'", 'is_active' => '%d', 'is_listed' => '%d', 
+                                  'uid' => '%d', 'nid_contents' => '%d', 'type_contents' => "'%s'", 
+                                  'nid_audio_name' => '%d', 'nid_audio_greetings' => '%d', 'nid_audio_description' => '%d',
+                                  'audio_key_name' => "'%s'", 'audio_key_greetings' => "'%s'", 'audio_key_description' => "'%s'" );
+  
+  $extension_info =& $extension_node->voip_extension_info;
+
+  // retrieve the current extension info associated with the node being updated
+  $query = "SELECT * FROM {voip_extensions} WHERE `nid_extension` = %d";
+  $original_extension_info = db_fetch_array(db_query($query, $extension_node->nid));
+  
+
+  // delete the existing audio nodes that are being updated, if any. 
+  $voip_audio_fields = array('nid_audio_name', 'nid_audio_greetings', 'nid_audio_description');
+  foreach($voip_audio_fields as $audio_field) {
+    if (isset($extension_info[$audio_field]) && ($extension_info[$audio_field] != $original_extension_info[$audio_field])) {
+      // Note: the following approach is based on _voip_add_audio_node()
+      $nid_audio = $original_extension_info[$audio_field];
+      global $user;
+      $current_user = $user;
+      $user = user_load(array('uid' => 1));
+      node_delete($nid_audio);
+      $user = $current_user;
+    }
+  }
+
+  // update the voip_extensions entry 
+  $update_fields = array();
+  $update_values = array();
+  foreach ($voip_extensions_types as $field => $type) {
+    if (isset($extension_info[$field]) && ($extension_info[$field]) != $original_extension_info[$field]) {
+      $update_fields[] = "`$field` = $type";
+      $update_values[] = $extension_info[$field];
+    }
+  } 
+  if (!empty($update_values)) {
+    $update_fields[] = "`last_modified` = %d";
+    $update_values[] = time();
+    $update_values[] = $extension_node->nid;
+    $query = "UPDATE {voip_extensions} SET " . implode(', ', $update_fields) . " WHERE `nid_extension` = %d";
+    db_query($query, $update_values);
+  }
+  
+  // NOTE: this function does not transform a node extension into a user extension...
+
+  // if user extension, update user-specific information
+  if ($original_extension_info['uid']) {
+    // update the voip_users table entry associated with the orginal extension number
+    $voip_users_types = array('number' => '%d', 'uid' => '%d', 'user_name' => "'%s'", 'password' => "'%s'",  
+                              'phone_pin' => "'%s'", 'voice_id' => '%d' );
+  
+    $update_fields = array();
+    $update_values = array();
+    foreach ($voip_users_types as $field => $type) {
+      if (isset($extension_info[$field])) {
+        $update_fields[] = "`$field` = $type";
+        $update_values[] = $extension_info[$field];
+      }
+    } 
+    if (!empty($update_values)) {
+      $update_values[] = $original_extension_info['uid'];
+      $query = "UPDATE {voip_users} SET " . implode(', ', $update_fields) . " WHERE `uid` = %d";
+      db_query($query, $update_values);
+    }
+  }
+
+  // now update the title of the extension 
+  if (isset($extension_node->title)) {
+    $query = "UPDATE {node} SET `title` = '%s' WHERE `nid` = %d";
+    db_query($query, $extension_node->title, $extension_node->nid);
+  }    
+}
+ 
+/*
+ * Implementation of hook_insert()
+ */
+function voip_insert(&$extension_node) {
+watchdog('voip_insert', serialize($extension_node));
+
+  // initialize local variables and set the extension info of the node
+  $extension_info =& $extension_node->voip_extension_info;
+  
+  $number = db_next_id('{voip_extensions}_number');
+  $extension_info['number'] = $number;
+  $extension_info['nid_extension'] = $extension_node->nid;
+  
+  // create an entry in the voip_extensions table
+  $voip_extensions_types = array('number' => '%d', 'nid_extension' => "'%d'", 'is_active' => '%d', 'is_listed' => '%d', 
+                                  'uid' => '%d', 'nid_contents' => '%d', 'type_contents' => "'%s'", 
+                                  'nid_audio_name' => '%d', 'nid_audio_greetings' => '%d', 'nid_audio_description' => '%d',
+                                  'audio_key_name' => "'%s'", 'audio_key_greetings' => "'%s'", 'audio_key_description' => "'%s'" );
+  
+  $insert_fields = array();
+  $insert_types = array();
+  $insert_values = array();
+  
+  foreach ($voip_extensions_types as $field => $type) {
+    if (isset($extension_info[$field])) {
+      $insert_fields[] = "`$field`";
+      $insert_types[] = "$type";
+      $insert_values[] = $extension_info[$field];
+    }
+  }
+  $insert_fields[] = "`last_modified`";
+  $insert_types[] = "%d";
+  $insert_values[] = time();
+ 
+  $query_fields = implode(', ', $insert_fields);
+  $query_types = implode(', ', $insert_types);
+  $query = "INSERT INTO {voip_extensions} ($query_fields) VALUES ($query_types)";
+  $db_result = db_query($query, $insert_values);
+  if (!$db_result) {
+    $error_msg = t("Could not create voip extension: %e", array('%e' => db_error()));
+    watchdog('voip', $error_msg, WATCHDOG_ERROR);
+    return FALSE;
+  }
+
+  // if user extension, create an entry in the voip_users table
+  if ($extension_info['uid']) {
+    $voip_users_types = array('number' => '%d', 'uid' => '%d', 'user_name' => "'%s'", 'password' => "'%s'",  
+                              'phone_pin' => "'%s'", 'voice_id' => '%d' );
+   
+    $insert_fields = array();
+    $insert_types = array();
+    $insert_values = array();
+    foreach ($voip_users_types as $field => $type) {
+      if (isset($extension_info[$field])) {
+        $insert_fields[] = "`$field`";
+        $insert_types[] = "$type";
+        $insert_values[] = $extension_info[$field];
+      }
+    } 
+    $query_fields = implode(', ', $insert_fields);
+    $query_types = implode(', ', $insert_types);
+    $query = "INSERT INTO {voip_users} ($query_fields) VALUES ($query_types)";
+    $db_result = db_query($query, $insert_values);
+    if (!$db_result) {
+      $error_msg = t("Could not create voip_users entry: %e", array('%e' => db_error()));
+      watchdog('voip', $error_msg, WATCHDOG_ERROR);
+      return FALSE;
+    }
+  }
+      
+  
+  // record statistics
+  global $user;
+  $user_extension_number = isset($user->voip_extension_info)?$user->voip_extension_info['number']:NULL;
+  $user_info = array('extension_number' => $user_extension_number, 'uid' => $user->uid);
+  $notes = "uid: {$extension_info['uid']}, nid: {$extension_info['nid_extension']}, type: {$extension_info['type_contents']}";
+  voip_log($user_info, 'extension', 'created', $number, $notes);
+  
+  // return
+  return $number;
+}
+
+/*
+ * Implementation of hook_delete()
+ */
+function voip_delete($node) {
+
+  global $user;
+  	
+  // delete the audio nodes associated with the given extension node entry
+  $query = "SELECT * FROM {voip_extensions} e WHERE e.nid_extension = '%d'";
+  $db_result = db_query($query, $node->nid);
+ 
+  if (!$db_result) {
+    $error_msg = t("Could not query extension associated with node %nid for deletion: %e", array('%nid' => $node->nid, '%e' => db_error()));
+    return $error_msg;
+  }
+  
+  while ($extension = db_fetch_array($db_result)) {
+    if ($extension['nid_audio_name']) {
+      // NOTE: since only the audio node author or the system administrator are allowed to delete the audio node, 
+      // become system admin for the node deletion. This is particularly relevant for group extensions
+      $current_user = $user;
+      $user = user_load(array('uid' => 1));
+      node_delete($extension['nid_audio_name']);
+      $user = $current_user;
+    }
+
+    if ($extension['nid_audio_greetings']) {
+      // NOTE: since only the audio node author or the system administrator are allowed to delete the audio node, 
+      // become system admin for the node deletion. This is particularly relevant for group extensions
+      $current_user = $user;
+      $user = user_load(array('uid' => 1));
+      node_delete($extension['nid_audio_greetings']);
+      $user = $current_user;
+    }
+
+    if ($extension['nid_audio_description']) {
+      // NOTE: since only the audio node author or the system administrator are allowed to delete the audio node, 
+      // become system admin for the node deletion. This is particularly relevant for group extensions
+      $current_user = $user;
+      $user = user_load(array('uid' => 1));
+      node_delete($extension['nid_audio_description']);
+      $user = $current_user;
+    }
+
+    // if user extension, delete associated entry from voip_users
+    if ($extension['uid']) {
+      db_query("DELETE FROM {voip_users} WHERE `uid` = %d", $extension['uid']);
+    }
+    
+    // record statistics
+    $user_extension_number = isset($user->voip_extension_info)?$user->voip_extension_info['number']:NULL;
+    $user_info = array('extension_number' => $user_extension_number, 'uid' => $user->uid);
+    $notes = "uid: {$extension['uid']}, nid: {$extension['nid_extension']}, type: {$extension['type_contents']}, name: $node->title";
+    voip_log($user_info, 'extension', 'deleted', $extension['number'], $notes);
+
+  }
+  
+  // delete the associated entry from voip_extensions table
+  db_query("DELETE FROM {voip_extensions} WHERE `nid_extension` = %d", $node->nid);
+    
+  return TRUE;
+}
+
+/*
+ * Mask user_authenticate()
+ */
+function voip_user_authenticate($name, $pass) {
+  $account = user_authenticate($name, $pass);
+  // update access statistics
+  if ($account->uid) { 
+    // NOTE: I'm not sure this is the best place to do this... this is usually done in session.inc (which is not necessarily used in xmlrpc calls)
+    // Update the user table access timestamp noting that the user has accessed the server.
+    db_query("UPDATE {users} SET access = %d WHERE uid = %d", time(), $account->uid);
+  }
+  return $account;
+}
+
+
+
+function _voip_get_view_items($extension_info, $teaser = FALSE) {
+
+  $items = array();
+
+  if (!$teaser && $extension_info['uid']) {
+    // display the user id
+    $items[] = array('title' => t('User id'),
+                     'value' => $extension_info['uid'], 
+                     'class' => 'voip_item');
+  }
+
+  // display the extension number
+  $items[] = array('title' => t('Extension number'),
+                   'value' => $extension_info['number'],
+                   'class' => 'voip_item');
+    
+  if ($extension_info['uid']) {
+    // display the directory name
+    $items[] = array('title' => t('Directory name'),
+                     'value' => ($extension_info['name'])?$extension_info['name']:t('No directory name defined.'), 
+                     'class' => 'voip_item');
+  }
+
+  if (!$extension_info['is_active']) {
+    $items[] = array('title' => t('Extension status'),
+                     'value' => t('This extension is not currently active.'), 
+                     'class' => 'voip_item');   
+  }
+  else {
+  	// check if user owns the extension
+  	$is_owner = voip_is_owner($extension_info);
+  	
+    // display the audio name
+    $audio_name = NULL;
+    if ($extension_info['nid_audio_name']) {
+      $audio_node = node_load($extension_info['nid_audio_name']);
+      $audio_name = audio_get_player($audio_node); 
+    }
+    else {
+      if ($is_owner) {
+        $audio_name = t('No name has been recorded for this extension, yet.');
+      }
+    }
+    if ($audio_name) {
+      $items[] = array('title' => t('Audio name'),
+                       'value' => $audio_name,
+                       'class' => 'voip_item',
+                 );
+    }
+    
+    // display the audio greetings
+    if (!$teaser) {
+      $audio_greetings = NULL;
+      if ($extension_info['nid_audio_greetings']) {
+        $audio_node = node_load($extension_info['nid_audio_greetings']);
+        $audio_greetings = audio_get_player($audio_node); 
+      }
+      else {
+        if ($is_owner) {
+          $audio_greetings = t('No greetings message has been recorded for this extension, yet.');
+        }
+      }
+      if ($audio_greetings) {
+        $items[] = array('title' => t('Audio greetings'),
+                         'value' => $audio_greetings,
+                         'class' => 'voip_item');
+      }
+    }
+    
+    // display the audio description
+    $audio_description = NULL;
+    if ($extension_info['nid_audio_description']) {
+      $audio_node = node_load($extension_info['nid_audio_description']);
+      $audio_description = audio_get_player($audio_node); 
+    }
+    else {
+      if ($is_owner) {
+        $audio_description = t('No description has been recorded for this extension, yet.');
+      }
+    }
+    if ($audio_description) {
+      $items[] = array('title' => t('Audio description'),
+                       'value' => $audio_description,
+                       'class' => 'voip_item');
+    }
+    
+    // display the taxonomy terms
+    if (!$teaser) {
+      $terms = taxonomy_node_get_terms($extension_info['nid_extension']);
+      if (empty($terms)) {
+        $categories = t('No categories selected.');
+      }
+      else {
+        $term_names = array();
+        foreach ($terms as $tid => $term) {
+          $term_names[] = $term->name;
+        }  
+        $categories = implode(', ', $term_names);
+      }
+      $items[] = array('title' => t('Extension categories'),
+                       'value' => $categories,
+                       'class' => 'voip_item');
+    }
+  }
+  return $items;
+}
+
+
+/**
+ * XMLRPC callback. Returns a list of the taxonomy terms that can be associated with voip extension nodes.
+ *
+ * @return
+ *   array with the category names and ids
+ */
+function _voip_xmlrpc_get_category_list() {
+  $type = 'voip'; 
+  $vocabularies = module_invoke('taxonomy', 'get_vocabularies', $type, 'vid');
+  $categories = array();
+  if ($vocabularies) {
+    foreach ($vocabularies as $vocabulary) {
+      $terms = module_invoke('taxonomy', 'get_tree', $vocabulary->vid, 0, -1);
+      foreach ($terms as $term) {
+        $term_name = $term->name;
+        foreach (module_invoke('taxonomy', 'get_parents', $term->tid, 'tid') as $parent) {
+          $term_name = $parent->name . '/' . $term_name;
+        }
+        $categories[] = array('category_name' => $term_name, 'category_id' => $term->tid);
+      }
+    }
+  }
+  return $categories;
+}
+
+/**
+ * XML-RPC callback. Checks if the user may perform the given operation on the specified extension.
+ *
+ * @param $user_info
+ *   array with Drupal name and password of the user
+ * 
+ * @param $extension_number
+ *   integer.
+ *
+ * @param $op 
+ *   string with the operation to be performed on the node ('view', 'update', 'delete', 'create')
+ *
+ * @return
+ *   array with
+ *     ['error_code'] :: VOIP_SUCCESS, VOIP_INVALID_USER_INFO, VOIP_EXTENSION_DOES_NOT_EXIST, VOIP_INVALID_EXTENSION_NUMBER, VOIP_LACK_OF_PERMISSION
+ *     ['error_msg'] :: string with eventual error message
+ */
+function _voip_xmlrpc_extension_check_access($user_info, $extension_number, $op) {
+
+  $rc = array();
+  $rc['error_code'] = VOIP_SUCCESS;
+  $rc['extension_info'] = NULL;
+  $rc['error_msg'] = '';
+
+  if (is_null($extension_number) || ($extension_number < 0)) {
+    $rc['error_code'] = VOIP_INVALID_EXTENSION_NUMBER;
+    $rc['error_msg'] = t('Invalid extension number provided: %number.', array('%number' => $extension_number));
+    return $rc;
+  }
+
+  // validate given user info
+  global $user;
+  if (empty($user_info['user_name']) || empty($user_info['password'])) {
+  	$account = $user; // anonymous user
+  }
+  else {
+    $account = voip_user_authenticate($user_info['user_name'], $user_info['password']);
+  
+    if (!$account->uid) {
+  	  $rc['error_code'] = VOIP_INVALID_USER_INFO;
+  	  $rc['error_msg'] = t('Invalid combination of user name and password.');
+      return $rc;
+    }
+  }
+
+  // retrieve extension from the database
+  $result = voip_get_extension_info($extension_number);
+  
+  if ($result['error_code'] != VOIP_SUCCESS) {
+    return $result;
+  }
+
+  $extension_info = $result['extension_info'];
+  
+  // make sure user is allowed to access the extension
+  $access = voip_extension_access($extension_info, $op, $account);
+  if (!$access) {
+  	$rc['error_code'] = VOIP_LACK_OF_PERMISSION; 
+  	$rc['error_msg'] = t('User not allowed to perform %op operation on extension %number', array('%op' => $op, '%number' => $extension_number));
+  }
+  return $rc;
+}
+
+
+
+/**
+ * XML-RPC callback. Deletes the extension associated with the specified node id.
+ *
+ * @param $user_info
+ * array with Drupal name and password of user requesting the delete
+ * 
+ * @param $nid_contents
+ *   integer. The id of the node pointed to by the extension
+ *
+ * @return
+ *   array with
+ *     ['error_code'] :: VOIP_SUCCESS, VOIP_INVALID_USER_INFO, VOIP_EXTENSION_DOES_NOT_EXIST,  VOIP_LACK_OF_PERMISSION
+ *     ['error_msg'] :: string with eventual error message
+ */
+function _voip_xmlrpc_extension_delete($user_info, $nid_contents) {
+  $rc = array();
+  $rc['error_code'] = VOIP_SUCCESS;
+  $rc['error_msg'] = '';
+
+watchdog('delete', "user_info: " . serialize($user_info) . ", nid: $nid_contents"); 
+  // validate given user info
+  global $user;
+  if (empty($user_info['user_name']) || empty($user_info['password'])) {
+  	$account = $user; // anonymous user
+  }
+  else {
+    $account = voip_user_authenticate($user_info['user_name'], $user_info['password']);
+  
+    if (!$account->uid) {
+  	  $rc['error_code'] = VOIP_INVALID_USER_INFO;
+  	  $rc['error_msg'] = t('Invalid combination of user name and password.');
+      return $rc;
+    }
+  }
+
+  // retrieve extension from the database
+  $result = voip_get_extension_info_from_nid($nid_contents);
+  
+  if ($result['error_code'] != VOIP_SUCCESS) {
+    return $result;
+  }
+
+  $extension_info = $result['extension_info'];
+    
+  // make sure user is allowed to delete the extension
+  $access = voip_extension_access($extension_info, 'delete', $account);
+  if (!$access) {
+  	$rc['error_code'] = VOIP_LACK_OF_PERMISSION; 
+  	$rc['error_msg'] = t('User not allowed to delete specified voip extension');
+  	return $rc;
+  }
+
+  // delete the extension and the node it is associated with
+  node_delete($nid_contents);
+
+  return $rc;
+}
+
+
+
+/**
+ * XML-RPC callback. Returns information associated with the specified voip extension.
+ *
+ * @param $user_info
+ * array with Drupal name and password of user requesting the information
+ * 
+ * @param $extension_number
+ *   integer.
+ *
+ * @return
+ *   array with
+ *     ['error_code'] :: VOIP_SUCCESS, VOIP_INVALID_USER_INFO, VOIP_EXTENSION_DOES_NOT_EXIST, VOIP_INVALID_EXTENSION_NUMBER, VOIP_LACK_OF_PERMISSION
+ *     ['error_msg'] :: string with eventual error message
+ *     ['extension_info''] :: array with extension info, NULL in case of invalid extension/pin combination
+ */
+function _voip_xmlrpc_extension_get_info($user_info, $extension_number) {
+
+  $rc = array();
+  $rc['error_code'] = VOIP_SUCCESS;
+  $rc['extension_info'] = NULL;
+  $rc['error_msg'] = '';
+
+  if (is_null($extension_number) || ($extension_number < 0)) {
+    $rc['error_code'] = VOIP_INVALID_EXTENSION_NUMBER;
+    $rc['error_msg'] = t('Invalid extension number provided: %number.', array('%number' => $extension_number));
+    return $rc;
+  }
+
+  // validate given user info
+  global $user;
+  if (empty($user_info['user_name']) || empty($user_info['password'])) {
+  	$account = $user; // anonymous user
+  }
+  else {
+    $account = voip_user_authenticate($user_info['user_name'], $user_info['password']);
+  
+    if (!$account->uid) {
+  	  $rc['error_code'] = VOIP_INVALID_USER_INFO;
+  	  $rc['error_msg'] = t('Invalid combination of user name and password.');
+      return $rc;
+    }
+  }
+
+  // retrieve extension from the database
+  $result = voip_get_extension_info($extension_number);
+  
+  if ($result['error_code'] != VOIP_SUCCESS) {
+    return $result;
+  }
+
+  $extension_info = $result['extension_info'];
+  
+  // make sure user is allowed to access the extension
+  $access = voip_extension_access($extension_info, 'view', $account);
+  if (!$access) {
+  	$rc['error_code'] = VOIP_LACK_OF_PERMISSION; 
+  	$rc['error_msg'] = t('User not allowed to retrieve voip extension information');
+  	return $rc;
+  }
+watchdog('info', "extension info for extension $extension_number: " . print_r($extension_info, TRUE));  
+
+ // remove private information from the extension
+  unset($extension_info['vuid']);
+  unset($extension_info['phone_pin']);
+  unset($extension_info['password']);
+  unset($extension_info['audio_key_name']);
+  unset($extension_info['audio_key_greetings']);
+  unset($extension_info['audio_key_description']);
+  $rc['extension_info'] = $extension_info;
+  return $rc;
+}
+
+/**
+ * XML-RPC callback. Returns extension associated with the specified node id.
+ *
+ * @param $user_info
+ * array with Drupal name and password of user requesting the information
+ * 
+ * @param $nid
+ *   integer.
+ *
+ * @return
+ *   array with
+ *     ['error_code'] :: VOIP_SUCCESS, VOIP_INVALID_USER_INFO, VOIP_EXTENSION_DOES_NOT_EXIST,  VOIP_LACK_OF_PERMISSION
+ *     ['error_msg'] :: string with eventual error message
+ *     ['extension_info''] :: array with extension info, NULL in case of invalid extension/pin combination
+ */
+function _voip_xmlrpc_extension_get_info_from_nid($user_info, $nid) {
+
+  $rc = array();
+  $rc['error_code'] = VOIP_SUCCESS;
+  $rc['extension_info'] = NULL;
+  $rc['error_msg'] = '';
+
+watchdog('get_x_info', "user_info: " . serialize($user_info) . ", nid: $nid"); 
+  // validate given user info
+  global $user;
+  if (empty($user_info['user_name']) || empty($user_info['password'])) {
+  	$account = $user; // anonymous user
+  }
+  else {
+    $account = voip_user_authenticate($user_info['user_name'], $user_info['password']);
+  
+    if (!$account->uid) {
+  	  $rc['error_code'] = VOIP_INVALID_USER_INFO;
+  	  $rc['error_msg'] = t('Invalid combination of user name and password.');
+      return $rc;
+    }
+  }
+
+  // retrieve extension from the database
+  $result = voip_get_extension_info_from_nid($nid);
+  
+  if ($result['error_code'] != VOIP_SUCCESS) {
+    return $result;
+  }
+
+  $extension_info = $result['extension_info'];
+    
+  // make sure user is allowed to access the extension
+  $access = voip_extension_access($extension_info, 'view', $account);
+watchdog('get_x_info', "access: $access"); 
+  
+  if (!$access) {
+  	$rc['error_code'] = VOIP_LACK_OF_PERMISSION; 
+  	$rc['error_msg'] = t('User not allowed to retrieve voip extension information');
+  	return $rc;
+  }
+
+ // remove private information from the node extension
+  unset($extension_info['vuid']);
+  unset($extension_info['uid']);
+  unset($extension_info['user_name']);
+  unset($extension_info['password']);
+  unset($extension_info['phone_pin']);
+  unset($extension_info['audio_key_name']);
+  unset($extension_info['audio_key_greetings']);
+  unset($extension_info['audio_key_description']);
+  
+  $rc['extension_info'] = $extension_info;
+watchdog('get_x_nid', "rc: " . serialize($rc)); 
+  return $rc;
+}
+
+/**
+ * XML-RPC callback. Returns extension associated with the specified user id.
+ *
+ * @param $user_info
+ * array with Drupal name and password of user requesting the information
+ * 
+ * @param $uid
+ *   integer.
+ *
+ * @return
+ *   array with
+ *     ['error_code'] :: VOIP_SUCCESS, VOIP_INVALID_USER_INFO, VOIP_EXTENSION_DOES_NOT_EXIST,  VOIP_LACK_OF_PERMISSION
+ *     ['error_msg'] :: string with eventual error message
+ *     ['extension_info''] :: array with extension info, NULL in case of invalid extension/pin combination
+ */
+function _voip_xmlrpc_extension_get_info_from_uid($user_info, $uid) {
+
+  $rc = array();
+  $rc['error_code'] = VOIP_SUCCESS;
+  $rc['extension_info'] = NULL;
+  $rc['error_msg'] = '';
+
+watchdog('get_x_uid', "user_info: " . serialize($user_info) . ", uid: $uid"); 
+  // validate given user info
+  global $user;
+  if (empty($user_info['user_name']) || empty($user_info['password'])) {
+  	$account = $user; // anonymous user
+  }
+  else {
+    $account = voip_user_authenticate($user_info['user_name'], $user_info['password']);
+  
+    if (!$account->uid) {
+  	  $rc['error_code'] = VOIP_INVALID_USER_INFO;
+  	  $rc['error_msg'] = t('Invalid combination of user name and password.');
+      return $rc;
+    }
+  }
+
+  // retrieve extension from the database
+  $result = voip_get_extension_info_from_uid($uid);
+  
+  if ($result['error_code'] != VOIP_SUCCESS) {
+    return $result;
+  }
+
+  $extension_info = $result['extension_info'];
+    
+  // make sure user is allowed to access the extension
+  $access = voip_extension_access($extension_info, 'view', $account);
+watchdog('get_x_uid', "access: $access"); 
+  
+  if (!$access) {
+  	$rc['error_code'] = VOIP_LACK_OF_PERMISSION; 
+  	$rc['error_msg'] = t('User not allowed to retrieve voip extension information');
+  	return $rc;
+  }
+
+  // remove private information from the user extension
+  unset($extension_info['nid_contents']);
+  unset($extension_info['type_contents']);
+  unset($extension_info['vuid']);
+  unset($extension_info['user_name']);
+  unset($extension_info['password']);
+  unset($extension_info['phone_pin']);
+  unset($extension_info['audio_key_name']);
+  unset($extension_info['audio_key_greetings']);
+  unset($extension_info['audio_key_description']);
+  
+  $rc['extension_info'] = $extension_info;
+watchdog('get_x_uid', "rc: " . serialize($rc)); 
+  return $rc;
+}
+
+
+/**
+ * XML-RPC callback. Returns information about the user associated with the given extension and pin.
+ *
+ * @param $extension_number
+ *   integer.
+ *
+ * @param $phone_pin
+ * string. user's phone password.  has to be an integer.
+ * 
+ * @return
+ *   array with
+ *     ['error_code'] :: VOIP_SUCCESS, VOIP_INVALID_EXTENSION_NUMBER, VOIP_PROCESSING_FAILURE, VOIP_INVALID_USER_NAME_PASSWORD_COMBINATION
+ *     ['error_msg'] :: string with eventual error message
+ *     ['user_info'] :: array with 'name' and 'password' of the user 
+ */
+function _voip_xmlrpc_user_get_info($extension_number, $phone_pin) {
+watchdog('voip', "Entering _voip_xmlrpc_user_get_info($extension_number, $phone_pin)");
+  $rc = array();
+  $rc['error_code'] = VOIP_SUCCESS;
+  $rc['error_msg'] = '';
+  $rc['user_info'] = array();
+
+  // retrieve extension from the database
+  $result = voip_get_extension_info($extension_number);
+
+  if ($result['error_code'] != VOIP_SUCCESS) {
+    return $result;
+  }
+  
+  $extension_info = $result['extension_info'];
+  
+  if (!isset($extension_info['phone_pin']) || ($extension_info['phone_pin'] != $phone_pin)) {
+    $rc['error_code'] = VOIP_INVALID_PHONE_PIN;
+    $rc['error_msg'] = t('Invalid phone pin.');
+    return $rc;
+  }
+
+  // update login statistics
+  watchdog('voip', t('Session opened for %username of extension %extension', array('%username' => $extension_info['user_name'], '%extension' => $extension_info['number'])));
+
+  // NOTE: one could want to leave the login field just for website purposes...
+  // Update the user table timestamp noting user has logged in.
+  db_query("UPDATE {users} SET login = %d WHERE uid = %d", time(), $extension_info['uid']);
+
+  // return
+  $rc['user_info']['user_name'] = $extension_info['user_name'];
+  $rc['user_info']['password'] = $extension_info['password'];
+  $rc['user_info']['voice_id'] = $extension_info['voice_id'];
+      
+  return $rc;
+}
+
+
+/**
+ * XML-RPC callback. Set the audio name/description associated with the specified extension. Note that this function only starts the process. 
+ * The actual name/description will be updated whenever voip_node_api insert/update are called with the matching audio_key
+ *
+ * @param $user_info
+ * array with the Drupal user name and password of the user executing the operation
+ * 
+ * @param $extension_number
+ * string with the extension number the message is being sent to
+ * 
+ * @param $field_name
+ * string 'audio_name', 'audio_greetings' or 'audio_description'
+ * 
+ * @return
+ *   array with
+ *     ['error_code'] :: VOIP_SUCCESS, VOIP_PROCESSING_FAILURE, VOIP_INVALID_USER_INFO, VOIP_INVALID_EXTENSION_NUMBER, VOIP_LACK_OF_PERMISSION
+ *     ['error_msg'] :: string with eventual error message
+ *     ['audio_key'] :: unique identifier to be used by the audio node which will carry the actual contents of the audio message
+ */
+function _voip_xmlrpc_extension_set_audio_field($user_info, $extension_number, $field_name) {
+watchdog('set_audio_field', "user info: $user_info, extension number: $extension_number, field: $field_name");
+watchdog('set_audio_field', "user info: " . serialize($user_info));
+xdebug_break();
+  $rc = array();
+  $rc['error_code'] = VOIP_SUCCESS;
+  $rc['error_msg'] = '';
+
+  // check if the extension exists
+  $result = voip_get_extension_info($extension_number);
+  if ($result['error_code'] != VOIP_SUCCESS) { 
+    return $result;
+  }
+
+  // validate given user info
+  global $user;
+  if (empty($user_info['user_name']) || empty($user_info['password'])) {
+  	$account = $user; // anonymous user
+  }
+  else {
+    $account = voip_user_authenticate($user_info['user_name'], $user_info['password']);
+  
+    if (!$account->uid) {
+  	  $rc['error_code'] = VOIP_INVALID_USER_INFO;
+  	  $rc['error_msg'] = t('Invalid combination of user name and password.');
+      return $rc;
+    }
+  }
+  $extension_info = $result['extension_info'];
+watchdog('set_audio_field', "extension info: " . serialize($extension_info));  
+  // make sure user has the right permissions
+  $access = voip_extension_access($extension_info, 'update', $account); 
+watchdog('set_audio_field', "access: $access");  
+  if (!$access) {
+  	$rc['error_code'] = VOIP_LACK_OF_PERMISSION; 
+  	$rc['error_msg'] = t('User not allowed to update voip extension information');
+  	return $rc;
+  }
+ 
+   // create the key to be used by the audio node that has the contents of the audio field
+  $rc['audio_key'] = 'voip_' . mt_rand();
+  
+  // update extension with the new key and field specification
+
+  if ($field_name == 'audio_name') {
+    $query = "UPDATE {voip_extensions} SET `audio_key_name` = '%s' WHERE `number` = '%d'";
+  }
+  elseif ($field_name == 'audio_greetings') {
+    $query = "UPDATE {voip_extensions} SET `audio_key_greetings` = '%s' WHERE `number` = '%d'";
+  }
+  else {
+    $query = "UPDATE {voip_extensions} SET `audio_key_description` = '%s' WHERE `number` = '%d'";
+  }
+
+  $db_result = db_query($query, $rc['audio_key'], $extension_number);
+
+  if (!$db_result) {
+    $rc['error_code'] = VOIP_PROCESSING_FAILURE;
+    $rc['error_msg'] = t("Could not update audio field in extension %x: %e", array('%x' => $extension_number, '%e' => db_error()));
+    watchdog('voip', $rc['error_msg'], WATCHDOG_ERROR);
+  }
+  
+  return $rc;
+}
+
+/**
+ * XML-RPC callback. Sets the categories of the specified extension. 
+ *
+ * @param $user_info
+ * array with the Drupal user name and password of the user executing the operation
+ * 
+ * @param $extension_number
+ * string with the number of the extension
+ * 
+ * @param $category_ids
+ * array with the new category ids
+ * 
+ * @return
+ *   array with
+ *     ['error_code'] :: VOIP_SUCCESS, VOIP_PROCESSING_FAILURE, VOIP_INVALID_USER_INFO, VOIP_INVALID_EXTENSION_NUMBER, VOIP_LACK_OF_PERMISSION
+ *     ['error_msg'] :: string with eventual error message
+ */
+function _voip_xmlrpc_extension_set_categories($user_info, $extension_number, $category_ids) {
+  $rc = array();
+
+  // check if the extension exists
+  $result = voip_get_extension_info($extension_number);
+  if ($result['error_code'] != VOIP_SUCCESS) { 
+    return $result;
+  }
+
+  // validate given user info
+  global $user;
+  if (empty($user_info['user_name']) || empty($user_info['password'])) {
+  	$account = $user; // anonymous user
+  }
+  else {
+    $account = voip_user_authenticate($user_info['user_name'], $user_info['password']);
+  
+    if (!$account->uid) {
+  	  $rc['error_code'] = VOIP_INVALID_USER_INFO;
+  	  $rc['error_msg'] = t('Invalid combination of user name and password.');
+      return $rc;
+    }
+  }
+  $extension_info = $result['extension_info'];
+  // make sure user has the right permissions
+  $access = voip_extension_access($extension_info, 'update', $account); 
+  if (!$access) {
+  	$rc['error_code'] = VOIP_LACK_OF_PERMISSION; 
+  	$rc['error_msg'] = t('User not allowed to update voip extension information');
+  	return $rc;
+  }
+ 
+  // set the categories of the new extension
+  if (!empty($category_ids) && !in_array(NULL, $category_ids)) {
+    $extension_node = node_load($extension_info['nid_extension']);
+    $extension_node->taxonomy = $category_ids;
+    node_save($extension_node);
+  }
+
+  $rc['error_code'] = VOIP_SUCCESS;
+  return $rc;
+}
+
+
+/**
+ * XML-RPC callback. Sets the categories of the specified extension. 
+ *
+ * @param $user_info
+ * array with the Drupal user name and password of the user executing the operation
+ * 
+ * @param $extension_number
+ * string with the number of the extension
+ * 
+ * @param $activate
+ * boolean. TRUE, to activate the extension. FALSE, to deactivate the extension
+ * 
+ * @return
+ *   array with
+ *     ['error_code'] :: VOIP_SUCCESS, VOIP_PROCESSING_FAILURE, VOIP_INVALID_USER_INFO, VOIP_INVALID_EXTENSION_NUMBER, VOIP_LACK_OF_PERMISSION
+ *     ['error_msg'] :: string with eventual error message
+ */
+function _voip_xmlrpc_extension_activate($user_info, $extension_number, $activate) {
+watchdog('activate', "extension number: $extension_number, activate: $activate");
+  $rc = array();
+
+  // check if the extension exists
+  $result = voip_get_extension_info($extension_number);
+  if ($result['error_code'] != VOIP_SUCCESS) { 
+    return $result;
+  }
+
+  // validate given user info
+  global $user;
+  if (empty($user_info['user_name']) || empty($user_info['password'])) {
+  	$account = $user; // anonymous user
+  }
+  else {
+    $account = voip_user_authenticate($user_info['user_name'], $user_info['password']);
+  
+    if (!$account->uid) {
+  	  $rc['error_code'] = VOIP_INVALID_USER_INFO;
+  	  $rc['error_msg'] = t('Invalid combination of user name and password.');
+      return $rc;
+    }
+  }
+  
+  // make sure user has management privileges to activate/deactivate the extension
+  $access = user_access('administer voip extensions', $account);
+watchdog('activate', "access: $access");  
+  if (!$access) {
+  	$rc['error_code'] = VOIP_LACK_OF_PERMISSION; 
+  	$rc['error_msg'] = t('User not allowed to activate voip extension');
+  	return $rc;
+  }
+  
+  // activate/deactivate the extension
+  $extension_info = $result['extension_info'];
+watchdog('activate', "extension info: " . print_r($extension_info, TRUE));  
+  $query = "UPDATE {voip_extensions} x SET x.is_active = %d, x.last_modified = %d WHERE x.nid_extension = %d";
+  db_query($query, $activate, time(), $extension_info['nid_extension']);
+
+  $rc['error_code'] = VOIP_SUCCESS;
+  return $rc;
+}
+
+
+/**
+ * XML-RPC callback. Sets the categories of the specified extension. 
+ *
+ * @param $user_info
+ * array with the Drupal user name and password of the user executing the operation
+ * 
+ * @param $old_pin
+ * int with the existing phone pin
+ * 
+ * @param $new_pin
+ * int with the new phone pin
+ * 
+ * @return
+ *   array with
+ *     ['error_code'] :: VOIP_SUCCESS, VOIP_PROCESSING_FAILURE, VOIP_INVALID_USER_INFO, VOIP_INVALID_EXTENSION_NUMBER, VOIP_LACK_OF_PERMISSION
+ *     ['error_msg'] :: string with eventual error message
+ */
+function _voip_xmlrpc_change_phone_pin($user_info, $old_pin, $new_pin) {
+watchdog('change_phone_pin', "old pin: $old_pin, new pin: $new_pin");
+//xdebug_break();
+  $rc = array();
+
+  // validate given user info
+  global $user;
+  if (empty($user_info['user_name']) || empty($user_info['password'])) {
+  	$account = $user; // anonymous user
+  }
+  else {
+    $account = voip_user_authenticate($user_info['user_name'], $user_info['password']);
+  
+    if (!$account->uid) {
+  	  $rc['error_code'] = VOIP_INVALID_USER_INFO;
+  	  $rc['error_msg'] = t('Invalid combination of user name and password.');
+      return $rc;
+    }
+  }
+
+  // make sure old_pin is the actual user's pin
+  $query = "SELECT * FROM {voip_users} WHERE `uid` = %d";
+  $user_entry = db_fetch_array(db_query($query, $account->uid));
+
+  if ($user_entry['phone_pin'] != $old_pin) {
+    $rc['error_code'] = VOIP_INVALID_PHONE_PIN;
+    $rc['error_msg'] = t("Phone pin provided does not match the user's current one.");
+    return $rc;
+  }
+    
+  // update the user pin
+  $query = "UPDATE {voip_users} SET `phone_pin` = %d WHERE `uid` = %d";
+  $db_result = db_query($query, $new_pin, $account->uid);
+  if (!$db_result) {
+    $error_msg = t("Could not update phone_pin field of user %uid in the database: %e", array('%uid' => $account->uid, '%e' => db_error()));
+    watchdog('voip', $error_msg, WATCHDOG_ERROR);
+    $rc['error_code'] = VOIP_PROCESSING_FAILURE;
+    $rc['error_msg'] = $error_msg;
+  }
+  else {
+    $rc['error_code'] = VOIP_SUCCESS;
+watchdog('voip', "Updated phone pin for user $account->uid.");
+  }
+  
+  return $rc;
+}
+
+
+/**
+ * XML-RPC callback. Sets the id of the voice to be used for the specified user. 
+ *
+ * @param $user_info
+ * array with the Drupal user name and password of the user executing the operation
+ * 
+ * @param $voice_id
+ * int with the existing phone pin
+ * 
+ * @return
+ *   array with
+ *     ['error_code'] :: VOIP_SUCCESS, VOIP_PROCESSING_FAILURE, VOIP_INVALID_USER_INFO, VOIP_INVALID_EXTENSION_NUMBER, VOIP_LACK_OF_PERMISSION
+ *     ['error_msg'] :: string with eventual error message
+ */
+function _voip_xmlrpc_change_voice_id($user_info, $voice_id) {
+watchdog('change_voice_id', "new voice id: $voice_id");
+//xdebug_break();
+  $rc = array();
+
+  // validate given user info
+  global $user;
+  if (empty($user_info['user_name']) || empty($user_info['password'])) {
+  	$account = $user; // anonymous user
+  }
+  else {
+    $account = voip_user_authenticate($user_info['user_name'], $user_info['password']);
+  
+    if (!$account->uid) {
+  	  $rc['error_code'] = VOIP_INVALID_USER_INFO;
+  	  $rc['error_msg'] = t('Invalid combination of user name and password.');
+      return $rc;
+    }
+  }
+
+  // update the user pin
+  $query = "UPDATE {voip_users} SET `voice_id` = %d WHERE `uid` = %d";
+  $db_result = db_query($query, $voice_id, $account->uid);
+  if (!$db_result) {
+    $error_msg = t("Could not update voice_id field of user %uid in the database: %e", array('%uid' => $account->uid, '%e' => db_error()));
+    watchdog('voip', $error_msg, WATCHDOG_ERROR);
+    $rc['error_code'] = VOIP_PROCESSING_FAILURE;
+    $rc['error_msg'] = $error_msg;
+  }
+  else {
+    $rc['error_code'] = VOIP_SUCCESS;
+watchdog('voip', "Updated voice_id for user $account->uid.");
+  }
+  
+  return $rc;
+}
+
+
+
+/**
+ * XMLRPC callback. Returns the extensions that match the specified query criteria.
+ *
+ * @return
+ *   array.  In case of success, 'error_code' is set to VOIP_SUCCESS and 'extensions' is an array with the extension_info themselves.  In case of failure,
+ *     'error_code' is set to the appropriate error and 'error_msg' contain the description of the error.
+ */
+function _voip_xmlrpc_get_extension_directory($user_info, $query_info, $start, $limit) {
+
+  $rc = array();
+  $rc->error_code = 1;
+
+  // make sure user information is valid for non-anonymous users
+  global $user;
+  if ((!empty($user_info['user_name'])) && (!empty($user_info['password']))) {
+    $account = voip_user_authenticate($user_info['user_name'], $user_info['password']);
+    if (!$account->uid) {
+  	  $rc['error_code'] = VOIP_INVALID_USER_INFO;
+  	  $rc['error_msg'] = t('Invalid combination of user name and password.');
+      return $rc;
+    }
+    $user = $account;
+  }
+
+  // retrieve the selected extensions
+  $rc = _voip_get_extension_directory($query_info, $start, $limit);
+ 
+  return $rc;
+
+}
+
+/*
+ * returns list of extensions that match specified criteria
+ *
+ * @param $query_info
+ *   array with the query criteria for the audio entries:
+ *     ['name'] :: first letters of the name of the extension to be retrieved. NULL = any
+ *     ['is_active'] :: 1 = return active extensions, 0 = non-active, NULL = any
+ *     ['is_listed'] :: 1 = return extensions listed in the diretory, 0 = not listed, NULL = any
+ *     ['get_user_extensions'] :: TRUE = user extensions are to be returned
+ *     ['get_node_extensions'] :: TRUE = node extensions are to be returned
+ *     ['type_contents'] :: specifies the type of node extensions to be returned, or NULL for any
+ *     ['categories_or'] :: array with category ids to be ORed; or NULL for all
+ *
+ * @param $start
+ *   the directory row to start from
+ * 
+ * @param $limit
+ *   the maximum number of directory rows to fetch
+ * 
+ * @return
+ *   array. In case of success, 'error_code' will be set to VOIP_SUCCESS and 'extensions' will return with information about the extensions that obey the specified criteria.
+ */
+function _voip_get_extension_directory($query_info, $start = 0, $limit = 15) {
+watchdog('directory', "entering _voip_get_extension_directory " . print_r($query_info, TRUE));
+// TODO: This function does not return directory entries when the first $limit extensions are not accessible by the user. Somehow, we'll have to get rid of the limit/pager mechanism
+  global $user;
+
+  //
+  // Prepare the arguments for the query
+  //
+  
+  $and_array = array();
+
+  if ($query_info['name']) {
+    // return entries whose title either start or include with the given name
+    $and_array[] = "(n.title LIKE '" . $query_info['name'] . "%' OR n.title LIKE '% " . $query_info['name'] . "%')";
+  }
+
+  if (isset($query_info['is_active'])) {
+    $and_array[] = 'x.is_active=' . $query_info['is_active'];
+  }
+  
+  if (isset($query_info['is_listed'])) {
+    $and_array[] = 'x.is_listed=' . $query_info['is_listed'];
+  }
+  
+  $query_user_extensions = ($query_info['get_user_extensions']) ? '(x.uid IS NOT NULL)' : '';
+  $query_node_extensions = ($query_info['get_node_extensions']) ? '(x.nid_contents IS NOT NULL)' : '';
+  if (($query_info['get_user_extensions']) && ($query_info['get_node_extensions'])) {
+    $and_array[] = "($query_user_extensions OR $query_node_extensions)";
+  }
+  else if ($query_info['get_user_extensions']) {
+  	$and_array[] = $query_user_extensions;
+  }
+  else {
+  	$and_array[] = $query_node_extensions;
+  }
+
+  if (($query_info['get_node_extensions'])&& ($query_info['type_contents'])) {
+    $and_array[] = 'x.type_contents=' . $query_info['type_contents'];
+  }
+  
+  $tids_or_tmp = $query_info['categories_or'];
+  $query_tids_or = '';
+  if (!empty($tids_or_tmp) && !in_array(NULL, $tids_or_tmp)) { // make sure none of the array elements is NULL
+    $query_tids_or = '( t.tid=' . implode(' OR t.tid=', $tids_or_tmp);
+    $query_tids_or .= ')';
+  }
+  if (!empty($query_tids_or)) {
+  	$and_array[] = $query_tids_or;
+  }
+
+  $tids_and_tmp = $query_info['categories_and'];
+  $query_tids_and = '';
+  if (!empty($tids_and_tmp) && !in_array(NULL, $tids_and_tmp)) { // make sure none of the array elements is NULL
+    $query_tids_and = '( t.tid=' . implode(' AND t.tid=', $tids_and_tmp);
+    $query_tids_and .= ')';
+  }
+  if (!empty($query_tids_and)) {
+  	$and_array[] = $query_tids_and;
+  }
+
+  $join_categories = '';
+  if (!empty($query_tids_or) || !empty($query_tids_and)) { // if at least a category is being queried...
+    $join_categories = ' INNER JOIN {term_node} t ON n.nid=t.nid ';
+  }
+
+  $args = (!$query_info['gid']) ? NULL : array('og_nid' => $query_info['gid']);
+
+  //
+  // Do the query
+  //
+
+  $query = "SELECT DISTINCT x.number FROM {voip_extensions} x INNER JOIN {node} n ON x.nid_extension=n.nid  $join_categories "
+            . " WHERE n.title <> '' AND " . implode(' AND ', $and_array) 
+            . " ORDER BY n.title ASC, x.number ASC LIMIT $start,$limit";
+watchdog('directory', "query constructed: $query");
+
+  $query = db_rewrite_sql($query, 'n', 'nid', $args);
+
+watchdog('directory', "Final query: $query");
+  $result = db_query($query);
+
+  $rc = array();
+  $rc['extensions'] = array();
+  while ($entry = db_fetch_array($result)) {
+watchdog('directory', "processing extension number {$entry['number']}");
+    $r = voip_get_extension_info($entry['number']);
+    if ($r['error_code'] != VOIP_SUCCESS) {
+      $error_msg = t('Processing error reading extension info for directory: %error', array('%error' => $r['error_msg']));
+      watchdog('voip', $error_msg, WATCHDOG_ERROR);
+      $r['error_msg'] = $error_msg;
+      return $r;
+    }
+
+    // if user has permission to view the entry...
+    $has_access = voip_extension_access($r['extension_info'], 'view');
+    if ($has_access) {
+      $rc['extensions'][] = $r['extension_info'];
+    }
+  }
+
+  $rc['error_code'] = VOIP_SUCCESS;
+  return $rc;
+}
+
+/**
+ * XMLRPC callback. Used mainly for caching purposes, this function returns the extensions that have been modified after the given date.
+ *
+ * @return
+ *   array.  In case of success, 'error_code' is set to VOIP_SUCCESS and 'extensions' is an array with the extension_info themselves.  In case of failure,
+ *     'error_code' is set to the appropriate error and 'error_msg' contain the description of the error.
+ */
+function _voip_xmlrpc_get_recent_extensions($user_info, $start_date, $limit = 0) {
+
+  $rc = array();
+  $rc->error_code = 1;
+
+  // make sure user information is valid for non-anonymous users
+  global $user;
+  if ((!empty($user_info['user_name'])) && (!empty($user_info['password']))) {
+    $account = voip_user_authenticate($user_info['user_name'], $user_info['password']);
+    if (!$account->uid) {
+  	  $rc['error_code'] = VOIP_INVALID_USER_INFO;
+  	  $rc['error_msg'] = t('Invalid combination of user name and password.');
+      return $rc;
+    }
+    $user = $account;
+  }
+
+  $query = "SELECT x.number FROM {voip_extensions} x WHERE x.last_modified > %d";
+  $db_result = db_query($query, $start_date);
+  $rc = array();
+  $rc['extensions'] = array();
+  while (($entry = db_fetch_array($db_result)) && (empty($limit) || ($limit && (count($rc['extensions']) < $limit)))) {
+    $r = voip_get_extension_info($entry['number']);
+    if ($r['error_code'] != VOIP_SUCCESS) {
+      $error_msg = t('Processing error reading extension info for directory: %error', array('%error' => $r['error_msg']));
+      watchdog('voip', $error_msg, WATCHDOG_ERROR);
+      $r['error_msg'] = $error_msg;
+      return $r;
+    }
+
+    // if user has permission to view the entry...
+    $has_access = voip_extension_access($r['extension_info'], 'view');
+    if ($has_access) {
+      $rc['extensions'][] = $r['extension_info'];
+    }
+  }
+
+  $rc['error_code'] = VOIP_SUCCESS;
+  return $rc;
+}
+
+/**
+ * Add new entry to the log.
+ *
+ * @param $user_info
+ * array with the user id, extension number and caller id information pertaining the current caller
+ * 
+ * @param $extension_number_to
+ * string with the extension number of the extension being called
+ * 
+ * @param $gm_time
+ * array with the GM time of the call
+ * 
+ * @return
+ *   array with
+ *     ['error_code'] :: VOIP_SUCCESS, VOIP_PROCESSING_FAILURE, VOIP_INVALID_USER_INFO, VOIP_INVALID_EXTENSION_NUMBER, VOIP_LACK_OF_PERMISSION
+ *     ['error_msg'] :: string with eventual error message
+ *     ['audio_key'] :: unique identifier to be used by the audio node which will carry the actual contents of the audio message
+ */
+function voip_log($user_info, $category, $action, $to_extension_number = NULL, $notes = NULL) {
+  $rc = array();
+
+  $query = "INSERT INTO {voip_log} (`category`, `caller_extension_number`, `caller_cid_name`, `caller_cid_number`, `caller_uid`, `action`, `to_extension_number`, `notes`, `timestamp`) "
+    		. "VALUES ('%s', %d, '%s', '%s', %d, '%s', %d, '%s', %d)";
+  $caller_extension_number = isset($user_info['extension_number'])?$user_info['extension_number']:NULL;
+  $caller_cid_name = isset($user_info['caller_id']['name'])?$user_info['caller_id']['name']:NULL;
+  $caller_cid_number = isset($user_info['caller_id']['number'])?$user_info['caller_id']['number']:NULL;
+  $caller_uid = isset($user_info['uid'])?$user_info['uid']:NULL;
+  $db_result = db_query($query, $category, $caller_extension_number, $caller_cid_name, $caller_cid_number, $caller_uid, $action, $to_extension_number, $notes, time());
+
+  if (!$db_result) {
+    $rc['error_code'] = VOIP_PROCESSING_FAILURE;
+    $rc['error_msg'] = t("Could not create voip_log entry: %e", array('%e' => db_error()));
+    watchdog('voip', $rc['error_msg'], WATCHDOG_ERROR);
+  }
+  else {
+    $rc['error_code'] = VOIP_SUCCESS;
+  }
+  
+  return $rc;
+}
+
+/**
+ * Implementation of hook_menu().
+ */
+function voip_menu($may_cache) {
+  $items = array();
+  $access = user_access('access voip extension information');
+  if ($may_cache) {
+    $items[] = array('path' => 'admin/settings/voip_statistics', 'title' => t('voip statistics'),
+      'callback' => '_voip_statistics_page', 'access' => user_access('administer voip extensions'),
+      'weight' => 3);
+    $items[] = array('path' => 'voip', 'title' => t("extension's directory"),
+      'callback' => '_voip_directory_page', 'access' => user_access('access content'),
+      'weight' => 3);
+  }
+  else {
+  	global $user;
+  	$voip_view_access = FALSE;
+  	
+    // handle /voip/<extension_number> URLs
+    if ((arg(0) == 'voip') && is_numeric(arg(1))) {
+      $rc = voip_get_extension_info(arg(1));
+      if ($rc['error_code'] != VOIP_SUCCESS) {
+        drupal_not_found();
+        return;
+      }
+      $extension_info =& $rc['extension_info'];
+      if (!voip_extension_access($extension_info, 'view')) {
+        drupal_access_denied();
+        return;
+      }
+      if ($extension_info['uid']) {
+  	    $path = "user/{$extension_info['uid']}";
+  	  } 
+  	  else {
+  	    $path = "node/{$extension_info['nid_contents']}";
+  	  }
+  	  drupal_goto($path);
+    }
+
+    // handle user and node extension pages
+    else if ((arg(0) == 'user') && is_numeric(arg(1))) {
+      $account = user_load(array('uid' => arg(1)));
+      $voip_view_access = ($account->voip_extension_info) && (($user->uid == 1) || ($user->uid == arg(1)) || user_access('administer users'));
+      $extension_info = $account->voip_extension_info;
+      $voip_menu_path = 'user/'. arg(1) .'/voip';
+    } 
+    else if (arg(0) == 'node' && is_numeric(arg(1)))  {
+      $node = node_load(arg(1));
+      $voip_view_access = (($node->voip_extension_info) && voip_extension_access($node->voip_extension_info, 'update'));
+      $extension_info = $node->voip_extension_info;
+      $voip_menu_path = 'node/'. arg(1) .'/voip';
+    } 
+    
+    if ($voip_view_access) {
+      $items[] = array(
+        'path' => $voip_menu_path, 
+        'title' => t('phone info'),
+        'type' => MENU_LOCAL_TASK,
+        'access' => $voip_view_access, 
+        'weight' => 2,
+        'callback' => '_voip_call_history_page', 
+        'callback arguments' => array($extension_info, TRUE)
+      );  
+      $items[] = array(
+        'path' => $voip_menu_path . '/incoming_calls', 
+        'title' => t('incoming calls'),
+        'type' => MENU_DEFAULT_LOCAL_TASK, // MENU_LOCAL_TASK, 
+        'access' => $voip_view_access,
+        'weight' => 3,
+        'callback' => '_voip_call_history_page', 
+        'callback arguments' => array($extension_info, TRUE)
+      );
+      if ($extension_info['uid']) {
+        $items[] = array(
+          'path' => $voip_menu_path . '/outgoing_calls', 
+          'title' => t('outgoing calls'),
+          'type' => MENU_LOCAL_TASK, 
+          'access' => $voip_view_access,
+          'weight' => 3,
+          'callback' => '_voip_call_history_page', 
+          'callback arguments' => array($extension_info, FALSE)
+        );
+      }
+    }
+  }
+
+  return $items;
+}
+
+function _voip_call_history_page($extension_info, $list_incoming_calls = TRUE) {
+
+  // make sure the user is allowed to access private information about the extension
+  $access = voip_extension_access($extension_info, 'update');
+  if (!$access) {
+  	drupal_access_denied();
+  	return;
+  }
+
+  // set the title
+  $extension_name = ($extension_info['name'])?$extension_info['name']:t('extension %number', array('%number' => $extension_info['number']));
+  if ($list_incoming_calls) {
+    $title = t("Incoming calls for %extension_name", array('%extension_name' => $extension_name));
+  }
+  else {
+    $title = t("Outgoing calls for %extension_name", array('%extension_name' => $extension_name));
+  }
+  drupal_set_title($title);
+  
+  $query = "SELECT `timestamp`, `caller_extension_number`, `caller_cid_name`, `caller_cid_number`, `to_extension_number` FROM {voip_log} WHERE `category` = '%s' AND `action` = '%s'  ";
+
+  $category = 'extension';
+  $action = 'called';
+  $query_args = array($category, $action);
+
+  if ($list_incoming_calls) {
+    $header = array(
+      array('data' => t('date'), 'field' => 'timestamp', 'sort' => 'desc'),
+      array('data' => t('caller Id'), 'field' => 'caller_cid_number'),
+      array('data' => t('caller extension'), 'field' => 'caller_extension_number'),
+      );
+    $query .= "AND `to_extension_number` = %d ";
+    $query_args[] = $extension_info['number'];
+  }
+  else {
+    $header = array(
+      array('data' => t('date'), 'field' => 'timestamp', 'sort' => 'desc'),
+      array('data' => t('caller Id'), 'field' => 'caller_cid_number'),
+      array('data' => t('destination'), 'field' => 'to_extension_number')
+    );
+    $query .= "AND `caller_extension_number` = %d ";
+    $query_args[] = $extension_info['number'];
+  }
+  
+  $query .= tablesort_sql($header);
+
+  $result = pager_query($query, 30, 0, NULL, $query_args);
+  while ($log = db_fetch_object($result)) {
+  	$date = format_date($log->timestamp, 'small');
+  	$cid = ($log->caller_cid_number)? (($log->caller_cid_name)? htmlentities("$log->caller_cid_name <$log->caller_cid_number>") : $log->caller_cid_number):'';
+    if ($list_incoming_calls) {
+      $source = ($log->caller_extension_number)?l("$log->caller_extension_number", "user/{$extension_info['uid']}"):'';
+      $rows[] = array($date, $cid, $source);
+    }
+    else {
+      $rc = voip_get_extension_info($log->to_extension_number);
+      if ($rc['error_code'] != VOIP_SUCCESS) {
+        $destin = "$log->to_extension_number";
+      }
+      else {
+        $to_extension_info =& $rc['extension_info'];
+        if ($to_extension_info['uid']) {
+  	      $destin = ($log->to_extension_number)?l("$log->to_extension_number", "user/{$to_extension_info['uid']}"):'';
+  	    } 
+  	    else {
+  	      $destin = ($log->to_extension_number)?l("$log->to_extension_number", "node/{$to_extension_info['nid_contents']}"):'';
+  	    }
+      }
+      $rows[] = array($date, $cid, $destin);
+    }
+  }
+
+  $output .= theme('table', $header, $rows);
+  $output .= theme('pager', NULL, 30, 0);
+
+  return $output;
+}
+
+function _voip_directory_page() {
+	
+  static $voip_type_names = array();
+  if (empty($voip_type_names)) {
+  	$voip_type_names = _voip_get_type_names();
+  }
+  
+  // present the extension filter form
+  $names['all'] = t('all extensions');
+  $names['user'] = t('user extensions');
+  foreach ($voip_type_names as $type => $type_name) {
+    $names[$type] = t('%type extensions', array('%type' => t($type_name)));
+  }
+
+  if (empty($_SESSION['voip_extension_filter'])) {
+    $_SESSION['voip_extension_filter'] = 'all';
+  }
+
+  $form['filter'] = array(
+    '#type' => 'select',
+    '#title' => t('Filter by extension type'),
+    '#options' => $names,
+    '#default_value' => $_SESSION['voip_extension_filter']
+  );
+  $form['#action'] = url('voip');
+
+  $form['submit'] = array('#type' => 'submit', '#value' =>t('Filter'));
+  $output = drupal_get_form('voip_form_extension_directory', $form);
+
+  // format the directory page
+  $header = array(
+    t('Type'), // array('data' => t('Type'), 'field' => 'type'),
+    array('data' => t('Extension'), 'field' => 'number'),
+    array('data' => t('Directory name'), 'field' => 'title', 'sort' => 'asc'),
+    t('Audio name'),
+    t('Audio description')
+  );
+  
+  $query = "SELECT n.title, x.number, x.type_contents " 
+  		   . " FROM {voip_extensions} x INNER JOIN {node} n ON x.nid_extension=n.nid " 
+  		   . " WHERE x.is_active=%d AND x.is_listed=%d AND n.title<>'' ";
+  $is_active = 1;
+  $is_listed = 1;
+  $query_args = array($is_active, $is_listed);
+
+  $type = $_SESSION['voip_extension_filter'];
+  if ($type == 'user'){
+    $query .= "AND x.uid IS NOT NULL ";
+  }
+  else if ($type != 'all') {
+    $query .= "AND x.type_contents = '%s' ";
+    $query_args[] = $type;
+  }
+  
+  $query .= tablesort_sql($header);
+  
+//TODO: replace this long query by a directory header with clickable letters and calls to _voip_get_extension_directory()
+//  $result = pager_query($query, 30, 0, NULL, $query_args);
+  $result = pager_query($query, 300, 0, NULL, $query_args);
+  $extension_list = array();
+  while ($entry = db_fetch_object($result)) {
+    $rc = voip_get_extension_info($entry->number);
+    $extension_info =& $rc['extension_info'];
+    if (voip_extension_access($extension_info, 'view')) {
+      $extension_list[] = $extension_info;
+    }
+  }
+  $rows = voip_extension_list($extension_list, TRUE);
+  $output .= theme('table', $header, $rows);
+  $output .= theme('pager', NULL, 30, 0);
+  return $output;
+}
+
+/*
+ * return the given extension list formatted to be displayed
+ * 
+ * @param $extension_list
+ *   array with the extension_info elements to be formatted
+ *
+ * @param $include_type
+ *   boolean. If TRUE, the type of the extension should be included in the result array
+ * 
+ */
+function voip_extension_list($extension_list, $include_type = FALSE) {
+  static $voip_type_names = array();
+  if (empty($voip_type_names)) {
+  	$voip_type_names = _voip_get_type_names();
+  }
+
+  $rows = array();
+  foreach ($extension_list as $extension_info) {
+    $name = $extension_info['name'];
+  	$audio_name = '';
+  	if ($extension_info['nid_audio_name']) {
+  	  $name_node = node_load($extension_info['nid_audio_name']);
+  	  $audio_name = audio_get_player($name_node);
+  	}
+    if ($extension_info['uid']) {
+  	  $number = l($extension_info['number'], "user/{$extension_info['uid']}");
+  	  if ($include_type) {
+  	    $type = t('user');
+  	  }
+  	} 
+  	else {
+  	  $number = l($extension_info['number'], "node/{$extension_info['nid_contents']}");
+  	  if ($include_type) {
+  	    $type = ($voip_type_names[$extension_info['type_contents']])?$voip_type_names[$extension_info['type_contents']]:t('unknown');
+  	  }
+  	}
+  	$audio_description = '';
+  	if ($extension_info['nid_audio_description']) {
+  	  $description_node = node_load($extension_info['nid_audio_description']);
+  	  $audio_description = audio_get_player($description_node);
+  	}
+    if ($include_type) {
+  	  $rows[] = array($type, $number, $name, $audio_name, $audio_description);
+    }
+    else {
+  	  $rows[] = array($number, $name, $audio_name, $audio_description);
+    }
+  }
+  return $rows;
+}
+
+function voip_form_extension_directory_submit($form_id, $form) {
+  global $form_values;
+  $_SESSION['voip_extension_filter'] = $form_values['filter'];
+}
+
+
+function voip_form_statistics_action_filter_submit($form_id, $form) {
+  global $form_values;
+  $_SESSION['voip_statistics_action_filter'] = $form_values['action_filter'];
+}
+
+function voip_form_statistics_source_filter_submit($form_id, $form) {
+  global $form_values;
+  $_SESSION['voip_statistics_source_filter'] = $form_values['source_filter'];
+}
+
+/*
+ * Implementation of hook_about_me_items
+ */
+function voip_about_me_items($account) {
+
+  if (!$account->voip_extension_info) {
+    return;
+  }
+
+  $items = array();
+  $extension_info = $account->voip_extension_info;
+
+  $item_value = t('Undefined audio name');
+  if ($extension_info['nid_audio_name']) {
+    $audio_node = node_load($extension_info['nid_audio_name']);
+    $audio_name = audio_get_player($audio_node); 
+    $item_value = $audio_name;
+  }
+  $items['audio_name'] = array('description' => t("the user's audio name"), 'value' => $item_value);
+  
+  $item_value = t('Undefined audio greetings');
+  if ($extension_info['nid_audio_greetings']) {
+    $audio_node = node_load($extension_info['nid_audio_greetings']);
+    $audio_greetings = audio_get_player($audio_node); 
+    $item_value = $audio_greetings;
+  }
+  $items['audio_greetings'] = array('description' => t("the user's audio greetings message"), 'value' => $item_value);
+
+  $item_value = t('Undefined audio description');
+  if ($extension_info['nid_audio_description']) {
+    $audio_node = node_load($extension_info['nid_audio_description']);
+    $audio_description = audio_get_player($audio_node); 
+    $item_value = $audio_description;
+  }
+  $items['audio_description'] = array('description' => t("the user's audio description message"), 'value' => $item_value);
+ 
+  return $items;
+}
+
+/*
+ * Send email with optional attachement
+ */
+function voip_mail($to, $subject, $body, $from, $filename=NULL, $filecontents=NULL, $filemime = 'audio/mpeg') {
+watchdog('mail', "entering voip_mail($to, $subject, $body, $from, $filename=NULL, $filecontents=NULL, $filemime = 'audio/mpeg')");  
+  // define line break character
+  $crlf = "\r\n";
+
+  $mail_headers = 'MIME-Version: 1.0' . $crlf;
+  $mail_headers .= 'X-Mailer: Drupal' . $crlf;
+  
+  $mail_headers .= "From: $from" . $crlf;
+  $mail_headers .= "Reply-To: $from" . $crlf;
+  $mail_headers .= "Return-Path: $from" . $crlf;
+  $mail_headers .= "Errors: $from" . $crlf;
+
+  if (!$filename) {
+    // send mail with no attachments
+    $mail_headers .= 'Content-Type: text/plain; charset=UTF-8; format=flowed' . $crlf;
+    $mail_headers .= "Content-Transfer-Encoding: 8bit" . $crlf . $crlf;
+    $mail_body = str_replace("\r", '', $body);
+  }
+  else {
+    // send mail with attachments
+    $mail_body = '';
+    $boundary = '=====' . md5(uniqid(time()));
+
+    $mail_headers .= 'Content-type: multipart/mixed; boundary="' . $boundary . '"' . $crlf;
+    $mail_headers .= '--' . $boundary . $crlf;
+
+    // message body
+    $mail_headers .= 'Content-Type: text/plain; charset=UTF-8; format=flowed' . $crlf;
+    $mail_headers .= "Content-Transfer-Encoding: 8bit " . $crlf . $crlf;
+    $mail_headers .= str_replace("\r", '', $body) . $crlf;
+
+    // file attachment
+    $mail_headers .= '--' . $boundary . $crlf;
+    $mail_headers .= 'Content-Type: ' . $filemime . '; name="' . $filename . '"' . $crlf;
+    $mail_headers .= 'Content-Transfer-Encoding: base64' . $crlf;
+    $mail_headers .= 'Content-Description: ' . $filename . $crlf;
+    $mail_headers .= 'Content-Disposition: attachment;' . $crlf;
+    $mail_headers .= chunk_split(base64_encode($filecontents)) . $crlf;
+    $mail_headers .= '--' . $boundary . '--' . $crlf;
+  }
+
+  // send the message
+  $rc = mail($to, mime_header_encode($subject), $mail_body, $mail_headers );
+
+  return $rc;
+}
+
+
+
+function _voip_profile_page($extension_info) {
+  $output = '';
+  // retrieve generic extension info form items
+  $items = _voip_get_view_items($extension_info);
+  // add them to the telephony group
+  $fields = array(t('Phone settings') => $items);
+  // now retrieve form items from the other voip modules by invoking their hook_voip_node_extension_view()
+  global $user;
+  $other_fields = array();
+  $teaser = FALSE;
+  $page = FALSE;
+  foreach (module_implements('voip_get_view_fields') as $module) {
+    $data = module_invoke($module, 'voip_get_view_fields', $extension_info, $user, $teaser, $page);
+    if ($data) {
+      $other_fields[] = $data;
+    }
+  }
+  foreach($other_fields as $other_module_fields) {
+    foreach($other_module_fields as $category => $items) {
+      $fields[$category] = $items;
+    }
+  }
+  // render the view
+  $output = theme('voip_profile', $fields);
+  return $output;
+}
+
+function _voip_statistics_page() {
+  $and_clauses = array();
+
+  // present the source filter selector
+  $source_list['all'] = t('all');
+  $query = 'SELECT DISTINCT `caller_extension_number` FROM {voip_log} ORDER BY `caller_extension_number` ASC';
+  $db_result  = db_query($query);
+  while ($db_entry = db_fetch_array($db_result)) {
+    $source_list[$db_entry['caller_extension_number']] = $db_entry['caller_extension_number'];
+  }
+  if (empty($_SESSION['voip_statistics_source_filter'])) {
+    $_SESSION['voip_statistics_source_filter'] = 'all';
+  }
+  $source_form['source_filter'] = array(
+    '#type' => 'select',
+    '#title' => t('Filter by caller extension'),
+    '#options' => $source_list,
+    '#default_value' => $_SESSION['voip_statistics_source_filter']
+  );
+  $source_form['#action'] = url('admin/settings/voip_statistics');
+  $source_form['submit'] = array('#type' => 'submit', '#value' =>t('Filter by caller extension'));
+  $output .= drupal_get_form('voip_form_statistics_source_filter', $source_form);
+  if ($_SESSION['voip_statistics_source_filter'] != 'all') {
+    $and_clauses[] = "`caller_extension_number` = '" . $_SESSION['voip_statistics_source_filter'] . "'";
+  }
+ 
+  // present the action filter selector
+  $action_list['all'] = t('all actions');
+  $query = 'SELECT DISTINCT `action` FROM {voip_log} ORDER BY `action` ASC';
+  $db_result  = db_query($query);
+  while ($db_entry = db_fetch_array($db_result)) {
+    $action_list[$db_entry['action']] = $db_entry['action'];
+  }
+  if (empty($_SESSION['voip_statistics_action_filter'])) {
+    $_SESSION['voip_statistics_action_filter'] = 'all';
+  }
+  $action_form['action_filter'] = array(
+    '#type' => 'select',
+    '#title' => t('Filter by action type'),
+    '#options' => $action_list,
+    '#default_value' => $_SESSION['voip_statistics_action_filter']
+  );
+  $action_form['#action'] = url('admin/settings/voip_statistics');
+  $action_form['submit'] = array('#type' => 'submit', '#value' =>t('Filter by action'));
+  $output .= drupal_get_form('voip_form_statistics_action_filter', $action_form);
+  if ($_SESSION['voip_statistics_action_filter'] != 'all') {
+    $and_clauses[] = "`action` = '" . $_SESSION['voip_statistics_action_filter'] . "'";
+  }
+
+  // format the statistics page
+
+  $header = array(
+    array('data' => t('Date'), 'field' => 'timestamp', 'sort' => 'desc'),
+    array('data' => t('Category'), 'field' => 'category'),
+    array('data' => t('Source'), 'field' => 'caller_extension_number'),
+    array('data' => t('Caller id'), 'field' => 'caller_cid_number'),
+    array('data' => t('Caller uid'), 'field' => 'caller_uid'),
+    array('data' => t('Action'), 'field' => 'action'),
+    array('data' => t('Destination'), 'field' => 'to_extension_number'),
+    array('data' => t('Notes'), 'field' => 'notes')
+  );
+  
+  $and_query = '';
+  if ($and_clauses) {
+    $and_query = 'WHERE ' . implode(' AND ', $and_clauses);
+  }
+
+  $query = "SELECT * FROM {voip_log} $and_query";
+  $query .= tablesort_sql($header);
+
+  $result = pager_query($query, 30, 0, NULL);
+  while ($log = db_fetch_object($result)) {
+  	$date = format_date($log->timestamp, 'small');
+  	$category = $log->category;
+  	$rc = voip_get_extension_info($log->caller_extension_number);
+  	if ($rc[error_code] != VOIP_SUCCESS) {
+  	  $source = "$log->caller_extension_number";}
+  	else {
+  	  $source = ($log->caller_extension_number)?l("$log->caller_extension_number", "user/{$rc['extension_info']['uid']}"):'';
+  	}
+  	$cid = ($log->caller_cid_number)? (($log->caller_cid_name)? htmlentities("$log->caller_cid_name <$log->caller_cid_number>") : $log->caller_cid_number):'';
+    $caller_uid = ($log->caller_uid)?l("$log->caller_uid", "user/$log->caller_uid"):'';
+    $action = $log->action;
+    if (!$log->to_extension_number) {
+      $destin = '';
+    }
+    else {
+      $rc = voip_get_extension_info($log->to_extension_number);
+      if ($rc['error_code'] != VOIP_SUCCESS) {
+        $destin = "$log->to_extension_number";
+      }
+      else {
+        $to_extension_info =& $rc['extension_info'];
+        if ($to_extension_info['uid']) {
+  	      $destin = ($log->to_extension_number)?l("$log->to_extension_number", "user/{$to_extension_info['uid']}"):'';
+  	    } 
+  	    else {
+  	      $destin = ($log->to_extension_number)?l("$log->to_extension_number", "node/{$to_extension_info['nid_contents']}"):'';
+  	    }
+      }
+    }
+    $notes = $log->notes;
+    $rows[] = array($date, $category, $source, $cid, $caller_uid, $action, $destin, $notes);
+  }
+
+  $output .= theme('table', $header, $rows);
+  $output .= theme('pager', NULL, 30, 0);
+  return $output;
+}
+
+/*
+ * Determine the types and names of the currently loaded voip modules
+ */
+function _voip_get_type_names() {
+  $voip_types = array();
+  foreach (module_implements('get_voip_type_name') as $module) {
+    $function = $module .'_get_voip_type_name';
+    $voip_types[$module] = $function(); 
+  }
+  return $voip_types;
+}
+

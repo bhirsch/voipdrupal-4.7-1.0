@@ -1,0 +1,641 @@
+Index: update.php
+===================================================================
+RCS file: /cvs/drupal/drupal/update.php,v
+retrieving revision 1.186
+diff -u -Ffunction -r1.186 update.php
+--- update.php	20 Apr 2006 16:34:31 -0000	1.186
++++ update.php	18 Oct 2006 15:36:58 -0000
+@@ -681,7 +681,14 @@ function update_convert_table_utf8($tabl
+   $op = isset($_REQUEST['op']) ? $_REQUEST['op'] : '';
+   switch ($op) {
+     case 'Update':
+-      $output = update_update_page();
++      // Check for a valid form token to protect against cross site request forgeries.
++      if (drupal_valid_token($_REQUEST['edit']['form_token'], 'update_script_selection_form', TRUE)) {
++        $output = update_update_page();
++      }
++      else {
++        form_set_error('form_token', t('Validation error, please try again.  If this error persists, please contact the site administrator.'));
++        $output = update_selection_page();
++      }
+       break;
+ 
+     case 'finished':
+Index: includes/common.inc
+===================================================================
+RCS file: /cvs/drupal/drupal/includes/common.inc,v
+retrieving revision 1.537.2.6
+diff -u -Ffunction -r1.537.2.6 common.inc
+--- includes/common.inc	18 Jul 2006 10:46:23 -0000	1.537.2.6
++++ includes/common.inc	18 Oct 2006 15:36:58 -0000
+@@ -1322,6 +1322,49 @@ function drupal_urlencode($text) {
+   }
+ }
+ 
++
++/**
++ * Ensure the private key variable used to generate tokens is set.
++ *
++ * @return
++ *   The private key
++ */
++function drupal_get_private_key() {
++  if (!($key = variable_get('drupal_private_key', 0))) {
++    $key = mt_rand();
++    variable_set('drupal_private_key', $key);
++  }
++  return $key;
++}
++
++/**
++ * Generate a token based on $value, the current user session and private key.
++ *
++ * @param $value
++ *   An additional value to base the token on
++ */
++function drupal_get_token($value = '') {
++  $private_key = drupal_get_private_key();
++  return md5(session_id() . $value . $private_key);
++}
++
++/**
++ * Validate a token based on $value, the current user session and private key.
++ *
++ * @param $token
++ *   The token to be validated.
++ * @param $value
++ *   An additional value to base the token on.
++ * @param $skip_anonymous
++ *   Set to true to skip token validation for anonymous users.
++ * @return
++ *   True for a valid token, false for an invalid token. When $skip_anonymous is true, the return value will always be true for anonymous users.
++ */
++function drupal_valid_token($token, $value = '', $skip_anonymous = FALSE) {
++  global $user;
++  return (($skip_anonymous && $user->uid == 0) || ($token == md5(session_id() . $value . variable_get('drupal_private_key', ''))));
++}
++
+ /**
+  * Performs one or more XML-RPC request(s).
+  *
+Index: includes/form.inc
+===================================================================
+RCS file: /cvs/drupal/drupal/includes/form.inc,v
+retrieving revision 1.112.2.14
+diff -u -Ffunction -r1.112.2.14 form.inc
+--- includes/form.inc	4 Jul 2006 09:23:19 -0000	1.112.2.14
++++ includes/form.inc	18 Oct 2006 15:36:58 -0000
+@@ -70,19 +70,24 @@ function drupal_get_form($form_id, &$for
+   $form_button_counter = array(0, 0);
+ 
+   $form['#type'] = 'form';
++
++  // Add a token to any form displayed to authenticated users.
++  // This ensures that any submitted form was actually requested previously by the user to protect against
++  // cross site request forgeries. The default token can be bypassed by setting $form['#token'] to FALSE.
++
+   if (isset($form['#token'])) {
+-    if (variable_get('cache', 0) && !$user->uid && $_SERVER['REQUEST_METHOD'] == 'GET') {
++    if ($form['#token'] === FALSE || $user->uid == 0) {
+       unset($form['#token']);
+     }
+     else {
+-      // Make sure that a private key is set:
+-      if (!variable_get('drupal_private_key', '')) {
+-        variable_set('drupal_private_key', mt_rand());
+-      }
+-
+-      $form['form_token'] = array('#type' => 'hidden', '#default_value' => md5(session_id() . $form['#token'] . variable_get('drupal_private_key', '')));
++      $form['form_token'] = array('#type' => 'token', '#default_value' => drupal_get_token($form['#token']));
+     }
+   }
++  else if ($user->uid) {
++    $form['#token'] = $form_id;
++    $form['form_token'] = array('#type' => 'token', '#default_value' => drupal_get_token($form['#token']));
++  }
++
+   if (isset($form_id)) {
+     $form['form_id'] = array('#type' => 'hidden', '#value' => $form_id, '#id' => str_replace('_', '-', "edit-$form_id"));
+   }
+@@ -177,8 +182,9 @@ function drupal_validate_form($form_id, 
+     return;
+   }
+ 
++  // Check whether the form token is valid.
+   if (isset($form['#token'])) {
+-    if ($form_values['form_token'] != md5(session_id() . $form['#token'] . variable_get('drupal_private_key', ''))) {
++    if (!drupal_valid_token($form_values['form_token'], $form['#token'])) {
+       // setting this error will cause the form to fail validation
+       form_set_error('form_token', t('Validation error, please try again.  If this error persists, please contact the site administrator.'));
+     }
+@@ -376,6 +382,9 @@ function form_builder($form_id, $form) {
+               $form['#value'] = $edit;
+             }
+             break;
++          case 'token':
++            $form['#value'] = (string)$edit;
++            break;
+           default:
+             if (isset($edit)) {
+               $form['#value'] = $edit;
+@@ -1001,6 +1010,10 @@ function theme_hidden($element) {
+   return '<input type="hidden" name="'. $element['#name'] . '" id="'. $element['#id'] . '" value="'. check_plain($element['#value']) ."\" " . drupal_attributes($element['#attributes']) ." />\n";
+ }
+ 
++function theme_token($element) {
++  return theme('hidden', $element);
++}
++
+ /**
+  * Format a textfield.
+  *
+Index: modules/block.module
+===================================================================
+RCS file: /cvs/drupal/drupal/modules/Attic/block.module,v
+retrieving revision 1.206.2.2
+diff -u -Ffunction -r1.206.2.2 block.module
+--- modules/block.module	2 Jul 2006 20:53:52 -0000	1.206.2.2
++++ modules/block.module	18 Oct 2006 15:36:58 -0000
+@@ -295,7 +295,7 @@ function theme_block_admin_display($form
+   $last_region = '';
+   $last_status = 1;
+   foreach (element_children($form) as $i) {
+-    $block = $form[$i];
++    $block = &$form[$i];
+     // Only take form elements that are blocks.
+     if (is_array($block['info'])) {
+       // Fetch values
+@@ -339,10 +339,7 @@ function theme_block_admin_display($form
+ 
+   $output = theme('table', $header, $rows, array('id' => 'blocks'));
+   $output .= form_render($form['submit']);
+-  // Also render the form_id as there is no form_render($form) call (as form_render does not appear to handle the
+-  // multi-dimensional block form array very well).
+-  $output .= form_render($form['form_id']);
+-
++  $output .= form_render($form);
+   return $output;
+ }
+ 
+Index: modules/comment.module
+===================================================================
+RCS file: /cvs/drupal/drupal/modules/Attic/comment.module,v
+retrieving revision 1.455.2.7
+diff -u -Ffunction -r1.455.2.7 comment.module
+--- modules/comment.module	18 Jul 2006 10:46:24 -0000	1.455.2.7
++++ modules/comment.module	18 Oct 2006 15:36:58 -0000
+@@ -872,28 +872,14 @@ function comment_render($node, $cid = 0)
+  */
+ function comment_delete($cid) {
+   $comment = db_fetch_object(db_query('SELECT c.*, u.name AS registered_name, u.uid FROM {comments} c INNER JOIN {users} u ON u.uid = c.uid WHERE c.cid = %d', $cid));
+-  $comment->name = $comment->uid ? $comment->registered_name : $comment->name;
+-
+   $output = '';
+ 
+-  // We'll only delete if the user has confirmed the
+-  // deletion using the form in our else clause below.
+-  if (is_object($comment) && is_numeric($comment->cid) && $_POST['edit']['confirm']) {
+-    drupal_set_message(t('The comment and all its replies have been deleted.'));
+-
+-    // Delete comment and its replies.
+-    _comment_delete_thread($comment);
+-
+-    _comment_update_node_statistics($comment->nid);
+-
+-    // Clear the cache so an anonymous user sees that his comment was deleted.
+-    cache_clear_all();
+-
+-    drupal_goto("node/$comment->nid");
+-  }
+-  else if (is_object($comment) && is_numeric($comment->cid)) {
++  if (is_object($comment) && is_numeric($comment->cid)) {
++    $comment->name = $comment->uid ? $comment->registered_name : $comment->name;
++    $form = array();
++    $form['comment'] = array('#type' => 'value', '#value' => $comment);
+     $output = confirm_form('comment_confirm_delete',
+-                    array(),
++                    $form,
+                     t('Are you sure you want to delete the comment %title?', array('%title' => theme('placeholder', $comment->subject))),
+                     'node/'. $comment->nid,
+                     t('Any replies to this comment will be lost. This action cannot be undone.'),
+@@ -907,6 +893,20 @@ function comment_delete($cid) {
+   return $output;
+ }
+ 
++function comment_confirm_delete_submit($form_id, $form_values) {  
++  $comment = $form_values['comment'];  
++  
++  // Delete comment and its replies.
++  _comment_delete_thread($comment);
++
++  _comment_update_node_statistics($comment->nid);
++
++  // Clear the cache so an anonymous user sees that his comment was deleted.
++  cache_clear_all();
++  drupal_set_message(t('The comment and all its replies have been deleted.'));
++  return "node/$comment->nid";
++}
++
+ /**
+  * Comment operations.  We offer different update operations depending on
+  * which comment administration page we're on.
+Index: modules/locale.module
+===================================================================
+RCS file: /cvs/drupal/drupal/modules/Attic/locale.module,v
+retrieving revision 1.135
+diff -u -Ffunction -r1.135 locale.module
+--- modules/locale.module	17 Mar 2006 18:35:56 -0000	1.135
++++ modules/locale.module	18 Oct 2006 15:36:58 -0000
+@@ -412,6 +412,26 @@ function locale_admin_string_edit($lid) 
+  * Delete a string.
+  */
+ function locale_admin_string_delete($lid) {
+-  include_once './includes/locale.inc';
+-  _locale_string_delete($lid);
++  $form = array();
++  $string = db_result(db_query("SELECT source FROM {locales_source} WHERE lid = %d", $lid));
++  
++  if ($string) {      
++    $form['lid'] = array('#type' => 'value', '#value' => $lid);
++    $form['string'] = array('#type' => 'item', '#value'=> check_plain($string, 150, FALSE, TRUE));
++    return confirm_form('locale_string_delete_confirm',
++                    $form,
++                    t('Are you sure you want to delete the following string?'),
++                    'admin/locale/string/search',
++                    '',
++                    t('Delete'),
++                    t('Cancel'));
++  }
++  else {
++    drupal_not_found();
++  }
+ }
++
++function locale_string_delete_confirm_submit($form_id, $form_values) {
++  include_once './includes/locale.inc';
++  _locale_string_delete($form_values['lid']);
++}
+\ No newline at end of file
+Index: modules/menu.module
+===================================================================
+RCS file: /cvs/drupal/drupal/modules/Attic/menu.module,v
+retrieving revision 1.73
+diff -u -Ffunction -r1.73 menu.module
+--- modules/menu.module	7 Apr 2006 13:10:17 -0000	1.73
++++ modules/menu.module	18 Oct 2006 15:36:58 -0000
+@@ -483,14 +483,22 @@ function menu_reset_item_form_submit($fo
+ /**
+  * Menu callback; hide a menu item.
+  */
+-function menu_disable_item($mid) {
++function menu_disable_item($mid, $token = NULL) {  
++  global $user;  
+   $item = menu_get_item($mid);
+-  $type = $item['type'];
++  $form = array();
++  $form['mid'] = array('#type' => 'value', '#value' => $mid);
++  $form['item'] = array('#type' => 'value', '#value' => $item);
++  return confirm_form('menu_disable_confirm', $form, t('Are you sure you want to disable the menu item %menu-item?', array('%menu-item' => theme('placeholder', $item['title']))), 'admin/menu', ' ', t('Disable'), t('Cancel'));  
++}
++
++function menu_disable_confirm_submit($form_id, $form_values) {
++  $type = $form_values['item']['type'];
+   $type &= ~MENU_VISIBLE_IN_TREE;
+   $type &= ~MENU_VISIBLE_IN_BREADCRUMB;
+   $type |= MENU_MODIFIED_BY_ADMIN;
+-  db_query('UPDATE {menu} SET type = %d WHERE mid = %d', $type, $mid);
+-  drupal_set_message(t('The menu item has been disabled.'));
++  db_query('UPDATE {menu} SET type = %d WHERE mid = %d', $type, $form_values['mid']);
++  drupal_set_message(t('The menu item has been disabled.'));     
+   drupal_goto('admin/menu');
+ }
+ 
+Index: modules/node.module
+===================================================================
+RCS file: /cvs/drupal/drupal/modules/Attic/node.module,v
+retrieving revision 1.641.2.12
+diff -u -Ffunction -r1.641.2.12 node.module
+--- modules/node.module	26 Jul 2006 12:12:27 -0000	1.641.2.12
++++ modules/node.module	18 Oct 2006 15:36:58 -0000
+@@ -43,7 +43,7 @@ function node_help($section) {
+       return t('<p>Enter a simple pattern to search for a post. This can include the wildcard character *.<br />For example, a search for "br*" might return "bread bakers", "our daily bread" and "brenda".</p>');
+   }
+ 
+-  if (arg(0) == 'node' && is_numeric(arg(1)) && arg(2) == 'revisions') {
++  if (arg(0) == 'node' && is_numeric(arg(1)) && arg(2) == 'revisions' && !arg(3)) {
+     return t('The revisions let you track differences between multiple versions of a post.');
+   }
+ 
+@@ -885,6 +885,18 @@ function node_menu($may_cache) {
+           'access' => $revisions_access,
+           'weight' => 2,
+           'type' => MENU_LOCAL_TASK);
++        $items[] = array('path' => 'node/'. arg(1) .'/revisions/' . arg(3) . '/delete', 
++          'title' => t('revisions'),
++          'callback' => 'node_revisions',
++          'access' => $revisions_access,
++          'weight' => 2,
++          'type' => MENU_CALLBACK);
++        $items[] = array('path' => 'node/'. arg(1) .'/revisions/' . arg(3) . '/revert', 
++          'title' => t('revisions'),
++          'callback' => 'node_revisions',
++          'access' => $revisions_access,
++          'weight' => 2,
++          'type' => MENU_CALLBACK);
+       }
+     }
+     else if (arg(0) == 'admin' && arg(1) == 'settings' && arg(2) == 'content-types' && is_string(arg(3))) {
+@@ -1309,14 +1321,12 @@ function node_revision_revert($nid, $rev
+   $node = node_load($nid, $revision);
+   if ((user_access('revert revisions') || user_access('administer nodes')) && node_access('update', $node)) {
+     if ($node->vid) {
+-      $node->revision = 1;
+-      $node->log = t('Copy of the revision from %date.', array('%date' => theme('placeholder', format_date($node->revision_timestamp))));
+-      $node->taxonomy = array_keys($node->taxonomy);
+-
+-      node_save($node);
+-
+-      drupal_set_message(t('%title has been reverted back to the revision from %revision-date', array('%revision-date' => theme('placeholder', format_date($node->revision_timestamp)), '%title' => theme('placeholder', check_plain($node->title)))));
+-      watchdog('content', t('%type: reverted %title revision %revision.', array('%type' => theme('placeholder', t($node->type)), '%title' => theme('placeholder', $node->title), '%revision' => theme('placeholder', $revision))));
++      $form = array();
++      $form['nid'] = array('#type' => 'value', '#value' => $node->nid);
++      $form['vid'] = array('#type' => 'value', '#value' => $node->vid);
++      return confirm_form('node_revision_revert_confirm', $form, 
++                     t('Are you sure you want to revert %title to the revision from %revision-date?', array('%title' => theme('placeholder', $node->title), '%revision-date' => theme('placeholder', format_date($node->revision_timestamp)))),
++                     "node/$nid/revisions", ' ', t('Revert'), t('Cancel'));
+     }
+     else {
+       drupal_set_message(t('You tried to revert to an invalid revision.'), 'error');
+@@ -1326,6 +1336,22 @@ function node_revision_revert($nid, $rev
+   drupal_access_denied();
+ }
+ 
++function node_revision_revert_confirm_submit($form_id, $form_values) {
++  $nid = $form_values['nid'];
++  $revision = $form_values['vid'];
++  $node = node_load($nid, $revision);
++  $node->revision = 1;
++  $node->log = t('Copy of the revision from %date.', array('%date' => theme('placeholder', format_date($node->revision_timestamp))));
++  if (module_exist('taxonomy')) {
++    $node->taxonomy = array_keys($node->taxonomy);
++  }
++
++  node_save($node);
++  drupal_set_message(t('%title has been reverted back to the revision from %revision-date', array('%revision-date' => theme('placeholder', format_date($node->revision_timestamp)), '%title' => theme('placeholder', check_plain($node->title)))));
++  watchdog('content', t('%type: reverted %title revision %revision.', array('%type' => theme('placeholder', t($node->type)), '%title' => theme('placeholder', $node->title), '%revision' => theme('placeholder', $revision))));
++  return 'node/'. $nid .'/revisions';  
++}
++
+ /**
+  * Delete the revision with specified revision number. A "delete revision" nodeapi event is invoked when a
+  * revision is deleted.
+@@ -1337,13 +1363,13 @@ function node_revision_delete($nid, $rev
+       // Don't delete the current revision
+       if ($revision != $node->vid) {
+         $node = node_load($nid, $revision);
+-
+-        db_query("DELETE FROM {node_revisions} WHERE nid = %d AND vid = %d", $nid, $revision);
+-        node_invoke_nodeapi($node, 'delete revision');
+-        drupal_set_message(t('Deleted %title revision %revision.', array('%title' => theme('placeholder', $node->title), '%revision' => theme('placeholder', $revision))));
+-        watchdog('content', t('%type: deleted %title revision %revision.', array('%type' => theme('placeholder', t($node->type)), '%title' => theme('placeholder', $node->title), '%revision' => theme('placeholder', $revision))));
++        $form = array();
++        $form['nid'] = array('#type' => 'value', '#value' => $nid);
++        $form['vid'] = array('#type' => 'value', '#value' => $revision);
++        return confirm_form('node_revision_delete_confirm', $form, 
++                     t('Are you sure you want to delete %title revision %revision?', array('%title' => theme('placeholder', $node->title), '%revision' => theme('placeholder', $revision))),
++                     "node/$nid/revisions", '', t('Delete'), t('Cancel'));
+       }
+-
+       else {
+         drupal_set_message(t('Deletion failed. You tried to delete the current revision.'));
+       }
+@@ -1355,10 +1381,22 @@ function node_revision_delete($nid, $rev
+       }
+     }
+   }
+-
+   drupal_access_denied();
+ }
+ 
++function node_revision_delete_confirm_submit($form_id, $form_values) {
++  $node = node_load($form_values['nid'], $form_values['vid']);
++  db_query("DELETE FROM {node_revisions} WHERE nid = %d AND vid = %d", $node->nid, $node->vid);
++  node_invoke_nodeapi($node, 'delete revision');
++  drupal_set_message(t('Deleted %title revision %revision.', array('%title' => theme('placeholder', $node->title), '%revision' => theme('placeholder', $node->vid))));
++  watchdog('content', t('%type: deleted %title revision %revision.', array('%type' => theme('placeholder', t($node->type)), '%title' => theme('placeholder', $node->title), '%revision' => theme('placeholder', $node->revision))));
++ 
++  if (db_result(db_query('SELECT COUNT(vid) FROM {node_revisions} WHERE nid = %d', $node->nid)) > 1) {
++    return "node/$node->nid/revisions";
++  }
++  return "node/$node->nid";
++}
++
+ /**
+  * Return a list of all the existing revision numbers.
+  */
+@@ -1950,10 +1988,10 @@ function node_revisions() {
+         }
+         break;
+       case 'revert':
+-        node_revision_revert(arg(1), arg(3));
++        return node_revision_revert(arg(1), arg(3));
+         break;
+       case 'delete':
+-        node_revision_delete(arg(1), arg(3));
++        return node_revision_delete(arg(1), arg(3));
+         break;
+     }
+   }
+Index: modules/poll.module
+===================================================================
+RCS file: /cvs/drupal/drupal/modules/Attic/poll.module,v
+retrieving revision 1.195
+diff -u -Ffunction -r1.195 poll.module
+--- modules/poll.module	14 Apr 2006 09:05:19 -0000	1.195
++++ modules/poll.module	18 Oct 2006 15:36:58 -0000
+@@ -292,7 +292,8 @@ function poll_teaser($node) {
+  * Generates the voting form for a poll.
+  */
+ function poll_view_voting(&$node, $teaser, $page, $block) {
+-  if ($_POST['op'] == t('Vote')) {
++  // Check for a valid form token to protect against cross site request forgeries.
++  if ($_POST['op'] == t('Vote') && drupal_valid_token($_POST['edit']['form_token'], 'poll_view_voting', TRUE)) {
+     poll_vote($node);
+   }
+ 
+Index: modules/system.module
+===================================================================
+RCS file: /cvs/drupal/drupal/modules/Attic/system.module,v
+retrieving revision 1.320.2.8
+diff -u -Ffunction -r1.320.2.8 system.module
+--- modules/system.module	2 Aug 2006 18:13:27 -0000	1.320.2.8
++++ modules/system.module	18 Oct 2006 15:36:58 -0000
+@@ -84,6 +84,7 @@ function system_elements() {
+   $type['value'] = array('#input' => TRUE);
+   $type['markup'] = array('#prefix' => '', '#suffix' => '');
+   $type['fieldset'] = array('#collapsible' => FALSE, '#collapsed' => FALSE);
++  $type['token'] = array('#input'=> TRUE);
+   return $type;
+ }
+ 
+Index: modules/user.module
+===================================================================
+RCS file: /cvs/drupal/drupal/modules/Attic/user.module,v
+retrieving revision 1.612.2.16
+diff -u -Ffunction -r1.612.2.16 user.module
+--- modules/user.module	2 Aug 2006 18:13:27 -0000	1.612.2.16
++++ modules/user.module	18 Oct 2006 15:36:58 -0000
+@@ -1417,19 +1417,9 @@ function user_edit($category = 'account'
+   $edit = $_POST['op'] ? $_POST['edit'] : (array)$account;
+ 
+   if (arg(2) == 'delete') {
+-    if ($edit['confirm']) {
+-      db_query('DELETE FROM {users} WHERE uid = %d', $account->uid);
+-      db_query('DELETE FROM {sessions} WHERE uid = %d', $account->uid);
+-      db_query('DELETE FROM {users_roles} WHERE uid = %d', $account->uid);
+-      db_query('DELETE FROM {authmap} WHERE uid = %d', $account->uid);
+-      watchdog('user', t('Deleted user: %name %email.', array('%name' => theme('placeholder', $account->name), '%email' => theme('placeholder', '<'. $account->mail .'>'))), WATCHDOG_NOTICE);
+-      drupal_set_message(t('The account has been deleted.'));
+-      module_invoke_all('user', 'delete', $edit, $account);
+-      drupal_goto('admin/user');
+-    }
+-    else {
+-      return confirm_form('user_confirm_delete', array(), t('Are you sure you want to delete the account %name?', array('%name' => theme('placeholder', $account->name))), 'user/'. $account->uid, t('All submissions made by this user will be attributed to the anonymous account. This action cannot be undone.'), t('Delete'), t('Cancel'));
+-    }
++    $form = array();
++    $form['account'] = array('#type' => 'value', '#value' => $account);
++    return confirm_form('user_confirm_delete', $form, t('Are you sure you want to delete the account %name?', array('%name' => theme('placeholder', $account->name))), 'user/'. $account->uid, t('All submissions made by this user will be attributed to the anonymous account. This action cannot be undone.'), t('Delete'), t('Cancel'));
+   }
+   else if ($_POST['op'] == t('Delete')) {
+     if ($_REQUEST['destination']) {
+@@ -1476,6 +1466,18 @@ function user_edit_submit($form_id, $for
+   return 'user/'. $account->uid;
+ }
+ 
++function user_confirm_delete_submit($form_id, $form_values) {
++  $account = $form_values['account'];
++  db_query('DELETE FROM {users} WHERE uid = %d', $account->uid);
++  db_query('DELETE FROM {sessions} WHERE uid = %d', $account->uid);
++  db_query('DELETE FROM {users_roles} WHERE uid = %d', $account->uid);
++  db_query('DELETE FROM {authmap} WHERE uid = %d', $account->uid);
++  watchdog('user', t('Deleted user: %name %email.', array('%name' => theme('placeholder', $account->name), '%email' => theme('placeholder', '<'. $account->mail .'>'))), WATCHDOG_NOTICE);
++  drupal_set_message(t('The account has been deleted.'));
++  module_invoke_all('user', 'delete', $form_values, $account);
++  return 'admin/user';
++}
++
+ function user_view($uid = 0) {
+   global $user;
+ 
+@@ -1606,12 +1608,15 @@ function user_admin_access_add($mask = N
+     if (!$edit['mask']) {
+       form_set_error('mask', t('You must enter a mask.'));
+     }
+-    else {
++    else if (drupal_valid_token($_POST['edit']['form_token'], 'access_rule', TRUE)) {
+       $aid = db_next_id('{access}_aid');
+       db_query("INSERT INTO {access} (aid, mask, type, status) VALUES ('%s', '%s', '%s', %d)", $aid, $edit['mask'], $edit['type'], $edit['status']);
+       drupal_set_message(t('The access rule has been added.'));
+       drupal_goto('admin/access/rules');
+     }
++    else {
++      form_set_error('form_token', t('Validation error, please try again.  If this error persists, please contact the site administrator.'));
++    }
+   }
+   else {
+     $edit['mask'] = $mask;
+@@ -1656,11 +1661,14 @@ function user_admin_access_edit($aid = 0
+     if (!$edit['mask']) {
+       form_set_error('mask', t('You must enter a mask.'));
+     }
+-    else {
++    else if (drupal_valid_token($_POST['edit']['form_token'], 'access_rule', TRUE)) {
+       db_query("UPDATE {access} SET mask = '%s', type = '%s', status = '%s' WHERE aid = %d", $edit['mask'], $edit['type'], $edit['status'], $aid);
+       drupal_set_message(t('The access rule has been saved.'));
+       drupal_goto('admin/access/rules');
+     }
++    else {
++      form_set_error('form_token', t('Validation error, please try again.  If this error persists, please contact the site administrator.'));
++    }
+   }
+   else {
+     $edit = db_fetch_array(db_query('SELECT aid, type, status, mask FROM {access} WHERE aid = %d', $aid));
+@@ -1875,32 +1883,49 @@ function user_admin_role() {
+   $id = arg(4);
+ 
+   if ($op == t('Save role')) {
+-    if ($edit['name']) {
+-      db_query("UPDATE {role} SET name = '%s' WHERE rid = %d", $edit['name'], $id);
+-      drupal_set_message(t('The changes have been saved.'));
+-      drupal_goto('admin/access/roles');
++    // Check for a valid form token to protect against cross site request forgeries.
++    if (drupal_valid_token($edit['form_token'], 'user_admin_role', TRUE)) {
++      if ($edit['name']) {
++        db_query("UPDATE {role} SET name = '%s' WHERE rid = %d", $edit['name'], $id);
++        drupal_set_message(t('The changes have been saved.'));
++        drupal_goto('admin/access/roles');
++      }
++      else {
++        form_set_error('name', t('You must specify a valid role name.'));
++      }
+     }
+     else {
+-      form_set_error('name', t('You must specify a valid role name.'));
++      form_set_error('form_token', t('Validation error, please try again.  If this error persists, please contact the site administrator.'));
+     }
+   }
+   else if ($op == t('Delete role')) {
+-    db_query('DELETE FROM {role} WHERE rid = %d', $id);
+-    db_query('DELETE FROM {permission} WHERE rid = %d', $id);
+-    // Update the users who have this role set:
+-    db_query('DELETE FROM {users_roles} WHERE rid = %d', $id);
+-
+-    drupal_set_message(t('The role has been deleted.'));
+-    drupal_goto('admin/access/roles');
++    // Check for a valid form token to protect against cross site request forgeries.
++    if (drupal_valid_token($edit['form_token'], 'user_admin_role', TRUE)) {
++      db_query('DELETE FROM {role} WHERE rid = %d', $id);
++      db_query('DELETE FROM {permission} WHERE rid = %d', $id);
++      // Update the users who have this role set:
++      db_query('DELETE FROM {users_roles} WHERE rid = %d', $id);
++      drupal_set_message(t('The role has been deleted.'));
++      drupal_goto('admin/access/roles');
++    }
++    else {
++      form_set_error('form_token', t('Validation error, please try again.  If this error persists, please contact the site administrator.'));
++    }
+   }
+   else if ($op == t('Add role')) {
+-    if ($edit['name']) {
+-      db_query("INSERT INTO {role} (name) VALUES ('%s')", $edit['name']);
+-      drupal_set_message(t('The role has been added.'));
+-      drupal_goto('admin/access/roles');
++    // Check for a valid form token to protect against cross site request forgeries.
++    if (drupal_valid_token($edit['form_token'], 'user_admin_new_role', TRUE)) {
++      if ($edit['name']) {
++        db_query("INSERT INTO {role} (name) VALUES ('%s')", $edit['name']);
++        drupal_set_message(t('The role has been added.'));
++        drupal_goto('admin/access/roles');
++      }
++      else {
++        form_set_error('name', t('You must specify a valid role name.'));
++      }
+     }
+     else {
+-      form_set_error('name', t('You must specify a valid role name.'));
++      form_set_error('form_token', t('Validation error, please try again.  If this error persists, please contact the site administrator.'));
+     }
+   }
+   else if ($id) {
+@@ -1928,7 +1953,10 @@ function theme_user_admin_new_role($form
+   }
+   $rows[] = array(form_render($form['name']), form_render($form['submit']));
+ 
+-  return theme('table', $header, $rows);
++  $output = theme('table', $header, $rows);
++  $output .= form_render($form);
++
++  return $output;
+ }
+ 
+ function user_admin_account() {

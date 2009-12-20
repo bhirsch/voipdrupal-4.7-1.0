@@ -1,0 +1,81 @@
+# LANGUAGE translation of Drupal (audio.theme)
+# Copyright YEAR NAME <EMAIL@ADDRESS>
+# Generated from file: audio.theme,v 1.5.2.3 2006/08/14 20:26:54 drewish
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: PROJECT VERSION\n"
+"POT-Creation-Date: 2006-08-18 17:34-0700\n"
+"PO-Revision-Date: YYYY-mm-DD HH:MM+ZZZZ\n"
+"Last-Translator: NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <EMAIL@ADDRESS>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=INTEGER; plural=EXPRESSION;\n"
+
+#: audio.theme:52
+msgid "Play"
+msgstr ""
+
+#: audio.theme:60;220
+msgid "Length"
+msgstr ""
+
+#: audio.theme:61;216
+msgid "Format"
+msgstr ""
+
+#: audio.theme:96
+msgid "%playtime minutes (%filesize)"
+msgstr ""
+
+#: audio.theme:111
+msgid "%fileformat %channel_mode %sampleratekHz %bitrateKbps (%bitrate_mode)"
+msgstr ""
+
+#: audio.theme:186
+msgid "Click to play"
+msgstr ""
+
+#: audio.theme:219
+msgid "%filesize bytes"
+msgstr ""
+
+#: audio.theme:221
+msgid "%samplerate Hz"
+msgstr ""
+
+#: audio.theme:223
+msgid "%bitrate bytes/second"
+msgstr ""
+
+#: audio.theme:251
+msgid "tag"
+msgstr ""
+
+#: audio.theme:251
+msgid "required"
+msgstr ""
+
+#: audio.theme:251
+msgid "hidden"
+msgstr ""
+
+#: audio.theme:251
+msgid "browsable"
+msgstr ""
+
+#: audio.theme:252
+msgid "written to file"
+msgstr ""
+
+#: audio.theme:252
+msgid "weight"
+msgstr ""
+
+#: audio.theme:252
+msgid "delete"
+msgstr ""
+

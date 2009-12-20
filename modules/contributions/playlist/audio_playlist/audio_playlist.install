@@ -1,0 +1,34 @@
+<?php
+// $Id: audio_playlist.install,v 1.3 2006/06/27 00:03:38 zirafa Exp $
+
+function audio_playlist_install() {
+  switch ($GLOBALS['db_type']) {
+    case 'mysql':
+    case 'mysqli':
+      db_query(
+<<<MYSQL_UPDATE
+        CREATE TABLE {audio_playlist_metadata} (
+          pid int(10) unsigned NOT NULL default '0',
+          image_url varchar(128) default '',
+          subtitle varchar(128) default '',
+          author varchar(128) default '',
+          copyright varchar(128) default '',
+          owner varchar(128) default '',
+          owner_email varchar(128) default '',
+          explicit tinyint(1) NOT NULL DEFAULT '0',
+          PRIMARY KEY  (`pid`)
+        ) /*!40100 DEFAULT CHARACTER SET utf8 */;
+MYSQL_UPDATE
+      );
+      break;
+  }
+}
+
+/**
+ *  Add the 'explicit' column
+ */
+function audio_playlist_update_1() {
+  $items = array();
+  $items[] = update_sql("ALTER TABLE {audio_playlist_metadata} ADD explicit tinyint(1) NOT NULL DEFAULT '0'");
+  return $items;
+} 

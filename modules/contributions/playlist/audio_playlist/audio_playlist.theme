@@ -1,0 +1,151 @@
+<?php
+//$Id: audio_playlist.theme,v 1.4 2006/08/04 21:34:45 zirafa Exp $
+
+/**
+ * Theme the audio playlist teaser
+ */
+function theme_audio_playlist_teaser($node) {
+  $output = "\n<div class=\"audio-playlist-teaser\">\n";
+  $output .= theme('audio_playlist_get_player', $node, array(), TRUE) . $node->teaser;
+  $output .= "</div>\n";
+  return $output;
+}
+
+
+/**
+ * Theme the audio playlist body
+ */
+function theme_audio_playlist_body($node) {
+  global $user;
+  $items = $node->audio_playlist_items;
+  $image = $node->playlist_info['image_url'] ? '<a href="'.$node->playlist_info['image_url'].'" target="_blank"><img src="'.$node->playlist_info['image_url'].'"></a>' : "";
+  $playlist = "\n<ol>\n";
+  if (count($items) > 0) {
+  foreach ($items as $item) {
+    $audio_file = node_load($item);
+    $download = $audio_file->audio_fileinfo['downloadable'] ? l("(download)", $audio_file->url_download) : "";
+    $playlist .= "<li>". audio_get_player($audio_file) . " ". $audio_file->title ."<small>". l(" (info)", "node/$audio_file->nid") . " ". $download ." </small>" . "</li>\n";
+  }
+  } else {
+    $manage_link = node_access('update', $node, $user->uid) ? l(' <small>[manage '. AUDIO_PLAYLIST_NAME .']</small>', 'node/'. $node->nid .'/manage', array(), null, null, FALSE, TRUE) : '';
+    $playlist .= t('No tracks have been added yet. ' . $manage_link);
+  }
+  $playlist .= "</ol>\n";
+  //$playlist = theme('fieldset', array('#value' => $playlist, '#title' => 'Tracklist'));
+  $output = "\n<div class=\"audio-playlist-body\">\n";
+  $output .= $image .'<div class="audio-playlist-listing"><h2>Tracklist:</h2>'. $playlist .'</div><div class="clear"></div>'. $node->body;
+  $output .= "</div>\n";
+
+  return $output;
+}
+
+
+/**
+ *  Generate basic HTML for the XSPF player (musicplayer.sourceforge.net)
+ * 
+ * @param $node
+ *   playlist node object or nid of playlist node
+ *
+ * @param $height
+ *    height of player in pixels
+ *
+ * @param $width
+ *    width of player in pixels
+ *
+ * @param $slim
+ *    boolean value, if true uses slim flash player. default is extended player.
+ *
+ * @param $options 
+ *   Parameters for the XSPF player (musicplayer.sourceforge.net)
+ *    playlist_url : the url of the xspf file to load
+ *    autoplay : boolean value that make the music start without the initial user click
+ *    autoload : boolean value that make the playlist load without the initial user click
+ *    repeat_playlist : boolean value that make the repeats the playlist after the end of the last song 
+ *    playlist_size : number of tracks to limit
+ *    player_title : the text to replace the players default's
+ *    info_button_text : the text to display on the info link, see this page
+ *    radio_mode : boolean value, if true tells the player that the last track of playlist is in real a new playlist location. more info
+ * 
+ *@param $method
+ *  if 'embed' is used it will use embed tags for the flash player instead of object tags. Embed is used for the Cut n' paste HTML.
+ * @return
+ *   HTML string with a flash player 
+ */
+function theme_audio_playlist_get_player($node, $options = array(), $slim = FALSE, $width = null, $height = null) {
+  if (is_numeric($node)) {
+    $node = node_load($node);
+  }
+  global $base_url;
+  //set some defaults
+  if (!$options['playlist_url']) $options['playlist_url'] = $base_url . '/?q=node/'. $node->nid .'/xspf';
+  if (!$options['player_title']) $options['player_title'] = $node->title;
+  if (!$options['info_button_text']) $options['info_button_text'] = t('track info');
+  //build the links
+  foreach ($options as $key => $value) {
+    if ($key != 'playlist_url') {
+      $params .= '&'. $key .'='. $value;
+    }
+  }
+
+  if (!$slim) {
+    $player_link = $base_url .'/'. drupal_get_path('module', 'audio_playlist') .'/players/xspf_player.swf';  
+    if (!$width) $width = '400';
+    if (!$height) $height = '170';
+  }
+  else {
+    $player_link = $base_url .'/'. drupal_get_path('module', 'audio_playlist') .'/players/xspf_player_slim.swf';
+    if (!$width) $width = '400';
+    if (!$height) $height = '15';
+  }
+  //output html
+  $output = '<div class="xspf-player">';
+  $output .= '<object type="application/x-shockwave-flash" width="'. $width .'" height="' .$height. '" data="'. $player_link .'?playlist_url='. $options['playlist_url'] . $params .'">';
+  $output .= '<param name="movie" value="'. $player_link .'?playlist_url='. $options['playlist_url'] . $params .'" />';
+  $output .= '<embed type="application/x-shockwave-flash" width="'. $width .'" height="' .$height. '" src="'. $player_link .'" FlashVars="playlist_url='. $options['playlist_url'] . $params .'" quality="high" name="'. $options['player_title'] .'" align="middle" allowScriptAccess="sameDomain" type="application/x-shockwave-flash" pluginspage="http://www.macromedia.com/go/getflashplayer" />';
+  $output .= '</object>'; 
+  $output .= '</div>';
+
+  return $output;
+}
+
+/**
+  *  This function returns the html needed for the player popup window.
+  */
+function theme_audio_playlist_popup($node) {
+
+  $output =   
+  '<?xml version="1.0" encoding="utf-8"?>
+  <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" 
+  	"http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
+  <html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+  	<head>
+  		<meta http-equiv="Content-type" content="text/html; charset=utf-8" />
+  		<meta http-equiv="Content-Language" content="en-us" />
+
+  		<title>Player | '. $node->title .'</title>
+
+  		<meta name="ROBOTS" content="ALL" />
+  		<meta http-equiv="imagetoolbar" content="no" />
+  		<meta name="MSSmartTagsPreventParsing" content="true" />
+
+   		<!-- corrects the unsightly Flash of Unstyled Content in Win IE 5. -->
+   		<script type="text/javascript"></script>
+
+  	</head>
+  	<body leftmargin="0" topmargin="0" marginwidth="0" marginheight="0">'.
+     theme('audio_playlist_get_player', $node, array('autoplay' => true))
+  	.'</body>
+  </html>
+  ';
+  
+  return $output;
+}
+
+/**
+ *  Format a popup player link.
+ */
+function theme_audio_playlist_popup_link($playlist_id, $txt = 'launch popup player') {
+  global $base_url;
+  return '<a class="xspf-pop-up-link" onclick="window.open('.check_plain('"'.$base_url.'/?q=node/'. $playlist_id .'/popup", null,"height=170, width=400, status=yes, toolbar=no, menubar=no, location=no, resizable=no, scrollbars=no,status=no"').')" title="launch popup player">'.$txt.'</a>';
+} 
+ 

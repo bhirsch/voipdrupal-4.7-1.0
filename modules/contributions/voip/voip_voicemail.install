@@ -1,0 +1,47 @@
+<?php
+
+// $Id$
+
+
+/**
+ * Install the initial schema.
+ */
+function voip_voicemail_install() {
+  switch ($GLOBALS['db_type']) {
+    case 'mysql':
+    case 'mysqli':
+      db_query(
+<<<MYSQL_UPDATE
+CREATE TABLE `voip_voicemail_mailboxes` (
+  `number` int(10) unsigned NOT NULL default '0',
+  `is_active` int(4) NOT NULL default '1',
+  `email_notification` int(2) unsigned NOT NULL default '0',
+  `nid_audio_greetings` int(10) unsigned default NULL,
+  `audio_key_greetings` varchar(30) default NULL,
+  PRIMARY KEY  (`number`)
+) TYPE=MyISAM /*!40100 DEFAULT CHARACTER SET utf8 */;
+MYSQL_UPDATE
+      );
+      db_query(
+<<<MYSQL_UPDATE
+CREATE TABLE `voip_voicemail_messages` (
+  `msg_id` int(10) unsigned NOT NULL auto_increment,
+  `mailbox` int(10) NOT NULL default '0',
+  `folder` int(2) unsigned NOT NULL default '1',
+  `nid` int(10) unsigned NOT NULL default '0',
+  `destin_extension` int(10) unsigned NOT NULL default '0',
+  `caller_extension` int(10) unsigned default NULL,
+  `caller_id` varchar(40) default NULL,
+  `reference_id` int(10) unsigned default NULL,
+  `received` int(11) NOT NULL default '0',
+  `is_new` int(2) unsigned NOT NULL default '1',
+  `audio_key` varchar(30) NOT NULL default '0',
+  `stamp` timestamp NOT NULL default CURRENT_TIMESTAMP on update CURRENT_TIMESTAMP,
+  PRIMARY KEY  (`msg_id`),
+  KEY `mailbox` (`mailbox`)
+) TYPE=MyISAM /*!40100 DEFAULT CHARACTER SET utf8 */;
+MYSQL_UPDATE
+      );
+      break;
+  }
+}

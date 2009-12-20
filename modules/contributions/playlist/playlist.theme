@@ -1,0 +1,64 @@
+<?php
+// $Id: playlist.theme,v 1.1 2006/06/26 09:26:04 zirafa Exp $
+/**
+ *  This file contains theme functions and various interface callbacks that may be useful when writing playlist type modules.
+ *  You can either choose to use these functions directly in your module or use them as a template for your own.
+ *
+ **/
+  
+drupal_set_html_head('<style type="text/css">@import "/'.PLAYLIST_PATH.'/playlist.css";</style>');
+
+
+/**
+ *  Outputs a drag and drop sortable playlist
+ **/
+function theme_playlist_sortable($parent_id, $type) {
+  drupal_add_js(PLAYLIST_PATH .'/scripts/prototype.js');
+  drupal_add_js(PLAYLIST_PATH .'/scripts/effects.js');
+  drupal_add_js(PLAYLIST_PATH .'/scripts/dragdrop.js');
+  drupal_add_js(PLAYLIST_PATH .'/scripts/control.js');
+  
+  $children = playlist_get_children($parent_id, $type);
+  $output = "<ol id=\"list\" >\n";
+  $count = 0;
+  if (count($children) > 0) {
+    foreach($children as $child_id) {
+      // for the up and down arrows we have to a) figure out the weight of the current item, and b) figure out the playlist items above and below to perform the swap.
+      $weight = playlist_get_weight($parent_id, $child_id);
+      $up   = $children[$count - 1] ? $children[$count-1] : $child_id;
+      $down = $children[$count + 1] ? $children[$count+1] : $child_id;
+      
+      // icons for deleting, dragging, and swapping the items
+      $manage = l(theme('image',PLAYLIST_PATH.'/images/icon_delete.gif'),"playlist/manage/{$type}/{$parent_id}/delete/{$child_id}", array(), NULL, NULL, FALSE, TRUE) . " " . theme('image',PLAYLIST_PATH.'/images/drag_me.gif') . "<noscript> " .  l(theme('image',PLAYLIST_PATH.'/images/go-down.png'),"playlist/manage/{$type}/{$parent_id}/swap/{$child_id}/" .$down, array(), NULL, NULL, FALSE, TRUE) ." ". l(theme('image',PLAYLIST_PATH.'/images/go-up.png'),"playlist/manage/{$type}/{$parent_id}/swap/{$child_id}/" . $up, array(), NULL, NULL, FALSE, TRUE) ."</noscript> ";
+      // output the final list item
+      $playlist_item = node_load($child_id);
+      $output .= "<li id=\"item_$child_id\" > ". $manage . l($playlist_item->title,'node/'.$playlist_item->nid). "</li>\n";
+      $count++;
+    }
+  }
+  else {
+    $output .= t('No items have been added yet.');
+  }
+  $output .= "</ol>\n";
+  
+  $output .= '<p id="list-info"></p>';
+  $output .= "<script type=\"text/javascript\">Sortable.create('list', {onUpdate:function(){new Ajax.Updater('list-info', '".url('playlist/ajax/order/'.$parent_id, null,null,true)."', {onComplete:function(request){new Effect.Highlight('list',{});}, parameters:Sortable.serialize('list'), evalScripts:true, asynchronous:true})}})</script>";
+ 
+  return theme('fieldset', array('#title'=> 'Manage '.node_get_name($type) ,'#value' => $output, '#collapsible' => TRUE));
+}
+
+ 
+/**
+ *   Outputs a playlist as a simple list
+ **/
+function theme_playlist_get_list($playlist_id, $type) {
+  $children = playlist_get_children($playlist_id, $type);
+  $output = "<ol id=\"list\" >\n";
+  foreach($children as $child_id) {
+    $playlist_item = node_load($child_id);
+    $output .= "<li id=\"item_$child_id\" > " .l($playlist_item->title,'node/'.$playlist_item->nid). "</li>\n";
+  }
+  $output .= "</ol>\n";
+
+  return theme('fieldset', array('#title'=> ucfirst(node_get_name($type)) ,'#value' => $output));
+}

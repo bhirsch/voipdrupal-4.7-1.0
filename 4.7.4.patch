@@ -1,0 +1,57 @@
+Index: database/database.4.0.mysql
+===================================================================
+RCS file: /cvs/drupal/drupal/database/Attic/database.4.0.mysql,v
+retrieving revision 1.1.2.2
+diff -u -p -r1.1.2.2 database.4.0.mysql
+--- database/database.4.0.mysql	5 Dec 2006 13:11:08 -0000	1.1.2.2
++++ database/database.4.0.mysql	19 Dec 2006 14:13:00 -0000
+@@ -161,7 +161,7 @@ CREATE TABLE boxes (
+ --
+ 
+ CREATE TABLE cache (
+-  cid varchar(255) NOT NULL default '',
++  cid varchar(255) BINARY NOT NULL default '',
+   data longblob,
+   expire int(11) NOT NULL default '0',
+   created int(11) NOT NULL default '0',
+Index: database/database.4.1.mysql
+===================================================================
+RCS file: /cvs/drupal/drupal/database/Attic/database.4.1.mysql,v
+retrieving revision 1.1.2.2
+diff -u -p -r1.1.2.2 database.4.1.mysql
+--- database/database.4.1.mysql	5 Dec 2006 13:11:09 -0000	1.1.2.2
++++ database/database.4.1.mysql	19 Dec 2006 14:12:52 -0000
+@@ -172,7 +172,7 @@ DEFAULT CHARACTER SET utf8;
+ --
+ 
+ CREATE TABLE cache (
+-  cid varchar(255) NOT NULL default '',
++  cid varchar(255) BINARY NOT NULL default '',
+   data longblob,
+   expire int(11) NOT NULL default '0',
+   created int(11) NOT NULL default '0',
+Index: database/updates.inc
+===================================================================
+RCS file: /cvs/drupal/drupal/database/Attic/updates.inc,v
+retrieving revision 1.224.2.7
+diff -u -p -r1.224.2.7 updates.inc
+--- database/updates.inc	5 Dec 2006 13:11:09 -0000	1.224.2.7
++++ database/updates.inc	19 Dec 2006 14:18:18 -0000
+@@ -2013,3 +2013,17 @@ function system_update_182() {
+ 
+   return $ret;
+ }
++
++/**
++ * Cid matching by MySQL should be case-sensitive.
++ */
++function system_update_183() {
++  $ret = array();
++  switch ($GLOBALS['db_type']) {
++    case 'mysql':
++    case 'mysqli':
++      $ret[] = update_sql("ALTER TABLE {cache} CHANGE cid cid varchar(255) BINARY NOT NULL default ''");
++      break;
++  }
++  return $ret;
++}

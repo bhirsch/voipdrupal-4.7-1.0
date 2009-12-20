@@ -1,0 +1,81 @@
+# LANGUAGE translation of Drupal (audio_getid3.module)
+# Copyright YEAR NAME <EMAIL@ADDRESS>
+# Generated from file: audio_getid3.module,v 1.1.2.7 2006/08/14 20:26:54 drewish
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: PROJECT VERSION\n"
+"POT-Creation-Date: 2006-08-18 17:34-0700\n"
+"PO-Revision-Date: YYYY-mm-DD HH:MM+ZZZZ\n"
+"Last-Translator: NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <EMAIL@ADDRESS>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=INTEGER; plural=EXPRESSION;\n"
+
+#: audio_getid3.module:12
+msgid "Adds the ability to read artist info from and write to audio files."
+msgstr ""
+
+#: audio_getid3.module:14
+msgid "The audio module uses the getID3 library to read and write ID3 tags. These settings control its useage. "
+msgstr ""
+
+#: audio_getid3.module:22
+msgid "getid3"
+msgstr ""
+
+#: audio_getid3.module:37
+msgid "The audio_getid3 module cannot find the getID3 library used to read and write ID3 tags. The site administrator will need to verify that it is installed and then update the <a href=\"%admin-settings-audio-getid3\">audio_getid3 settings</a>."
+msgstr ""
+
+#: audio_getid3.module:64
+msgid "getID3 path"
+msgstr ""
+
+#: audio_getid3.module:66
+msgid "The path to the 'getid3' library. This is not included as part of the module distribution, you'll need to download it from the getID3 website. Make sure to including a trailing slash, i.e. 'modules/audio/getid3/getid3/'"
+msgstr ""
+
+#: audio_getid3.module:75
+msgid "Version"
+msgstr ""
+
+#: audio_getid3.module:77
+msgid "The getID3 library was found and reports that this version is installed."
+msgstr ""
+
+#: audio_getid3.module:83
+msgid "Display warnings"
+msgstr ""
+
+#: audio_getid3.module:85
+msgid "Check this to display the warning messages from the getID3 library when reading and writing ID3 tags. Generally it's a good idea to leave this unchecked, getID3 reports warnings for several trivial problems and the warnings can be confusing to users. This setting can be useful when debugging problems with the ID3 tags."
+msgstr ""
+
+#: audio_getid3.module:102
+msgid "The getid3.php file could not be found in this directory."
+msgstr ""
+
+#: audio_getid3.module:170
+msgid "While reading the ID3 tags, the following warnings were encountered:"
+msgstr ""
+
+#: audio_getid3.module:176
+msgid "The following errors where encountered while reading the file's ID3 tags: "
+msgstr ""
+
+#: audio_getid3.module:265
+msgid "While writing the ID3 tags, the following warnings were encountered:"
+msgstr ""
+
+#: audio_getid3.module:270
+msgid "The following errors were encountered, preventing the ID3 tags from being saved:"
+msgstr ""
+
+#: audio_getid3.module:0
+msgid "audio_getid3"
+msgstr ""
+

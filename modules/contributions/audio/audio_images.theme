@@ -1,0 +1,50 @@
+<?php
+// $Id: audio_images.theme,v 1.1.2.2 2006/08/14 20:26:54 drewish Exp $
+
+/**
+ * Format the fileinfo fieldset on the audio node form.
+ *
+ * @param $form
+ *   array of form elements
+ * @return
+ *   html output
+ */
+function theme_audio_images_form(&$form) {
+  $header = array(t('Type'), t('MIME Type'), t('Dimensions'), t('Size'), t('Delete'));
+  $pictypes = audio_image_type_dirty_array();
+  $rows = array();
+  foreach (element_children($form) as $pid) {
+    $row = array();
+    $pictype = $form[$pid]['pictype']['#value'];
+    $row[] = l(t($pictypes[$pictype]), $form[$pid]['filepath']['#value']);
+    $row[] = $form[$pid]['filemime']['#value'];
+    $row[] = $form[$pid]['height']['#value'] .'x'. $form[$pid]['width']['#value'];
+    $row[] = $form[$pid]['filesize']['#value'];
+    $row[] = form_render($form[$pid]['delete']);
+    $rows[] = $row;
+  }
+
+  $output = theme('table', $header, $rows);
+  $output .= form_render($form);
+
+  return $output;
+}
+
+/**
+ * Create a block for audio images.
+ * 
+ * @param $audio_images
+ *   The node's array of images
+ */
+function theme_audio_images($audio_images) {
+  if ($image = audio_images_get($audio_images)) {
+    return "<div class='audio-image'>\n" . theme('audio_image', $image) . "\n</div>\n";
+  }
+}
+
+/**
+ * Create an img tag
+ */
+function theme_audio_image($image) {
+  return '<img src="' . base_path() . $image['filepath'] . '" height="' . $image['height'] . 'px" width="' . $image['width'] . 'px" />';
+}

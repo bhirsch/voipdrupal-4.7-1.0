@@ -1,0 +1,31 @@
+-- $Id: zipcodes.mysql,v 1.5 2006/03/31 22:49:00 ankur Exp $
+
+-- MySQL dump 9.11
+--
+-- Host: localhost    Database: ankur_drupalcvs
+-- ------------------------------------------------------
+-- Server version       4.0.20
+
+--
+-- Table structure for table `zipcodes`
+--
+
+CREATE TABLE zipcodes (
+  zip varchar(16) NOT NULL default '0',
+  city varchar(30) NOT NULL default '',
+  state varchar(30) NOT NULL default '',
+  latitude decimal(10,6) NOT NULL default '0.000000',
+  longitude decimal(10,6) NOT NULL default '0.000000',
+  timezone tinyint(2) NOT NULL default '0',
+  dst tinyint(1) NOT NULL default '0',
+  country char(2) default '',
+  PRIMARY KEY (zip),
+  KEY pc (country, zip),
+  KEY zip (zip),
+  KEY latitude (latitude),
+  KEY longitude (longitude),
+  KEY country (country)
+) TYPE=MyISAM /*!40100 DEFAULT CHARACTER SET utf8 */;
+
+ALTER TABLE zipcodes DROP PRIMARY KEY;
+ALTER TABLE zipcodes ADD PRIMARY KEY (country, zip);

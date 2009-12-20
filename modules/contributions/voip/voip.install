@@ -1,0 +1,73 @@
+<?php
+
+// $Id$
+
+
+/**
+ * Install the initial schema.
+ */
+function voip_install() {
+  switch ($GLOBALS['db_type']) {
+    case 'mysql':
+    case 'mysqli':
+      db_query(
+<<<MYSQL_UPDATE
+CREATE TABLE `voip_call_history` (
+  `hid` int(10) unsigned NOT NULL auto_increment,
+  `from_extension_number` int(10) unsigned default NULL,
+  `from_cid_name` varchar(80) NOT NULL default '',
+  `from_cid_number` varchar(80) NOT NULL default '',
+  `to_extension_number` int(10) unsigned NOT NULL default '0',
+  `gmt_timestamp` int(10) unsigned NOT NULL default '0',
+  `local_timestamp` timestamp NOT NULL default CURRENT_TIMESTAMP on update CURRENT_TIMESTAMP,
+  PRIMARY KEY  (`hid`)
+) TYPE=MyISAM /*!40100 DEFAULT CHARACTER SET utf8 */;
+
+CREATE TABLE `voip_extensions` (
+  `number` int(10) unsigned NOT NULL auto_increment,
+  `nid_extension` int(10) unsigned NOT NULL default '0',
+  `is_active` int(4) unsigned NOT NULL default '1',
+  `is_listed` int(4) NOT NULL default '1',
+  `uid` int(10) unsigned default NULL,
+  `nid_contents` int(10) unsigned default NULL,
+  `type_contents` varchar(16) NOT NULL default '',
+  `nid_audio_name` int(10) unsigned default NULL,
+  `nid_audio_greetings` int(10) unsigned default NULL,
+  `nid_audio_description` int(10) unsigned NOT NULL default '0',
+  `audio_key_name` varchar(30) default NULL,
+  `audio_key_greetings` varchar(30) default NULL,
+  `audio_key_description` varchar(30) default NULL,
+  PRIMARY KEY  (`number`)
+) TYPE=MyISAM /*!40100 DEFAULT CHARACTER SET utf8 */;
+
+CREATE TABLE `voip_log` (
+  `lid` int(10) unsigned NOT NULL auto_increment,
+  `category` varchar(32) NOT NULL default '',
+  `caller_extension_number` int(10) unsigned default NULL,
+  `caller_cid_name` varchar(80) default NULL,
+  `caller_cid_number` varchar(80) default NULL,
+  `caller_uid` int(10) default NULL,
+  `action` varchar(32) NOT NULL default '',
+  `to_extension_number` int(10) unsigned default NULL,
+  `notes` varchar(128) default NULL,
+  `timestamp` int(10) unsigned NOT NULL default '0',
+  `db_timestamp` timestamp NOT NULL default CURRENT_TIMESTAMP on update CURRENT_TIMESTAMP,
+  PRIMARY KEY  (`lid`)
+) TYPE=MyISAM /*!40100 DEFAULT CHARACTER SET utf8 */;
+
+CREATE TABLE `voip_users` (
+  `vuid` int(10) unsigned NOT NULL auto_increment,
+  `number` int(10) unsigned NOT NULL default '0',
+  `uid` int(10) unsigned default NULL,
+  `user_name` varchar(60) NOT NULL default '',
+  `password` varchar(30) default NULL,
+  `phone_pin` varchar(16) default NULL,
+  `voice_id` int(10) unsigned default NULL,
+  PRIMARY KEY  (`vuid`)
+) TYPE=MyISAM /*!40100 DEFAULT CHARACTER SET utf8 */;
+
+MYSQL_UPDATE
+      );
+      break;
+  }
+}

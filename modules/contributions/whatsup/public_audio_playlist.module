@@ -1,0 +1,241 @@
+<?php
+// $Id: public_audio_playlist.module,v 1.5 2006/11/16 18:23:48 leob Exp $
+/**
+* Implementation of hook_node_info().
+*/
+function public_audio_playlist_node_info() {
+  return array('public_audio_playlist' => array('name' => t('public audio playlist'), 'base' => 'public_audio_playlist'));
+}
+
+
+/**
+ * Implementation of hook_help
+ */
+function public_audio_playlist_help($section) {
+  switch ($section) {
+    case 'admin/modules#description':
+      return t('Make all the published audio entries of the website available through a given audio playlist.');
+    case 'admin/settings/public_audio_playlist':
+      return t('Choose one playlist where all new audio entries will be put into.');
+   }
+}
+
+/**
+ * Implementation of hook_nodeapi()
+ */
+function public_audio_playlist_nodeapi(&$node, $op, $teaser = NULL, $page = NULL) {
+  global $user;
+
+  // process audio files that may have just been added/removed to/from the website
+  $playlist = variable_get('public_audio_playlist', 0);
+  if (($node->type == 'audio') && ($playlist)) {
+    switch ($op) {
+      case 'insert':
+        $parents = playlist_get_parents(array('child_id' =>$node->nid, 'type' => 'audio_playlist'));
+        if ($node->status && ((count($parents) == 0) || (!in_array($playlist, $parents)))
+           && ((!isset($node->playlist)) || (!$node->playlist[$playlist]))) {
+          // only add the audio entry if it is published and if the user is not explicitely adding it to the public list
+          playlist_add_child($node->nid, $playlist, 'audio_playlist', FALSE);
+        }
+        break;
+     case 'update':
+        $parents = playlist_get_parents(array('child_id' =>$node->nid, 'type' => 'audio_playlist'));
+        // if the new status of the node is unpublished, remove it from the list
+        if ((!$node->status) && in_array($playlist, $parents)) {
+          playlist_remove_child($node->nid, $playlist);
+        }
+        // if the node wasn't in the list and became published, add it to the list
+        else if ($node->status && (!in_array($playlist, $parents))) {
+          playlist_add_child($node->nid, $playlist, 'audio_playlist', FALSE);
+        }
+        break;   
+    }
+  }
+}
+
+/**
+ * Implementation of hook_settings
+ * 
+ */
+function public_audio_playlist_settings() {
+  $playlists = playlist_get_parents(array('type' => 'audio_playlist'), 'n.sticky DESC, n.title ASC');
+  if ($playlists) {
+    $options = array();
+    foreach ($playlists as $playlist_id) {
+        $playlist = node_load($playlist_id);
+        $options[$playlist_id] = check_plain($playlist->title);
+    }
+  }
+  if (count($options)) {
+    $form['public_audio_playlist'] = array(
+      '#type' => 'radios', 
+      '#options' => $options, 
+      '#default_value' => variable_get('public_audio_playlist', 0),
+      '#description' => t("Select the audio list that will store the published audio entries." )     
+      );
+    return $form;
+  }
+}
+
+/**
+ *  Implementation of hook_block().
+ */
+function public_audio_playlist_block($op = 'list', $delta = 0, $edit = array()) {
+// NOTE: this function is based on audio_playlist_block()
+  if ($op == 'list') {
+    $blocks[0]['info'] = t('Public audio playlist');
+    return $blocks;
+  }
+  else if ($op == 'configure' && $delta == 0) {
+    $xspf_settings = variable_get('public_audio_playlist_block_settings', array('style' => 'slim', 'autoplay' => FALSE, 'width' => '200', 'title' => t('Listening Station')));
+    $form['public_audio_playlist_block'] = array(
+      '#type' => 'fieldset',
+      '#tree' => TRUE,
+      '#title' => t('Public Audio Playlist Player Options'),
+    );    
+    $form['public_audio_playlist_block']['style'] = array(
+      '#type' => 'select',
+      '#title' => t('Choose player style'),
+      '#description' => t('The extended style shows individual track names and artwork. The slim player takes less space and does not show this information.'),
+      '#default_value' => $xspf_settings['style'],
+      '#options' => array(TRUE => t('slim'), FALSE => t('extended')),
+    );
+    $form['public_audio_playlist_block']['autoplay'] = array(
+      '#type' => 'checkbox',
+      '#title' => t('Autoplay'),
+      '#description' => t('Checking this box will tell the player to automatically start playing when the page is loaded.'),
+      '#default_value' => $xspf_settings['autoplay']
+    );
+    $form['public_audio_playlist_block']['width'] = array(
+      '#type' => 'textfield',
+      '#title' => t('Width'),
+      '#description' => t('Width of the player in pixels'),
+      '#default_value' => $xspf_settings['width']     
+    );
+    $form['public_audio_playlist_block']['title'] = array(
+      '#type' => 'textfield',
+      '#title' => t('Title'),
+      '#description' => t('Title of the block, such as "Listening Station".'),
+      '#default_value' => $xspf_settings['title']     
+    );
+    return $form;
+  }
+  else if ($op == 'save' && $delta == 0) {
+    $xspf_settings = variable_set('public_audio_playlist_block_settings', $edit['public_audio_playlist_block']);
+  }
+  else if ($op == 'view') {
+    switch($delta) {
+      case 0:
+        $xspf_settings = variable_get('public_audio_playlist_block_settings', array('style' => 'slim', 'autoplay' => FALSE, 'width' => '200', 'title' => t('Listening Station')));
+        $block['subject'] = $xspf_settings['title'];
+        $block['content'] = theme('public_audio_playlist_block_content');
+        break;
+    }
+    return $block;
+  }
+}
+
+function theme_public_audio_playlist_block_content() {
+  $playlist = variable_get('public_audio_playlist', 0);
+  if ($playlist) {  
+    $xspf_settings = variable_get('xspf_block_settings', array('style' => TRUE, 'autoplay' => null, 'width' => '200', 'title' => t('Listening Station')));
+    $autoplay = $xspf_settings['autoplay'] ? array('autoplay' => TRUE) : array();
+    $output .= theme('audio_playlist_get_player', $playlist, $autoplay, $xspf_settings['style'], $xspf_settings['width']); 
+    $output .= '<small>'.l('[info]', 'node/'.$playlist) ." ". theme('audio_playlist_popup_link', $playlist, '[popup player]').'</small>';
+    $text = '[' . t('add to myspace') . ']';
+    $description = t('embed audio playlist in a myspace profile');
+    $output .= '<small>'." ". theme('public_audio_playlist_myspace_link', $playlist, $text, $description).'</small>';
+  }
+  else {
+    $output = t('Public playlist undefined.');
+  }
+  return $output;
+}
+
+/**
+ *  Format a popup myspace link.
+ */
+function theme_public_audio_playlist_myspace_link($playlist_id, $title, $description) {
+// NOTE: this function is an exact copy of theme_personal_audio_playlist_myspace_link()
+  global $base_url;
+  $url = $base_url.'/?q=node/'. $playlist_id .'/myspace';
+  $height = 195;
+  $width = 450;
+
+  $output =  '<a class="popup-link" onclick="window.open('.check_plain('"'.$url.'", null,"height='.$height.',width='.$width.',status=no,toolbar=no,menubar=no,location=no,resizable=no,scrollbars=yes"').')" title="'.$description.'">'.$title.'</a>';
+
+  return $output;
+} 
+
+/**
+  *  This function returns the html needed for the myspace popup window.
+  */
+function theme_public_audio_playlist_myspace_popup($audio_playlist) {
+// NOTE: this function is an exact copy of theme_personal_audio_playlist_myspace_popup()
+
+  $title = t('Add audio playlist to MySpace profile');
+  
+  $options = array('autoplay' => FALSE);
+  $code = theme('personal_audio_playlist_get_myspace_player', $audio_playlist, $options);
+
+  $body = '<div id="main"><div class="profile">';
+  $body .= '<h2 class="title">' . t('Copy the following HTML code into your MySpace profile:') .'</h2>';
+  $body .= '<table border=1 bordercolor=white><tr align=center><td style="padding: 5px 5px 5px 5px;">' . htmlspecialchars($code) . "</td></tr></table>";
+  $body .= '</div></div>';
+
+  $title = check_plain(t('title'));
+  $output = '<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN"';
+  $output .= ' "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">';
+  $output .= ' <html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">';
+  $output .= '<head>';
+  $output .= '<title>'. $title .'</title>';
+  $output .= drupal_get_html_head();
+  $output .= theme_get_styles();
+  $output .= ' </head>';
+  $output .= '<body leftmargin="0" topmargin="0" marginwidth="0" marginheight="0">' . $body .'</body>';
+  $output .= '</html>';
+
+  return $output;
+}
+
+function theme_public_audio_playlist_get_myspace_player($node, $options = array(), $slim = FALSE, $width = null, $height = null) {
+// NOTE: this function is an exact copy of theme_personal_audio_playlist_get_myspace_player()
+
+  if (is_numeric($node)) {
+    $node = node_load($node);
+  }
+  global $base_url;
+  //set some defaults
+  if (!$options['playlist_url']) $options['playlist_url'] = $base_url . '/?q=node/'. $node->nid .'/xspf';
+  if (!$options['player_title']) $options['player_title'] = $node->title;
+  if (!$options['info_button_text']) $options['info_button_text'] = t('track info');
+  //build the links
+  foreach ($options as $key => $value) {
+    if ($key != 'playlist_url') {
+      $params .= '&'. $key .'='. $value;
+    }
+  }
+
+  if (!$slim) {
+    $player_link = $base_url .'/'. drupal_get_path('module', 'audio_playlist') .'/players/xspf_player.swf';  
+    if (!$width) $width = '400';
+    if (!$height) $height = '170';
+  }
+  else {
+    $player_link = $base_url .'/'. drupal_get_path('module', 'audio_playlist') .'/players/xspf_player_slim.swf';
+    if (!$width) $width = '400';
+    if (!$height) $height = '15';
+  }
+  //output html
+  $output .= '<embed type="application/x-shockwave-flash" width="'. $width . '"'
+             .' height="' .$height. '" src="'. $player_link . '"'
+             .' FlashVars="playlist_url='. $options['playlist_url'] . $params 
+             .'" quality="high" name="'. $options['player_title'] 
+             .'" align="middle" allowScriptAccess="sameDomain" type="application/x-shockwave-flash" pluginspage="http://www.macromedia.com/go/getflashplayer"'
+             .' allowScriptAccess="never" allowNetworking="internal"'
+             .' />';
+
+  return $output;
+}
+
+

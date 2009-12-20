@@ -1,0 +1,80 @@
+<?php
+/* $Id: voip_announcement.module,v 1.2 2007/03/28 16:33:57 leob Exp $ */
+
+/**
+ * @file
+ * Implements a series of hacks to make audio.module more appropriate for the voip needs.
+ * 
+ */
+
+/**
+ * Required files
+ */
+ 
+ 
+ /**
+ * Implementation of hook_help().
+ */
+function voip_announcement_help($section) {
+  switch ($section) {
+    case 'admin/modules#description':
+      return t('Implements a series of hacks to make audio.module more appropriate for the voip needs.');
+    case 'admin/help#voip_group':
+      return t("Implements a series of hacks to make audio.module more appropriate for the voip needs.");
+  }
+}
+
+/**
+ * Implementation of hook_perm().
+ */
+function voip_announcement_perm() {
+  return array('create voip announcements');
+}
+ 
+ 
+/**
+ * Implementation of hook_menu().
+ */
+function voip_announcement_menu($may_cache) {
+  $items = array();
+
+  if ($may_cache) {
+  	global $user;
+  	// override the node/add/audio menu
+    $items[] = array('path' => 'node/add/audio', 'title' => t('audio'),
+//      'access' => ($user->uid && user_access('create audio')));
+      'access' => ($user->uid && user_access('create audio') && user_access('create voip announcements')));
+  }
+
+  return $items;
+}
+
+/**
+ * Implementation of hook_nodeapi()
+ */
+function voip_announcement_nodeapi(&$node, $op, $teaser = NULL, $page = NULL) {
+
+  if (($node->type == 'audio') && ($node->status >= 1)) {
+    switch ($op) {
+      case 'insert':
+        if ($node->statistics_collection) {
+          // record statistics
+          global $user;
+          $user_extension_number = isset($user->voip_extension_info)?$user->voip_extension_info['number']:NULL;
+          $user_info = array('extension_number' => $user_extension_number, 'uid' => $user->uid);
+          $notes = "nid: $node->nid, name: $node->title";
+          voip_log($user_info, 'announcements', 'created', NULL, $notes);
+        }
+        break;
+        
+      case 'delete':
+        $user_extension_number = isset($user->voip_extension_info)?$user->voip_extension_info['number']:NULL;
+        $user_info = array('extension_number' => $user_extension_number, 'uid' => $user->uid);
+        $notes = "nid: $node->nid, name: $nid->title";
+        voip_log($user_info, 'announcements', 'deleted', NULL, $notes);
+        break;
+    }
+  }
+}
+
+

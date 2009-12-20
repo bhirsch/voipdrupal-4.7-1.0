@@ -1,0 +1,2 @@
+* support multiple audio files (integrate/replace with audio_playlist.module?)
+* allow for attaching already uploaded audio?

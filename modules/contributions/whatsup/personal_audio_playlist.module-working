@@ -1,0 +1,314 @@
+<?php
+/* $Id: personal_audio_playlist.module,v 1.5 2006/11/16 18:23:48 leob Exp $ */
+
+/**
+ * @file
+ * Provides users with a personal audio playlist that stores all the audio entries created by the user.
+ * 
+ */
+
+/**
+ * Required files
+ */
+ 
+
+/**
+ * Implementation of hook_help().
+ */
+function personal_audio_playlist_help($section) {
+  switch ($section) {
+    case 'admin/modules#description':
+      return t('Provides users with a personal audio playlist that stores all the audio entries created by him or her.');
+    case 'admin/help#personal_audio_playlist':
+      return t('Provides users with a personal audio playlist that stores all the audio entries created by him or her.');
+  }
+}
+
+
+/**
+ * Implementation of hook_user()
+ */
+function personal_audio_playlist_user($op, &$edit, &$account, $category = NULL) {
+  global $personal_audio_playlist_default_page;
+  switch($op) {
+      
+    case 'load':
+      if ($account->uid && user_access("have personal audio_playlist", $account)) {
+        $query = "SELECT * FROM {personal_audio_playlist} WHERE `uid` = '%d'";
+        $db_result = db_query($query, $account->uid);
+        if (!$db_result) {
+          $error_msg = t("Could not query personal_audio_playlist entry for user %uid: %e", array('%uid' => $account->uid, '%e' => db_error()));
+          watchdog('personal_audio_playlist', $error_msg, WATCHDOG_ERROR);
+          return FALSE;
+        }
+        $db_entry = db_fetch_array($db_result);
+        if (!$db_entry) {
+          watchdog('personal_audio_playlist', t('Creating personal_audio_playlist entry for user %user.', array('%user' => $account->uid)), WATCHDOG_WARNING);
+          _personal_audio_playlist_create($account);
+          $db_entry = db_fetch_array(db_query($query, $account->uid));
+        }
+        $account->personal_audio_playlist = node_load($db_entry['nid']);
+      }
+      break;
+
+    case 'view':
+      if ($account->personal_audio_playlist) {
+        $item = array('title' => t('Personal audio playlist'), 
+                               'value' => theme('personal_audio_playlist', $account->personal_audio_playlist),
+                               'class' => 'personal_audio_playlist');
+        $personal_audio_playlist_info[] = $item;
+        // return
+        $rc = array(t('Personal audio playlist') => $personal_audio_playlist_info);
+        return $rc;
+      }
+      break;
+
+    case 'delete':
+      // delete the user entry
+      $query = 'DELETE FROM {personal_audio_playlist} WHERE `uid` = %d';
+      db_query($query, $account->uid);
+      break;
+   
+  }
+}
+
+/**
+ * Implementation of hook_nodeapi()
+ */
+function personal_audio_playlist_nodeapi(&$node, $op, $teaser = NULL, $page = NULL) {
+
+  // process audio files that may have just been added/removed to/from the website
+  if ($node->type == 'audio') {
+    $account = user_load(array('uid' => $node->uid));
+    $personal_playlist = ($account && $account->personal_audio_playlist)? $account->personal_audio_playlist : NULL;
+    if ($personal_playlist) {
+      switch ($op) {
+        case 'insert':
+          $parents = playlist_get_parents(array('child_id' =>$node->nid, 'type' => 'audio_playlist'));
+          // only add the audio entry if the user is not explicitely adding it to his personal audio list
+          if ($node->status && (!in_array($personal_playlist, $parents))) {
+            playlist_add_child($node->nid, $personal_playlist->nid, 'audio_playlist', FALSE);
+          }
+        break;
+     case 'update':
+        $parents = playlist_get_parents(array('child_id' =>$node->nid, 'type' => 'audio_playlist'));
+        // if the new status of the node is unpublished, remove it from the list
+        if ((!$node->status) && in_array($personal_playlist, $parents)) {
+          playlist_remove_child($node->nid, $personal_playlist);
+        }
+        // if the node wasn't in the list and became published, add it to the list
+        else if ($node->status && (!in_array($personal_playlist, $parents))) {
+          playlist_add_child($node->nid, $personal_playlist, 'audio_playlist', FALSE);
+        }
+        break;   
+      }
+    }
+  }
+}
+
+/**
+ * Implementation of hook_perm().
+ */
+function personal_audio_playlist_perm() {
+  return array("have personal audio_playlist");
+}
+
+/**
+ * Implementation of hook_menu().
+ */
+function personal_audio_playlist_menu($may_cache) {
+  global $user;
+  $items = array();
+
+  if ($may_cache) {
+  } 
+  else if (arg(0) == 'node' && is_numeric(arg(1))) {
+    $current = node_load(arg(1));
+    if ($current->type == 'audio_playlist') {
+        $items[] = array('path' => 'node/'. arg(1) .'/myspace', 
+          'title' => t('MySpace Popup'),
+          'type' => MENU_CALLBACK,
+          'callback' => '_personal_audio_playlist_myspace',
+          'callback arguments' => $current
+          );
+    }
+  }
+  
+  return $items;
+}
+
+/*
+ * Implementation of hook_about_me_items
+ */
+function personal_audio_playlist_about_me_items($account) {
+  if (!$account->personal_audio_playlist) {
+    return;
+  }
+  $item_value = theme('personal_audio_playlist', $account->personal_audio_playlist, FALSE);
+  $items['personal_audio_playlist'] = array('description' => t("a playlist with the user's latest audio entries"), 'value' => $item_value);
+  
+  return $items;
+}
+
+/**
+  *  Menu Callback. Displays a new pop up window with instructions on how to embed the personal audio_playlist in MySpace.
+  */
+function _personal_audio_playlist_myspace($audio_playlist) {
+  print theme('personal_audio_playlist_myspace_popup', $audio_playlist);
+}
+
+function _personal_audio_playlist_create($account) {
+  // create the new audio playlist node
+  $node->title = t('Personal audio playlist for %name', array('%name' => $account->name));
+  $node->type = 'audio_playlist';
+  $node->uid = $account->uid;
+  $node->status = TRUE;
+  $node->promote = FALSE;
+  $node->sticky = FALSE;
+  // by default, make the personal playlists public for all
+  $node->og_public = TRUE; 
+  // set the other playlist attributes
+  $i = array();
+  $i['image_url'] = NULL;
+  $i['subtitle'] = '';
+  $i['author'] = $account->name;
+  $i['copyright'] = '';
+  $i['owner'] = $account->name;
+  $i['owner_email'] = $account->mail;
+  $i['explicit'] = FALSE;
+  $node->playlist_info = $i;
+  node_save($node);
+  // add existing audio nodes from the user to the list, if any
+  $sql = "SELECT `nid` FROM {node} WHERE `type` = 'audio' AND `uid` = %d AND `status` > 0 ORDER BY `changed` DESC";
+  $db_result = db_query($sql, $account->uid);
+  while ($db_entry = db_fetch_array($db_result)) {
+    playlist_add_child($db_entry['nid'], $node->nid, 'audio_playlist', FALSE);
+  }
+  // associate node with the user account
+  $query = "INSERT INTO {personal_audio_playlist} (uid, nid) VALUES (%d, %d)";
+  $db_result = db_query($query, $account->uid, $node->nid);
+  if (!$db_result) {
+    $error_msg = t("Could not create personal_audio_playlist entry: %e", array('%e' => db_error()));
+    watchdog('personal_audio_playlist', $error_msg, WATCHDOG_ERROR);
+    return FALSE;
+  }
+  return $node->nid;
+}
+
+function theme_personal_audio_playlist($audio_playlist, $include_links = TRUE) {
+  $items = playlist_get_children($audio_playlist->nid, 'audio_playlist');
+  if (!count($items)) {
+    $output = t('This audio playlist is empty.');
+  }
+  else {
+    $settings = variable_get('personal_audio_playlist_settings', array('style' => FALSE, 'autoplay' => null, 'width' => '400'));
+    $autoplay = $settings['autoplay'] ? array('autoplay' => TRUE) : array();
+    $output .= theme('audio_playlist_get_player', $audio_playlist, $autoplay, $settings['style'], $settings['width']); 
+    if ($include_links) {
+      $output .= '<small>'.l('[info]', 'node/'.$audio_playlist->nid) ." ". theme('audio_playlist_popup_link', $audio_playlist->nid, '[popup player]').'</small>';
+      $text = '[' . t('add to myspace') . ']';
+      $description = t('embed audio_playlist in a myspace profile');
+      $output .= '<small>'." ". theme('personal_audio_playlist_myspace_link', $audio_playlist->nid, $text, $description).'</small>';
+    }
+  }
+  return $output;
+}
+
+/**
+ *  Format a popup myspace link.
+ */
+function theme_personal_audio_playlist_myspace_link($playlist_id, $title, $description) {
+  global $base_url;
+  $url = $base_url.'/?q=node/'. $playlist_id .'/myspace';
+  $height = 340;
+  $width = 450;
+
+  $output =  '<a class="popup-link" onclick="window.open('.check_plain('"'.$url.'", null,"height='.$height.',width='.$width.',status=no,toolbar=no,menubar=no,location=no,resizable=no,scrollbars=yes"').')" title="'.$description.'">'.$title.'</a>';
+
+  return $output;
+} 
+
+/**
+  *  This function returns the html needed for the myspace popup window.
+  */
+function theme_personal_audio_playlist_myspace_popup($audio_playlist) {
+  $title = t('Add audio playlist to MySpace profile');
+  
+  $options = array('autoplay' => FALSE);
+  $code = theme('personal_audio_playlist_get_myspace_player', $audio_playlist, $options);
+/***
+  $body = '<div id="main"><div class="profile">';
+  $body .= '<h2 class="title">' . t('Copy the following HTML code into your MySpace profile:') .'</h2>';
+  $body .= '<table border=1 bordercolor=white><tr align=center><td style="padding: 5px 5px 5px 5px;">' . htmlspecialchars($code) . "</td></tr></table>";
+  $body .= '</div></div>';
+***/
+  $body = '<div id="main"><div class="profile">';
+  $body .= t('To get an audio player like this: ');
+  $body .= "<br><br><div align=center>" . $code . '</div><br><br>';
+  $body .= t('Copy the following HTML code into your MySpace profile:');
+  $form['audio_myspace_popup'] = array(
+    '#type' => 'textfield',
+    '#size' => 65,
+    '#maxlength' => '1000',
+    '#title' => '',
+    '#default_value' => $code,
+    '#description' => '',
+    '#attributes' => array('readonly' => 'readonly'),    // Need to add this attribute in order to have a read-only field
+  );
+  $body .= drupal_get_form('_audio_myspace_popup_form', $form);
+  $body .= '</div></div>';
+
+  $title = check_plain($title);
+  $output = '<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN"';
+  $output .= ' "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">';
+  $output .= ' <html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">';
+  $output .= '<head>';
+  $output .= '<title>'. $title .'</title>';
+  $output .= drupal_get_html_head();
+  $output .= theme_get_styles();
+  $output .= ' </head>';
+  $output .= '<body leftmargin="0" topmargin="0" marginwidth="0" marginheight="0">' . $body .'</body>';
+  $output .= '</html>';
+
+  return $output;
+}
+
+function theme_personal_audio_playlist_get_myspace_player($node, $options = array(), $slim = FALSE, $width = null, $height = null) {
+  if (is_numeric($node)) {
+    $node = node_load($node);
+  }
+  global $base_url;
+  //set some defaults
+  if (!$options['playlist_url']) $options['playlist_url'] = $base_url . '/?q=node/'. $node->nid .'/xspf';
+  if (!$options['player_title']) $options['player_title'] = $node->title;
+  if (!$options['info_button_text']) $options['info_button_text'] = t('track info');
+  //build the links
+  foreach ($options as $key => $value) {
+    if ($key != 'playlist_url') {
+      $params .= '&'. $key .'='. $value;
+    }
+  }
+
+  if (!$slim) {
+    $player_link = $base_url .'/'. drupal_get_path('module', 'audio_playlist') .'/players/xspf_player.swf';  
+    if (!$width) $width = '400';
+    if (!$height) $height = '170';
+  }
+  else {
+    $player_link = $base_url .'/'. drupal_get_path('module', 'audio_playlist') .'/players/xspf_player_slim.swf';
+    if (!$width) $width = '400';
+    if (!$height) $height = '15';
+  }
+  //output html
+  $output .= '<embed type="application/x-shockwave-flash" width="'. $width . '"'
+             .' height="' .$height. '" src="'. $player_link . '"'
+             .' FlashVars="playlist_url='. $options['playlist_url'] . $params 
+             .'" quality="high" name="'. $options['player_title'] 
+             .'" align="middle" allowScriptAccess="sameDomain" type="application/x-shockwave-flash" pluginspage="http://www.macromedia.com/go/getflashplayer"'
+             .' allowScriptAccess="never" allowNetworking="internal"'
+             .' />';
+
+  return $output;
+}
+
+

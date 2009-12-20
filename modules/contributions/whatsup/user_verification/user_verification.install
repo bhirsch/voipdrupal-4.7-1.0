@@ -1,0 +1,26 @@
+<?php
+
+// $Id$
+
+
+/**
+ * Install the initial schema.
+ */
+function user_verification_install() {
+  switch ($GLOBALS['db_type']) {
+    case 'mysql':
+    case 'mysqli':
+      db_query(
+<<<MYSQL_UPDATE
+CREATE TABLE `user_verification` (
+  `vid` int(10) NOT NULL auto_increment,
+  `uid` int(10) unsigned NOT NULL default '0',
+  `verified` int(2) unsigned NOT NULL default '0',
+  PRIMARY KEY  (`vid`),
+  KEY `uid` (`uid`)
+) TYPE=MyISAM /*!40100 DEFAULT CHARACTER SET utf8 */;
+MYSQL_UPDATE
+      );
+      break;
+  }
+}

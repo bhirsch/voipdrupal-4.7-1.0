@@ -1,0 +1,792 @@
+<?php
+// $Id: audio_xmlrpc.module,v 1.4 2006/11/15 03:26:48 leob Exp $
+
+/**
+ * @file
+ * Adds XMLRPC functionality to audio.module.
+ */
+
+//
+/**
+ * Implementation of hook_help
+ */
+function audio_xmlrpc_help($section) {
+  switch ($section) {
+    case 'admin/help#audio_xmlrpc':
+      $output = '<p>'. t('The audio_xmlrpc module allows users to accees audio.module functionality through remote XML-RPC calls.') . '</p>';
+      return $output;
+    case 'admin/modules#description':
+      return t('Alows users to accees audio.module functionality through remote XML-RPC calls.');
+  }
+}
+
+/**
+ * Implementation of hook_xmlrpc().
+ */
+function audio_xmlrpc_xmlrpc() {
+
+  return array(
+    array(
+      'audio.checkAccess',
+      '_audio_xmlrpc_check_access',
+      array('array', 'array', 'string', 'int'),
+      t('Checks if the user has permission to perform the specified operation on the given node.')),
+    array(
+      'audio.createEntry',
+      '_audio_xmlrpc_create_entry',
+      array('array', 'array', 'array', 'array'),
+      t('Creates a new audio entry, and optionally publishes it.')),
+    array(
+      'audio.deleteEntry',
+      '_audio_xmlrpc_delete_entry',
+      array('array', 'array', 'string'),
+      t('Deletes the specified audio entry.')),
+    array(
+      'audio.getCategoryList',
+      '_audio_xmlrpc_get_category_list',
+      array('array'),
+      t('Returns a list of all categories defined for audio entries.')),
+    array(
+      'audio.getRecentEntries',
+      '_audio_xmlrpc_get_recent_entries',
+      array('array', 'array', 'array'),
+      t('Returns a list with recent audio entries that obey the specified criteria.')),
+    array(
+      'audio.getEntry',
+      '_audio_xmlrpc_get_entry',
+      array('array', 'array', 'array'),
+      t('Returns the specified audio entry.')),
+    array(
+      'audio.updateAccessStatistics',
+      '_audio_xmlrpc_update_access_statistics',
+      array('boolean', 'array', 'string'),
+      t('Updates the access statistics associated with the specified audio entry.'))
+  );
+}
+
+/*
+ * Mask user_authenticate()
+ */
+function audio_xmlrpc_user_authenticate($name, $pass) {
+  $account = user_authenticate($name, $pass);
+  // update access statistics
+  if ($account->uid) { 
+    // NOTE: the following code is usually executed in session.inc (which is not necessarily used in xmlrpc calls)
+    // Update the user table access timestamp noting that the user has accessed the server.
+    db_query("UPDATE {users} SET access = %d WHERE uid = %d", time(), $account->uid);
+  }
+  return $account;
+}
+
+/**
+ * XMLRPC callback. Checks if the user may perform the given operation on the specified node.
+ *
+ * @param $user_info
+ *   array with Drupal name and password of the user
+ * 
+ * @param $op 
+ *   string with the operation to be performed on the node ('view', 'update', 'delete', 'create')
+ * 
+ * @param $nid
+ *   The node id of the audio entry to be checked
+ * 
+ * @return
+ *   array. In case of success, 'error_code' will be set to 1 and 'allowed' will contain the result of the checking.
+ *   In case of failure, 'error_code' will be set to -1 and 'error_msg' will contain an explanation of the error.
+ */
+function _audio_xmlrpc_check_access($user_info, $op, $nid) {
+  $rc = array();
+//xdebug_break();
+  // make sure the specified user is valid
+  global $user;
+  if ((!empty($user_info['user_name'])) && (!empty($user_info['password']))) {
+    $account = audio_xmlrpc_user_authenticate($user_info['user_name'], $user_info['password']);
+    if (!$account->uid) {
+  	  $rc['error_code'] = -1;
+  	  $rc['error_msg'] = t('Invalid combination of user name and password.');
+      return $rc;
+    }
+    $user = $account;
+  }
+
+  // check if the user has permission to perform the operation on the specified node
+  $node = node_load(array('nid' => $nid));
+  if ($node) {
+    $rc['error_code'] = 1; 
+    $node->status = 1; // do this so that node_access() retrieves information from the node_access table...
+    $rc['allowed'] = (node_access($op, $node) == TRUE);
+  }
+  else {
+    $rc['error_code'] = -1;
+    $rc['error_msg'] = t('Invalid node: %nid.', array('%nid' => $nid));
+  }  	
+  return $rc;
+}
+
+
+
+/**
+ * XMLRPC callback. Creates a new audio entry
+ *
+ * @param $user_info
+ *   array with Drupal name and password of the author of the entry
+ * 
+ * @param $entry_info
+ *   array with all the values required for the new audio entry: 'title', 'body',
+ *   'status', 'promote', 'downloadable', 'categories', and also 'extra_fields'
+ * 
+ * @param $file_info
+ *   array with file attributes: 'name', 'bits'
+ * 
+ * @return
+ *   array.  In case of success, 'error_code' will be set to 1 and 'nid' to the id of the new entry created.
+ *     In case of failure, 'error_code' will be set to -1 and 'error_msg' will contain an explanation of the error.
+ */
+function _audio_xmlrpc_create_entry($user_info, $entry_info, $file_info) {
+
+  $rc = array();
+
+  // make sure the specified user is valid
+  global $user;
+  if ((!empty($user_info['user_name'])) && (!empty($user_info['password']))) {
+    $account = audio_xmlrpc_user_authenticate($user_info['user_name'], $user_info['password']);
+    if (!$account->uid) {
+  	  $rc['error_code'] = -1;
+  	  $rc['error_msg'] = t('Invalid combination of user name and password.');
+      return $rc;
+    }
+    $user = $account;
+  }
+
+  // quick check: make sure user has permission to create audio nodes
+  if (!user_access('create audio')) {
+  	$rc['error_code'] = -1;
+  	$rc['error_msg'] = t('User does not have permission to create audio nodes.');
+    return $rc;
+  }
+  
+  // try to the save file locally
+  $file_name = $file_info['name'];
+  $data =& $file_info['bits'];
+  if (!$data) {
+  	$rc['error_code'] = -1;
+  	$rc['error_msg'] = t('No audio file sent.');
+    return $rc;
+  }
+
+  $file_path = file_save_data($data, $file_name);
+  if (!$file_path) {
+  	$rc['error_code'] = -1;
+  	$rc['error_msg'] = t('Error storing file $file_name.');
+    return $rc;
+  }
+
+  // create a basic audio node
+
+  // TODO: implement new title/body/tag mechanism (grab from my previous 4.7 implementation)  
+  $title = isset($entry_info['title'])?$entry_info['title']:'Audio entry';
+  $tags = $entry_info['tags'];
+  
+  $node = audio_api_insert($file_path, $title, $tags);
+
+  if (!$node) {
+  	$rc['error_code'] = -1;
+  	$rc['error_msg'] = t('Error creating basic audio node.');
+    return $rc;
+  }
+
+  // customize the audio node just created with the appropriate options
+  $node_options = variable_get('node_options_'. $node->type, array('status'));
+  $node->status = isset($entry_info['status']) ? $entry_info['status'] : in_array('status', $node_options);
+  $node->promote = isset($entry_info['promote']) ? $entry_info['promote'] : in_array('promote', $node_options);
+  $node->sticky = isset($entry_info['sticky']) ? $entry_info['sticky'] : in_array('sticky', $node_options);
+  $node->revision = isset($entry_info['revision']) ? $entry_info['revision'] : in_array('revision', $node_options);
+  $node->comment = variable_get("comment_$node->type", COMMENT_NODE_READ_WRITE);
+  
+  // associate node with the specified groups
+  $node->og_public = isset($entry_info['og_public'])? $entry_info['og_public'] : TRUE;  // nodes are public by default
+  $node->og_groups = isset($entry_info['og_groups'])? $entry_info['og_groups'] : array();
+
+  // associate the node with the desired categories
+  $categories =& $entry_info['categories'];
+  if (!empty($categories) && !in_array(NULL, $categories)) {
+    $node->taxonomy = $categories;
+  }
+    
+  // assign the body
+  // TODO: implement function to generate body contents on the fly
+  $node->body  = $entry_info['body']; 
+ 
+  // now add the extra fields
+  foreach ($entry_info['extra_fields'] as $field => $value) {
+    $node->$field = $value;
+  }
+ 
+  // make sure the node to be created is valid and that the user is subscribed to the intended node og audiences
+//TODO: below is a little hack to pass node_validate()
+if (!$_POST['edit']) $_POST['edit'] = array();
+$_POST['edit']['changed'] = time();
+//---end of hack
+
+  node_validate($node);
+  if ($errors = form_get_errors()) {
+    $rc['nid'] = 0;
+    $rc['error_msg'] = implode("\n", $errors);
+    return $rc;
+  }
+
+   // prepare node to be created
+// TODO: the node_submit() below changes the author and also the setting of 'status' and 'promote' for users that 
+// do not have 'administer node' permissions. Here's what I need:
+// * the audio for voicemail messages should have status = 0 so that it's not returned on searches
+// * other audio nodes should have status = 1
+// * group admins should be allowed to 'promote' audio entries from their group; regular members should not be allowed to do that
+// * individual users should be allowed to promote personal entries.
+// How to do this??
+  $node->statistics_collection = TRUE;
+  if (!$node->status) {
+  	$node->statistics_collection = FALSE;
+  }
+  $node = node_submit($node); // the problem here is that this messes up with my statistics collection...
+  $node->uid = $user->uid;
+  $node->status = isset($entry_info['status']) ? $entry_info['status'] : in_array('status', $node_options);
+  $node->promote = isset($entry_info['promote']) ? $entry_info['promote'] : in_array('promote', $node_options);
+  
+  // save the node (and call the audio_insert(&node) hook)
+  node_save($node); 
+
+  if (!$node->nid) {
+    unlink($file_path);
+  	$rc['error_code'] = -1;
+  	$rc['error_msg'] = t('Error creating node for new audio entry.');
+    return $rc;
+  }
+
+  // return the nid of the new audio entry
+  $rc['error_code'] = 1;
+  $rc['nid'] = $node->nid;
+
+  return $rc;
+}
+
+/**
+ * XMLRPC callback. Deletes the specified audio entry
+ *
+ * @param $user_info
+ *   array with Drupal name and password of the user
+ * @param $nid
+ *   The node id of the audio entry to be deleted
+ * @return
+ *   array with 'error_code' equals 1 in case of success. In case of failure, 
+ *     'error_code' will be set to -1 and 'error_msg' will contain an explanation of the error.
+ */
+function _audio_xmlrpc_delete_entry($user_info, $nid) {
+  $rc = new stdClass();
+  $rc->error_code = 1;
+
+  // make sure the specified user is valid
+  global $user;
+  if ((!empty($user_info['user_name'])) && (!empty($user_info['password']))) {
+    $account = audio_xmlrpc_user_authenticate($user_info['user_name'], $user_info['password']);
+    if (!$account->uid) {
+  	  $rc['error_code'] = VOIP_INVALID_USER_INFO;
+  	  $rc['error_msg'] = t('Invalid combination of user name and password.');
+      return $rc;
+    }
+    $user = $account;
+  }
+
+  // delete the specified the entry
+  
+  if (!$nid) 
+    return $rc;
+    
+  $node = node_load(array('nid' => $nid));
+
+  // check if the user has permission to delete the specified node
+
+  if ($node) {
+    if (!node_access('delete', $node)) {
+      $rc->error_code = -1;   // user does not have permission to delete entry
+      $rc->error_msg = t('User does not have permission to delete specified audio entry.');
+      return $rc;
+    }
+    else {
+      node_delete($nid);
+    }
+  }
+  return $rc;
+}
+
+/**
+ * XMLRPC callback. Returns a list of the taxonomy terms that can be associated with audio nodes.
+ *
+ * @return
+ *   array with the category names and ids
+ */
+function _audio_xmlrpc_get_category_list() {
+  $type = 'audio'; 
+  $vocabularies = module_invoke('taxonomy', 'get_vocabularies', $type, 'vid');
+  $categories = array();
+  if ($vocabularies) {
+    foreach ($vocabularies as $vocabulary) {
+      $terms = module_invoke('taxonomy', 'get_tree', $vocabulary->vid, 0, -1);
+      foreach ($terms as $term) {
+        $term_name = $term->name;
+        foreach (module_invoke('taxonomy', 'get_parents', $term->tid, 'tid') as $parent) {
+          $term_name = $parent->name . '/' . $term_name;
+        }
+        $categories[] = array('category_name' => $term_name, 'category_id' => $term->tid);
+      }
+    }
+  }
+  return $categories;
+}
+
+
+/**
+ * XMLRPC callback. Returns the latest few postings from the specified user
+ * (or all) that obey the specified criteria. Setting $get_bodies and
+ * $get_audio_files to FALSE returns a bandwidth-friendly list.
+ *
+ * @param $user_info
+ *   array with Drupal nameand password of the user
+ * @param $query_info
+ *   array with the query criteria for the audio entries:
+ *     ['status'] :: 1 = published, 0 = unpublished, NULL = any
+ *     ['promote'] :: 1 = promoted to the front page, 0 = not promoted, NULL = any
+ *     ['uid'] :: user id of the desired entries author, or NULL for any
+ *     ['categories_or'] :: array with category ids to be ORed; or NULL for all
+ *     ['categories_and'] :: array with category ids to be ANDed; or NULL for all
+ *     ['unread_entries_only'] :: TRUE, return only the entries that haven't been read by the user
+ *     ['get_bodies'] :: TRUE, returns the text body associated with the entries
+ *     ['get_audio_files'] :: TRUE, returns the audio files associated with the entries
+ *     ['unread_entries_only'] :: TRUE, return only the entries that haven't been read by the user
+ *     ['read_entries_only'] :: TRUE, return only the entries that have already been read by the user.
+ *       Note that this option cannot be used in conjunction with 'unread_entries_only'
+ *     ['date_from'] :: time stamp of the oldest entry desired.  If NULL, return entries up to 60 days old.
+ *     ['date_to'] :: time stamp of the newest entry desired.  If NULL, assume no time limit.
+ *     ['gid'] :: with the id of the group of where the selected entries have been published to
+ *     ['limit'] :: maximum number of entries to be returned. If NULL, return 10.
+ * @return
+ *   array.  In case of success, 'error_code' is set to 1, 'count' is set to the number of audio nodes 
+ *     being returned and 'entries' is an array with the nodes themselves.  In case of failure,
+ *     'error_code' is set to -1 and 'error_msg' contain the description of the error.
+ */
+function _audio_xmlrpc_get_recent_entries($user_info, $query_info) {
+
+  $rc = new stdClass();
+  $rc->error_code = 1;
+
+  // make sure user information is valid for non-anonymous users
+  global $user;
+  if ((!empty($user_info['user_name'])) && (!empty($user_info['password']))) {
+    $account = audio_xmlrpc_user_authenticate($user_info['user_name'], $user_info['password']);
+    if (!$account->uid) {
+  	  $rc['error_code'] = VOIP_INVALID_USER_INFO;
+  	  $rc['error_msg'] = t('Invalid combination of user name and password.');
+      return $rc;
+    }
+    $user = $account;
+  }
+
+  // read the selected nodes
+  $rc->count = 0;
+
+  // by default, return entries that have been created/modified in the past 60 days
+//  $query_info['date_from'] = empty($query_info['date_from'])?(time()-60*24*3600):$query_info['date_from'];
+
+  // by default, return no more than 10 entries
+  $query_info['limit'] = empty($query_info['limit'])?10:$query_info['limit'];
+
+  $audio_nodes = _audio_api_get_node_list($query_info);
+  if ($audio_nodes) {
+  	$get_paths = isset($query_info['get_audio_file_paths'])?$query_info['get_audio_file_paths']:FALSE;
+    foreach ($audio_nodes as $node) {
+      $rc->count++;
+      $v = _audio_xmlrpc_value_from_node($node, $query_info['get_bodies'], $query_info['get_audio_files'], $get_paths);
+      if (!$v) {
+      	$rc->error_code = -1;
+      	$rc->error_msg = t('Error converting audio node');
+      	return $rc;
+      }
+      $rc->entries[] = $v;
+    }
+  }
+  return $rc;
+
+}
+
+/**
+ * XML-RPC callback. Returns the specified post. Does not validate user. Setting
+ * $get_bodies and $get_audio_files to FALSE returns a bandwidth-friendly entry.
+ *
+ * @param $user_info
+ *   array with Drupal nameand password of the user
+ * @param $query_info
+ *   array with the nid of the desired entry
+ * @return
+ *   array.  In case of success, 'error_code' is set to 1 and 'entry' is an array with the audio node contents.
+ *     In case of failure, 'error_code' is set to -1 and 'error_msg' will have the error description.
+ *     Return 'error_code' set to 0 in case the user does not have permissions to retrieve the specified audio entry
+ */
+function _audio_xmlrpc_get_entry($user_info, $query_info)
+{
+watchdog('get_entry', 'user_info: ' . print_r($user_info, TRUE));
+watchdog('get_entry', 'query_info: ' . print_r($query_info, TRUE));
+
+  $rc = new stdClass();
+  $rc->error_code = 1;
+
+  // make sure the specified user is valid
+  global $user;
+  if ((!empty($user_info['user_name'])) && (!empty($user_info['password']))) {
+    $account = audio_xmlrpc_user_authenticate($user_info['user_name'], $user_info['password']);
+    if (!$account->uid) {
+  	  $rc['error_code'] = -1;
+  	  $rc['error_msg'] = t('Invalid combination of user name and password.');
+      return $rc;
+    }
+    $user = $account;
+  }
+
+  // retrieve the specified audio entry
+  $rc = array();
+  $node = node_load(array('nid' => $query_info['nid']));
+  $node->status = 1; // do this so that the node_access() call below retrieves information from the node_access table...
+  if (!$node) {
+    $rc['error_code'] = -1;
+    $rc['error_msg'] = t("Error retrieving node with nid = %nid", array('%nid' => $query_info['nid']));
+  }
+  else if (!node_access('view', $node)) {
+    $rc['error_code'] = 0;
+    $rc['error_msg'] = t('User does not have permission to retrieve specified audio entry.');
+  }
+  else {
+  	$get_path = isset($query_info['get_audio_file_path'])?$query_info['get_audio_file_path']:FALSE;
+    $v = _audio_xmlrpc_value_from_node($node, $query_info['get_body'], $query_info['get_audio_file'], $get_path);
+  	if (!$v) {
+      $rc['error_code'] = -1;
+      $rc['error_msg'] = t('Error converting audio node');
+    }
+    else {
+      $rc['error_code'] = 1;
+      $rc['entry'] = $v;
+    }
+  }
+watchdog('get_entry', "error code: " . $rc['error_code']);
+if (isset($rc['entry'])) {
+  $file_info_tmp = $rc['entry']['file_info'];
+  $file_info_tmp['bits'] = strlen($file_info_tmp['bits']->data);
+  watchdog('get_entry', 'file_info: ' . print_r($file_info_tmp, TRUE));
+}
+
+  return $rc;
+}
+
+
+/*
+ * XMLRPC callback. Updates the Drupal statistics associated with node access. 
+ *
+ * @param $user_info
+ *   array with Drupal nameand password of the user
+ * @param $nid
+ *   integer. the node id of the audio entry to be updated.
+ * @return
+ *   integer. 1 in case of success, -1 in case of failure
+ */
+function _audio_xmlrpc_update_access_statistics($user_info, $nid) {
+  // make sure user information is valid for non-anonymous users
+  global $user;
+  if ((!empty($user_info['user_name'])) && (!empty($user_info['password']))) {
+    $account = audio_xmlrpc_user_authenticate($user_info['user_name'], $user_info['password']);
+    if (!$account->uid) {
+  	  $rc['error_code'] = -1;
+  	  $rc['error_msg'] = t('Invalid combination of user name and password.');
+      return $rc;
+    }
+    $user = $account;
+  }
+  // update audio node access counters
+  return audio_update_access_statistics($nid);
+}
+
+/*
+ * Updates the Drupal statistics associated with the access to the specified audio node. 
+ *
+ * @param $nid
+ *   integer. the node id of the audio entry to be updated.
+ * 
+ * @return
+ *   integer. 1 in case of success, -1 in case of failure
+ */
+function audio_update_access_statistics($nid) {
+  global $user;
+// TODO: This method will have to update the file counters in 4.7 
+  //
+  // update audio node access counters
+  //
+
+  // NOTE: the following is based on statistics_exit() function
+
+  if (variable_get('statistics_count_content_views', 0)) {
+    // We are counting content views.
+
+    // A node has been viewed, so update the node's counters.
+      db_query('UPDATE {node_counter} SET daycount = daycount + 1, totalcount = totalcount + 1, timestamp = %d WHERE nid = %d', time(), $nid);
+      // If we affected 0 rows, this is the first time viewing the node.
+      if (!db_affected_rows()) {
+        // We must create a new row to store counters for the new node.
+        db_query('INSERT INTO {node_counter} (nid, daycount, totalcount, timestamp) VALUES(%d, 1, 1, %d)', $nid, time());
+      }
+  }
+  if ((variable_get('statistics_enable_access_log', 0)) && (module_invoke('throttle', 'status') == 0)) {
+    // Statistical logs are enabled.
+    $referrer = referer_uri();  // this will be empty for XMLRPC updates
+    $hostname = $_SERVER['REMOTE_ADDR'];  // NOTE: this should be empty, too -- it will show the IP of the DRUPAL server
+    $path = "node/$nid"; // path to the specified audio entry node
+
+    $query = "SELECT `title` FROM {node} WHERE nid = %d";
+    $title = db_result(db_query($query, $nid));
+
+    // Log this page access.
+    db_query("INSERT INTO {accesslog} (title, path, url, hostname, uid, timestamp) values('%s', '%s', '%s', '%s', %d, %d)", $title, $path, $referrer, $hostname, $user->uid, time());
+  }
+
+ //
+ // Update the 'last viewed' timestamp of the specified node for current user
+ //
+
+  node_tag_new($nid);
+
+  return 1;
+}
+
+
+/*
+ * Convert the specified audio node into an entry that can be returned via XMLRPC.
+ */
+function _audio_xmlrpc_value_from_node($node, $get_body = TRUE, $get_audio_file = TRUE, $get_audio_file_path = FALSE) {
+  $xmlrpcval = array (
+    'drupal_uid' => $node->uid,
+    'nid' => $node->nid,
+    'date_created' => $node->created,
+    'last_modified' => $node->changed,
+    'unread' => $node->unread,
+    'title' => $node->title,
+    'url' => url('node/'.$node->nid, NULL, NULL, true)
+  );
+
+  if ($get_body) {
+    $xmlrpcval['body'] = $node->body;
+  }
+
+  $file_info = Array();
+
+  if ($node->audio_file) {  // if there is an audio file associated with this entry...
+
+    // get ID3 information
+    $file_info['track_title'] = $node->audio_tags['title'];
+    $file_info['artist'] = $node->audio_tags['artist'];
+    $file_info['album'] = $node->audio_tags['album'];
+    $file_info['year'] = $node->audio_tags['year'];
+    $file_info['playtime'] = $node->audio_fileinfo['playtime'];
+
+    $file_info['name'] = $node->audio_file->filename;
+    $file_info['mime_type'] = $node->audio_file->filemime;
+    $file_info['size'] = $node->audio_file->filesize;
+
+    if ($get_audio_file_path) {
+      $file_info['path'] = getcwd() . DIRECTORY_SEPARATOR . $node->audio_file->filepath;
+    }
+   
+/**********/
+// Original
+    if ($get_audio_file) {
+      $fh = fopen($node->audio_file->filepath, 'rb');
+      if (!$fh) {
+        watchdog('audio_xmlrpc', t('Error opening file %filepath.', array('%filepath' => $node->audio_file->filepath)), WATCHDOG_ERROR);
+        return FALSE;
+      }
+
+      $bits = "";
+      while (!feof($fh)) {
+        $bits .= fread( $fh, 8192);
+      }
+      $file_info['bits'] = xmlrpc_base64($bits);
+    }
+/***********/
+/****
+// Attempt 1
+    if ($get_audio_file) {
+      $bits = file_get_contents($node->audio_file->filepath);
+      $index = 0;
+      $limit = 100 * 1024; // set the limit to 100k chunks
+      $base64_string = base64_encode($bits);
+      while ($encoded_array[] = substr($base64_string, $index, $limit)) {
+        $index += $limit;
+      }
+      $file_info['bits'] = $encoded_array;
+    }
+*****/
+/*****
+// Attempt 2
+    if ($get_audio_file) {
+      $fh = fopen($node->audio_file->filepath, 'rb');
+      if (!$fh) {
+        watchdog('audio_xmlrpc', t('Error opening file %filepath.', array('%filepath' => $node->audio_file->filepath)), WATCHDOG_ERROR);
+        return FALSE;
+      }
+
+      $bits = "";
+      while (!feof($fh)) {
+        $bits[] = base64_encode(fread($fh, 8192));
+      }
+      $file_info['bits'] = $bits;
+    }
+*******/
+/********
+// Attempt 3
+    if ($get_audio_file) {
+      $bits = file_get_contents($node->audio_file->filepath);
+      $index = 0;
+      $limit = 100 * 1024; // set the limit to 100k chunks
+      while ($encoded_array[] = base64_encode(substr($bits, $index, $limit))) {
+        $index += $limit;
+      }
+      $file_info['bits'] = $encoded_array;
+    }
+*********/
+  }
+  $xmlrpcval['file_info'] = $file_info;
+watchdog("xmlrpc test", "(returning xmlrpcval) nid: $node->nid, size: " . strlen($bits) . ", time: " . date('h:i:s A'));
+  return $xmlrpcval;
+}
+
+
+/*
+ * returns list with audio nodes that match specified criteria
+ *
+ * @param $query_info
+ *   array with the query criteria for the audio entries:
+ *     ['status'] :: 1 = published, 0 = unpublished, NULL = any
+ *     ['promote'] :: 1 = promoted to the front page, 0 = not promoted, NULL = any
+ *     ['uid'] :: user id of the desired entries author, or NULL for any
+ *     ['name'] :: username of the desired entries author, or NULL for any. Note that this option
+ *       cannot not be used in conjunction with the 'uid' one.
+ *     ['categories_or'] :: array with category ids to be ORed; or NULL for all
+ *     ['categories_and'] :: array with category ids to be ANDed; or NULL for all
+ *     ['unread_entries_only'] :: TRUE, return only the entries that haven't been read by the user
+ *     ['read_entries_only'] :: TRUE, return only the entries that have already been read by the user.
+ *       Note that this option cannot be used in conjunction with 'unread_entries_only'
+ *     ['date_from'] :: time stamp of the oldest entry desired.  If NULL, assume no oldest date limit.
+ *     ['date_to'] :: time stamp of the newest entry desired.  If NULL, assume no newest date limit.
+ *     ['gid'] :: (optional) with the id of the group of where the selected entries have been published to 
+ *     ['limit'] :: (optional) the maximum number of nodes to be returned
+ *
+ * @return
+ *   array with the audio nodes that obey the specified criteria. Note that audio nodes
+ *   that haven't been read by the user will have an extra element ['unread'] set to TRUE.
+ */
+function _audio_api_get_node_list($query_info) {
+
+  global $user;
+
+  //
+  // Prepare the arguments for the query
+  //
+
+  $query_status = empty($query_info['status']) ? '' : 'AND n.status=' . $query_info['status'];
+  
+  $query_promote = empty($query_info['promote']) ? '' : 'AND n.promote=' . $query_info['promote'];
+
+  $query_user = empty($query_info['uid']) ? '': 'AND n.uid=' . $query_info['uid'];
+  if (empty($query_user)) {
+    $join_name = (!$query_info['name']) ? '': ' INNER JOIN {users} u ON n.uid=u.uid ';
+    $query_name = (!$query_info['name']) ? '': "AND u.name='" . $query_info['name'] . "'";
+  }
+  else {
+    $join_name = '';
+    $query_name = '';
+  }
+
+  $tids_or_tmp = $query_info['categories_or'];
+  $query_tids_or = '';
+  if (!empty($tids_or_tmp) && !in_array(NULL, $tids_or_tmp)) { // make sure none of the array elements is NULL
+    $query_tids_or = 'AND ( t.tid=' . implode(' OR t.tid=', $tids_or_tmp);
+    $query_tids_or .= ')';
+  }
+
+  $tids_and_tmp = $query_info['categories_and'];
+  $query_tids_and = '';
+  if (!empty($tids_and_tmp) && !in_array(NULL, $tids_and_tmp)) { // make sure none of the array elements is NULL
+    $query_tids_and = 'AND ( t.tid=' . implode(' AND t.tid=', $tids_and_tmp);
+    $query_tids_and .= ')';
+  }
+
+  $join_categories = '';
+  if (!empty($query_tids_or) || !empty($query_tids_and)) { // if at least a category is being queried...
+    $join_categories = ' INNER JOIN {term_node} t ON n.nid=t.nid ';
+  }
+
+  $query_date_from = empty($query_info['date_from'])? '': $query_date_from = "AND n.changed >= " . $query_info['date_from'];
+
+  $date_to = (!$query_info['date_to']) ? '' : $query_info['date_to'];
+  $query_date_to = ($date_to) ? "AND n.changed <= $date_to" : '';
+  
+  $limit = empty($query_info['limit'])?'':("LIMIT 0, " . $query_info['limit']);
+  
+  $args = (!$query_info['gid']) ? NULL : array('og_nid' => $query_info['gid']);
+
+  //
+  // Do the query
+  //
+
+  $query = "SELECT DISTINCT n.nid FROM {node} n $join_name $join_categories "
+            . " WHERE n.type='audio' "
+            . " $query_status $query_promote $query_user $query_name $query_tids_or $query_tids_and $query_date_from $query_date_to "
+            . " ORDER BY n.sticky DESC, n.changed DESC $limit";
+  $query = db_rewrite_sql($query, 'n', 'nid', $args);
+
+  $result = db_query($query);
+
+  $unread_entries_only = (isset($query_info['unread_entries_only'])) ? $query_info['unread_entries_only'] : FALSE;
+
+  $read_entries_only = FALSE;
+  if (!$unread_entries_only) {
+    $read_entries_only = (isset($query_info['read_entries_only'])) ? $query_info['read_entries_only'] : FALSE;
+  }
+
+  $audio_nodes = array();
+  
+  while ($node = db_fetch_object($result)) {
+    $node_tmp = node_load(array('nid' => $node->nid));
+
+    // if user has permission to view the entry...
+    if (node_access('view', $node_tmp)) {
+
+      // check if the user has already read the entry
+      $mark = node_mark($node_tmp->nid, $node_tmp->changed);
+
+      // if node not already read...
+      if ($mark != MARK_READ) {
+        if ($read_entries_only == FALSE) {
+          $node_tmp->unread = TRUE;
+          $audio_nodes[] = $node_tmp;
+        }
+      }
+      // if node already read...
+      else {
+        if ($unread_entries_only == FALSE) {
+          $node_tmp->unread = FALSE;
+          $audio_nodes[] = $node_tmp;
+        }
+      }
+    }
+  }
+
+  return $audio_nodes;
+}
+
+
+?>

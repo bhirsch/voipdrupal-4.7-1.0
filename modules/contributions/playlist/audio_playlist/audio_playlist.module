@@ -1,0 +1,1108 @@
+<?php
+// $Id: audio_playlist.module,v 1.9 2006/07/19 07:31:14 zirafa Exp $
+/**
+ * @file
+ * This module provides various playlists for audio media, including podcasts.
+ */
+
+define('AUDIO_PLAYLIST_PATH', drupal_get_path('module', 'audio_playlist')); 
+include(AUDIO_PLAYLIST_PATH .'/audio_playlist.theme'); 
+theme_add_style(AUDIO_PLAYLIST_PATH .'/audio_playlist.css');
+
+// Use a settings variable to control the readable name of the node type.
+define("AUDIO_PLAYLIST_NAME", variable_get('audio_playlist_name', 'audio playlist'), true);
+ 
+/**
+ * Implementation of hook_node_info().
+ */
+function audio_playlist_node_info() {
+  return array('audio_playlist' => array('name' => AUDIO_PLAYLIST_NAME, 'base' => 'audio_playlist'));
+}
+
+/**
+ * Implementation of hook_help().
+ */
+function audio_playlist_help($section) {
+  switch ($section) {
+    case 'admin/help#audio_playlist':
+      return t('This module creates an audio playlist out of audio content.  It creates dynamic xspf, pls, and podcast feeds to facilitate in remixing and distributing songs, music, and more!');
+    case 'admin/modules#description':
+      if(!module_exist("audio")) drupal_set_message("<div style=\"color:red; font-weight:bold;\">You must first install and enable the audio.module in order for the audio_playlist.module to work correctly.</div>");
+      if(!module_exist("playlist")) drupal_set_message("<div style=\"color:red; font-weight:bold;\">You must first install and enable the playlist.module in order for the audio_playlist.module to work correctly.</div>");  
+  
+      return t('Creates an audio playlist with podcast, xspf, m3u and pls feeds. <b>*NOTE* You must first install and enable the audio.module and playlist.module in order for this module to work correctly.</b>');
+    case 'node/add#audio_playlist':
+      return variable_get('audio_playlist_desc', 'Create an audio playlist with podcast, xspf, m3u and pls feeds.');
+    // OPTIONAL: Add additional cases for other paths that should display help text.
+  }
+}
+ 
+/**
+ * Implementation of hook_access().
+ */
+function audio_playlist_access($op, $node) {
+  global $user;
+  
+  if ($op == 'create') {
+    return user_access('create audio playlist');
+  }
+
+  if ($op == 'update' || $op == 'delete') {
+    if (user_access('edit own audio playlist') && ($user->uid == $node->uid)) {
+      return TRUE;
+    }
+  }
+}
+
+
+/**
+ * Implementation of hook_delete().
+ */
+function audio_playlist_delete(&$node) {
+  //delete playlist_relate data associated with this node
+  playlist_remove($node->nid);
+  db_query('DELETE FROM {audio_playlist_metadata} WHERE pid = %d', $node->nid);
+}
+
+
+/**
+ * Implementation of hook_form().
+ */
+function audio_playlist_form(&$node, &$param) {
+  if(!module_exist("audio")) drupal_set_message("<div style=\"color:red; font-weight:bold;\">You must first install and enable the audio.module in order for the audio_playlist.module to work correctly.</div>");
+  if(!module_exist("playlist")) drupal_set_message("<div style=\"color:red; font-weight:bold;\">You must first install and enable the playlist.module in order for the audio_playlist.module to work correctly.</div>");  
+  
+  $form['title'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Title'),
+    '#required' => TRUE,
+    '#default_value' => $node->title,
+    '#weight' => -5
+  );
+  $form['body_filter']['body'] = array(
+    '#type' => 'textarea',
+    '#title' => t('Description'),
+    '#default_value' => $node->body,
+    '#required' => FALSE
+  );
+  $form['body_filter']['filter'] = filter_form($node->format);
+  $form['playlist_info'] = array(
+    '#type' => 'fieldset', 
+    '#title' => t('%node_name info', array('%node_name' => drupal_ucfirst(AUDIO_PLAYLIST_NAME))),
+    '#collapsible'=> TRUE,
+    '#tree' => TRUE,
+    '#description' => t('These extra fields are used to generate iTunes compatible podcasts.')
+  );  
+  $form['playlist_info']['image_url'] = array(
+    '#type' => 'textfield',
+    '#title' => t('URL for image'),
+    '#description' => t('An image that is at least 300x300 pixels is necessary for iTunes compatibility.'),
+    '#required' => FALSE,
+    '#default_value' => $node->playlist_info['image_url']
+  );  
+  $form['playlist_info']['subtitle'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Subtitle'),
+    '#required' => FALSE,
+    '#default_value' => $node->playlist_info['subtitle']
+  );
+  $form['playlist_info']['author'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Author'),
+    '#required' => FALSE,
+    '#default_value' => $node->playlist_info['author']
+  ); 
+  $form['playlist_info']['copyright'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Copyright'),
+    '#required' => FALSE,
+    '#default_value' => $node->playlist_info['copyright']
+  );    
+  $form['playlist_info']['owner'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Owner'),
+    '#required' => FALSE,
+    '#default_value' => $node->playlist_info['owner']
+  );
+  $form['playlist_info']['owner_email'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Owner\'s Email'),
+    '#required' => FALSE,
+    '#default_value' => $node->playlist_info['owner_email']
+  );
+  $form['playlist_info']['explicit'] = array(
+    '#type' => 'select',
+    '#title' => t('Explicit'),
+    '#required' => TRUE,
+    '#options' => array(0 =>'no', 1 =>'yes'),
+    '#default_value' => $node->playlist_info['explicit'],
+    '#description' => t('Please specify if your ' .AUDIO_PLAYLIST_NAME. ' contains explicit material.')
+  );   
+  if ($node->nid) {
+    $form['distribution'] = array(
+      '#type' => 'fieldset', 
+      '#title' => t('Cut-N-Paste HTML'),
+      '#collapsible'=> TRUE,
+      '#tree' => TRUE,
+      '#description' => t('Distribute your ' .AUDIO_PLAYLIST_NAME .' by cutting and pasting the following HTML to your personal website, myspace, or blog site.')
+    );
+    $form['distribution']['HTML'] = array(
+      '#type' => 'textfield',
+      '#maxlength' => 5000,
+      '#length' => 4,
+      '#default_value' => str_replace("\n \r", "", theme('audio_playlist_get_player', $node->nid, array(), FALSE, null, null, 'embed')),
+      '#required' => FALSE,
+      '#attributes' => array('name' => 'xspf-html-embed', 'onclick' => 'javascript:select();', 'readonly' => 'true'),
+      '#description' => t('Instructions: Cut and paste the above HTML to another site and your flash player will be loaded into the page.'),
+    );
+  } 
+  return $form;
+}
+
+
+/**
+ * Implementation of hook_validate().
+ */
+function audio_playlist_validate(&$node) {
+  // TODO: Enter form validation code here
+}
+
+/**
+ * Implementation of hook_insert().
+ */
+function audio_playlist_insert(&$node) {
+  $node->playlist_info = $_POST['edit']['playlist_info'];
+  //save the metadata
+  $i = $node->playlist_info;
+  db_query("INSERT INTO {audio_playlist_metadata} (pid, image_url, subtitle, author, copyright, owner, owner_email, explicit) VALUES (%d, '%s', '%s', '%s', '%s', '%s', '%s', %d)", $node->nid, $i['image_url'], $i['subtitle'],$i['author'],$i['copyright'], $i['owner'], $i['owner_email'], $i['explicit']);
+}
+
+/**
+ * Implementation of hook_load().
+ */
+function audio_playlist_load(&$node) {
+  $add = array();
+  //add the audio nodes to the playlist node object 
+  $add['audio_playlist_items'] = playlist_get_children($node->nid, 'audio_playlist');
+  //add the metadata to the playlist node object
+  $add['playlist_info'] = db_fetch_array(db_query("SELECT * FROM {audio_playlist_metadata} WHERE pid = %d", $node->nid));
+  
+  return $add;
+}
+
+/**
+ * Implementation of hook_update().
+ */
+function audio_playlist_update($node) {
+  $node->playlist_info = $_POST['edit']['playlist_info'];
+  //save the metadata
+  $i = $node->playlist_info;
+  db_query("UPDATE {audio_playlist_metadata} SET image_url = '%s', subtitle = '%s', author = '%s', copyright = '%s', owner = '%s', owner_email = '%s', explicit = %d WHERE pid = %d", $i['image_url'], $i['subtitle'],$i['author'],$i['copyright'], $i['owner'], $i['owner_email'], $i['explicit'], $node->nid);
+}
+
+/**
+ * Implementation of hook_view().
+ */
+function audio_playlist_view(&$node, $teaser = FALSE, $page = FALSE) {  
+  $node = node_prepare($node, $teaser);
+  $node->teaser = theme('audio_playlist_teaser', $node);
+  $node->body = theme('audio_playlist_body', $node);
+}
+
+
+/**
+ * Implementation of hook_form_alter().
+ */
+function audio_playlist_form_alter($form_id, &$form) {
+  global $user;
+  
+  if ('audio_node_form' == $form_id) {
+    $node = $form['#node'];
+    // _form_form code follows:
+    $parents = playlist_get_parents(array( 'uid' => $user->uid, 'type' => 'audio_playlist'));
+    $form['playlist'] = array(
+      '#type' => 'fieldset', '#title' => t('Playlists'),
+      '#collapsible'=> TRUE,
+      '#weight' => -2,
+      '#tree' => TRUE,
+    );
+    foreach($parents as $parent_id) {
+      $parent = node_load($parent_id);
+      $form['playlist'][$parent->nid] = array('#type' => 'checkbox', '#title' => $parent->title, '#default_value' => playlist_check(array('parent_id'=>$parent_id, 'child_id' => $node->nid)));
+    }    
+    // the final return is not needed because $form is a reference.
+  } 
+}
+
+/**
+ *  Implementation of hook_block().
+ */
+function audio_playlist_block($op = 'list', $delta = 0, $edit = array()) {
+  if ($op == 'list') {
+    $blocks[0]['info'] = t('XSPF Player');
+    return $blocks;
+  }
+  else if ($op == 'configure' && $delta == 0) {
+    $xspf_settings = variable_get('xspf_block_settings', array('style' => 'slim', 'autoplay' => FALSE, 'width' => '200', 'title' => t('Listening Station')));
+    $form['xspf_block'] = array(
+      '#type' => 'fieldset',
+      '#tree' => TRUE,
+      '#title' => t('XSPF Player Options'),
+    );    
+    $form['xspf_block']['style'] = array(
+      '#type' => 'select',
+      '#title' => t('Choose XSPF player style'),
+      '#description' => t('The extended style shows individual track names and artwork. The slim player takes less space and does not show this information.'),
+      '#default_value' => $xspf_settings['style'],
+      '#options' => array(TRUE => t('slim'), FALSE => t('extended')),
+    );
+    $form['xspf_block']['autoplay'] = array(
+      '#type' => 'checkbox',
+      '#title' => t('Autoplay'),
+      '#description' => t('Checking this box will tell the XSPF player to automatically start playing when the page is loaded.'),
+      '#default_value' => $xspf_settings['autoplay']
+    );
+    $form['xspf_block']['width'] = array(
+      '#type' => 'textfield',
+      '#title' => t('Width'),
+      '#description' => t('Width of the player in pixels'),
+      '#default_value' => $xspf_settings['width']     
+    );
+    $form['xspf_block']['title'] = array(
+      '#type' => 'textfield',
+      '#title' => t('Title'),
+      '#description' => t('Title of the block, such as "Listening Station".'),
+      '#default_value' => $xspf_settings['title']     
+    );
+    return $form;
+  }
+  else if ($op == 'save' && $delta == 0) {
+    $xspf_settings = variable_set('xspf_block_settings', $edit['xspf_block']);
+  }
+  else if ($op == 'view') {
+    switch($delta) {
+      case 0:
+        $xspf_settings = variable_get('xspf_block_settings', array('style' => 'slim', 'autoplay' => FALSE, 'width' => '200', 'title' => t('Listening Station')));
+        $block['subject'] = $xspf_settings['title'];
+        $block['content'] = audio_playlist_chooser();
+        break;
+    }
+    return $block;
+  }
+}
+
+/**
+ * Implementation of hook_link().
+ */
+function audio_playlist_link($type, $node = NULL, $teaser = FALSE) {
+  global $base_url;
+  global $user;
+  $links = array();
+  switch($node->type) {
+    //add audio playlist feed links
+    case 'audio_playlist':
+      $feed_links = variable_get('audio_playlist_feed_links', array('podcast', 'm3u', 'pls', 'xspf'));
+      foreach($feed_links as $key => $type) {
+        switch((string)$type) {
+          case 'podcast':
+            $links[] = l(t('podcast'), 'node/'.$node->nid.'/podcast', array('title' => t('subscribe to this podcast')));
+            break;
+          case 'm3u':
+            $links[] = l(t('m3u'), 'node/'.$node->nid.'/m3u', array('title' => t('stream M3U feed')));
+            break;
+          case 'pls':
+            $links[] = l(t('pls'), 'node/'.$node->nid.'/pls', array('title' => t('stream PLS feed')));
+            break;
+          case 'xspf':
+            $links[] = l(t('xspf'), 'node/'.$node->nid.'/xspf', array('title' => t('shareable XSPF feed')));
+            break;
+          default:
+            break;
+        }
+      }
+      //TODO: figure out why l() won't work for this
+      $links[] = theme('audio_playlist_popup_link', $node->nid, 'launch popup player');
+      break;
+    //attach a link to add current audio node to a playlist
+    case 'audio':
+      if (user_access('create audio playlist')) {
+        $links[] = l(t('add to ' . AUDIO_PLAYLIST_NAME), 'playlist/add/audio_playlist/' . $node->nid);  
+      }
+      break;
+  }
+  
+  return $links;
+}
+
+
+/**
+ * Implementation of hook_menu().
+ */
+function audio_playlist_menu($may_cache) {
+  global $user;
+  $items = array();
+
+  if ($may_cache) {
+    $items[] = array(
+      'path' => 'node/add/audio_playlist',
+      'title' => AUDIO_PLAYLIST_NAME . 's',
+      'access' => user_access('create audio playlist'),
+    );
+    $items[] = array(
+      'path' => 'playlist', 
+      'title' => AUDIO_PLAYLIST_NAME,
+      'callback' => 'audio_playlist_page',
+      'access' => user_access('access content'),
+      'type' => MENU_SUGGESTED_ITEM
+    );    
+    $items[] = array(
+      'path' => 'playlist/'. $user->uid, 
+      'title' => t('my %names', array('%name'=>AUDIO_PLAYLIST_NAME)),
+      'access' => user_access('create audio playlist'),
+      'type' => MENU_NORMAL_ITEM
+    );
+    $items[] = array(
+      'path' => 'playlist/browse/audio', 
+      'title' => t('browse audio'), 
+      'callback' => 'audio_playlist_browse',
+      'access' => user_access('access content'),
+      'type' => MENU_NORMAL_ITEM
+    );    
+
+  } 
+  else if (arg(0) == 'node' && is_numeric(arg(1))) {
+    $current = node_load(arg(1));
+    if ($current->type == 'audio_playlist') {
+      $items[] = array('path' => 'node/'. arg(1) .'/podcast', 
+          'title' => t('Podcast'),
+          'type' => MENU_CALLBACK,
+          'callback' => 'audio_playlist_podcast',
+          'callback arguments' => arg(1)
+          );
+        $items[] = array('path' => 'node/'. arg(1) .'/xspf', 
+          'title' => t('XSPF'),
+          'type' => MENU_CALLBACK,
+          'callback' => 'audio_playlist_xspf',
+          'callback arguments' => arg(1)
+          );
+        $items[] = array('path' => 'node/'. arg(1) .'/m3u', 
+          'title' => t('M3U'),
+          'type' => MENU_CALLBACK,
+          'callback' => 'audio_playlist_m3u',
+          'callback arguments' => arg(1)
+          );
+        $items[] = array('path' => 'node/'. arg(1) .'/pls', 
+          'title' => t('PLS'),
+          'type' => MENU_CALLBACK,
+          'callback' => 'audio_playlist_pls',
+          'callback arguments' => arg(1)
+          );
+        $items[] = array('path' => 'node/'. arg(1) .'/popup', 
+          'title' => t('XSPF Popup'),
+          'type' => MENU_CALLBACK,
+          'callback' => 'audio_playlist_popup',
+          'callback arguments' => arg(1)
+          );
+        $items[] = array(
+          'path' => 'node/'. arg(1) .'/manage', 
+          'title' => t('manage ' . AUDIO_PLAYLIST_NAME),
+          'type' => MENU_LOCAL_TASK,
+          'access' => node_access('update', node_load(arg(1)), $user->uid), 
+          'weight' => 2,
+          'callback' => 'audio_playlist_manage',
+          'callback arguments' => arg(1)
+          );  
+        $items[] = array(
+          'path' => 'node/'. arg(1) .'/getplayer.js', 
+          'title' => t('Javascript to generate XSPF Player'),
+          'type' => MENU_CALLBACK,
+          'callback' => 'audio_playlist_js',
+          'callback arguments' => arg(1)
+          );  
+    }
+  }
+  
+  return $items;
+}
+
+
+/**
+ * Implementation of hook_nodeapi().
+ */
+function audio_playlist_nodeapi(&$node, $op, $teaser = NULL, $page = NULL) {
+  global $user;
+
+  if($node->type == 'audio') {
+    switch ($op) {
+      case 'insert':
+watchdog('pap', 'entering audio_playlist_nodeapi insert... playlist: ' . print_r($node->playlist, TRUE));
+        if($node->playlist) {
+          foreach($node->playlist as $parent_id => $value) {
+            if($value) {
+              playlist_add_child($node->nid, $parent_id, 'audio_playlist', variable_get('audio_playlist_stack_bottom', 1));
+            }
+            else {
+              playlist_remove_child($node->nid, $parent_id);
+            }
+          }
+        }
+        break;
+      case 'update':
+        foreach($node->playlist as $parent_id => $value) {
+          if($value) {
+            playlist_add_child($node->nid, $parent_id, 'audio_playlist', variable_get('audio_playlist_stack_bottom', 1));
+          }
+          else {
+            playlist_remove_child($node->nid, $parent_id);
+          }
+        }
+        break;
+      case 'view':
+          $playlists = playlist_get_parents(array('child_id' =>$node->nid, 'uid' => $user->uid, 'type' => 'audio_playlist'));
+          if(count($playlists) > 0) {
+            foreach($playlists as $playlist_id) {
+              $playlist = node_load($playlist_id);
+              $add .= l($playlist->title,'node/' . $playlist->nid) . "<br>";
+            }
+              $node->body .= theme('fieldset', array('#title' => t("Found in these %node_name(s)", array('%node_name' => AUDIO_PLAYLIST_NAME)), '#value' => $add));
+          
+          }
+          break;
+      case 'delete':
+        playlist_remove_child($node->nid, NULL);
+        break;
+    }
+  }
+}
+
+
+/**
+ * Implementation of hook_perm().
+ */
+function audio_playlist_perm() {
+  return array('create audio playlist', 'edit own audio playlist');
+}
+
+
+/**
+ * Implementation of hook_search().
+ */
+function audio_playlist_search($op = 'search', $keys = null) {
+
+}
+
+
+/**
+ * Implementation of hook_settings().
+ */
+function audio_playlist_settings() {
+  if(!module_exist("audio")) drupal_set_message("<div style=\"color:red; font-weight:bold;\">You must first install and enable the audio.module in order for the audio_playlist.module to work correctly.</div>");
+  if(!module_exist("playlist")) drupal_set_message("<div style=\"color:red; font-weight:bold;\">You must first install and enable the playlist.module in order for the audio_playlist.module to work correctly.</div>");  
+  
+  $form['audio_playlist_name'] = array('#type' => 'fieldset', '#title' => t('Name settings'));
+  $form['audio_playlist_name']['audio_playlist_name'] = array('#type' => 'textfield', '#title' => t('audio playlist readable name'), '#default_value' => variable_get('audio_playlist_name', 'audio playlist'), '#size' => 30, '#description' => t('You can rename audio playlist to other commonly used terminology such as "podcast", "music playlist", "song playlist", or "album". Users will see this when they go to create >> content.'));
+  $form['audio_playlist_name']['audio_playlist_desc'] = array('#type' => 'textfield', '#title' => t('admin/modules#description help text'), '#default_value' => variable_get('audio_playlist_desc', 'Create an audio playlist with podcast, xspf, m3u and pls feeds.'), '#size' => 80, '#description' => t('You can change the help text that users see when they go to create >> content.'));
+  $form['audio_playlist_feeds'] = array('#type' => 'fieldset', '#title' => t('Link settings'));
+  $form['audio_playlist_feeds']['audio_playlist_feed_links'] = array(
+    '#type'=>'checkboxes', 
+    '#title' => t('Enable links to following playlist formats'), 
+    '#default_value' => variable_get('audio_playlist_feed_links', array('podcast', 'm3u', 'pls', 'xspf')), 
+    '#options' => array('podcast' => t('podcast'), 'm3u' => 'm3u', 'pls' => t('pls'), 'xspf' =>   t('xspf')), '#description' => t('Enable which links to playlist feeds you would like to generate.')
+    );
+  $form['audio_playlist_browser'] = array('#type' => 'textfield', '#title' => t('Number of tracks to display in the audio browser view'), '#default_value' => variable_get('audio_playlist_browser', 20), '#size' => 10, '#description' => t('You can change the number of tracks displayed per page on the playlist/browse/audio page.  Beware a high number may crash some browsers because each audio file has to load a mini flash player.'));    
+  $form['audio_playlist_stack_bottom'] = array(
+    '#type' => 'radios',
+    '#title' => t('Stacking order'),
+    '#default_value' => variable_get('audio_playlist_stack_bottom', 1),
+    '#options' => array(t('Top'), t('Bottom')),
+    '#description' => t('The stacking order specifies if new audio tracks should be added to the top of a playlist or if it should appear at the bottom.  For podcasting it is convenient to have new tracks appear at the top.')
+    );
+  return $form;
+}
+
+
+/* *
+ *  Add a small form to upload a new audio file to the playlist (will create a new audio node for each file uploaded)
+ */
+function audio_playlist_upload_form($node) {
+  $form['#attributes'] = array("enctype" => "multipart/form-data");
+  $form['audio_add'] = array(
+    '#type' => 'fieldset',
+    '#title' => t('Add new audio file'),
+    '#collapsible' => true,
+    '#collapsed' => false
+  );
+  $form['audio_add']['nid'] = array('#type' => 'hidden' , '#value' => $node->nid);
+  $form['audio_add']['uid'] = array('#type' => 'hidden' , '#value' => $node->uid);
+  $form['audio_add']['name'] = array('#type' => 'hidden' , '#value' => $node->name);
+  $form['audio_add']['created'] = array('#type' => 'hidden' , '#value' => $node->created);
+  $form['audio_add']['audio_upload'] = array(
+    '#type' => 'file', '#title' => t('Add a new audio file to this ' . AUDIO_PLAYLIST_NAME),
+    '#description' => t('Click "Browse..." to select an audio file to upload. <strong>NOTE:</strong> the current PHP configuration limits uploads to %maxsize. ', array('%maxsize' => format_size(audio_get_max_upload_size()))),
+  );
+  $form['audio_add']['audio_title'] = array('#type' => 'textfield', '#title' => t('audio title'), '#default_value' => variable_get('audio_default_title_format', '%title by %artist')); 
+  $form['audio_add']['submit'] = array('#type' => 'submit', '#value' => t('Upload'));
+  $output = drupal_get_form('audio_playlist_upload', $form);
+  
+  return $output;
+}
+
+
+/* *
+ *  Add a small form to upload a new audio file to the playlist (will create a new audio node for each file uploaded)
+ */
+function audio_playlist_upload_submit($form_id, $form_values) {
+  $audio->title = $form_values['audio_title'];
+  $audio->uid = $form_values['uid'];
+  $audio->name = $form_values['name'];
+  $audio->created = $form_values['created'];
+  $audio->type = 'audio';
+  audio_prepare($audio);
+  if ($audio->audio_file) {
+    $audio->audio_fileinfo['downloadable'] = 1;
+    node_validate($audio);
+    if (!form_get_errors()) {
+      $audio = node_submit($audio);
+      node_save($audio);
+      playlist_add_child($audio->nid, $form_values['nid'], 'audio_playlist', variable_get('audio_playlist_stack_bottom', 1));
+    }
+  } 
+}
+
+
+/** 
+*  Menu tab to manage a playlist.  A wrapper for the playlist management functions.
+*/
+function audio_playlist_manage($nid) {
+  $node = node_load($nid);
+  $output = theme('playlist_sortable', $node->nid, 'audio_playlist') . audio_playlist_browse($node->nid) . audio_playlist_upload_form($node);
+  return $output;
+}
+
+/**
+ * Menu callback; displays a Drupal page containing recent audio playlists or XML feeds
+* playlist/[uid]/feed (RSS feed of a user's recents feeds)
+* playlist/[uid]  (displays all the recent playlist posted by a user)
+* playlist/ (displays all recent playlists posted to site
+* playlist/feed (displays an RSS feed of recent playlists)
+*/
+
+function audio_playlist_page($a = NULL, $b = NULL) {
+global $user;
+
+  if (is_numeric($a)) { // $a is a user ID OR a node ID
+    switch ($b) {
+      case 'feed':
+        return audio_playlist_user_feed($a); //$a is a UID
+      default:
+        return audio_playlist_page_user($a); //$a is a UID
+    }  
+  }
+  else if ($a == 'feed') {
+    return audio_playlist_feed_last();
+  }
+  else if ($a == 'browse' && $b == 'audio') {
+    return audio_playlist_browse();
+    
+  }
+  else {
+    return audio_playlist_page_last();
+  }
+}
+
+/**
+ * Generate podcast feed
+ * playlist/[nid]/podcast
+ */
+function audio_playlist_podcast($parent_id = NULL) {
+  global $base_url;
+  
+  $playlist = node_load($parent_id);
+  $result = db_query("SELECT child_id FROM {playlist_relate} p INNER JOIN {node} n ON n.nid = p.parent_id WHERE parent_id = %d ORDER BY n.created DESC", $parent_id);
+  $children = array();
+  while ($row = db_fetch_object($result)) {
+    $children[] = $row->child_id;
+  }
+
+  $output  = '<?xml version="1.0" encoding="UTF-8"?>' . " \n";
+  $output .= '<rss xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd" xmlns:content="http://purl.org/rss/1.0/modules/content/" xmlns:wfw="http://wellformedweb.org/CommentAPI/" xmlns:dc="http://purl.org/dc/elements/1.1/" version="2.0">' . " \n";
+  $output .= "<channel> \n";
+  $output .= "<ttl>60</ttl> \n";
+  $output .= "<title>{$playlist->title}</title> \n";
+  $output .= "<link>" . $base_url . "/?q=node/" .$playlist->nid. "</link> \n";
+  $output .= "<generator>Drupal Audio Playlist Module</generator>";
+  $output .= "<managingEditor>{$playlist->playlist_info['owner_email']} ({$playlist->playlist_info['owner']})</managingEditor>";
+  $output .= "<pubDate>" . date('r', $playlist->created) . "</pubDate> \n";
+  $output .= "<language>en</language>"; //TODO: figure out real language
+  $output .= "<copyright>{$playlist->playlist_info['copyright']}</copyright>";
+  $explicit = $playlist->playlist_info['explicit'] ? 'yes' : 'no';
+  $output .= "<itunes:explicit>{$explicit}</itunes:explicit>";
+  $output .= "<itunes:subtitle>{$playlist->playlist_info['subtitle']}</itunes:subtitle>";
+  $output .= "<itunes:author>{$playlist->playlist_info['author']}</itunes:author>";
+  $output .= "<itunes:summary>" . check_plain($playlist->teaser) . "</itunes:summary>";
+  $output .= "<description>" . check_plain($playlist->teaser) ."</description>";
+  $output .= "<itunes:owner>";
+  $output .= "<itunes:name>{$playlist->playlist_info['owner']}</itunes:name>";
+  $output .= "<itunes:email>{$playlist->playlist_info['owner_email']}</itunes:email>";
+  $output .= "</itunes:owner>";
+  $output .= "<itunes:image href=\"{$playlist->playlist_info['image_url']}\" />";
+  list($img_width, $img_height, $img_type, $img_attr) = getimagesize($playlist->playlist_info['image_url']);
+  $output .= "<image><url>{$playlist->playlist_info['image_url']}</url><width>{$img_width}</width><height>{$img_height}</height></image>";
+  //use taxonomy for categories...only supports top level categories for now
+  if ($playlist->taxonomy) {
+    foreach ($playlist->taxonomy as $term) {
+      $output .= "<itunes:category text=\"{$term->name}\"/>"; // </itunes:category> used for subcategories
+      $output .= "<category>{$term->name}</category>";  // rss categories
+    }
+  }
+  //cycle through all the <items>
+  foreach ($children as $child) {
+    $audio_node = node_load($child);    
+    if ($audio_node->audio_fileinfo['downloadable']) {
+      $output .= "<item> \n";
+      $output .= "  <title>{$audio_node->audio_tags['title']}</title> \n";
+      $output .= "  <guid>". $base_url ."/?q=node/". $audio_node->nid ."</guid> \n";
+      $output .= "  <link>". $base_url ."/?q=node/". $audio_node->nid ."</link> \n";
+      $output .= "  <itunes:author>{$audio_node->audio_tags['artist']}</itunes:author> \n";
+      $output .= "  <itunes:subtitle>{$audio_node->audio_tags['title']}</itunes:subtitle> \n";
+      $output .= "  <dc:creator>{$audio_node->audio_tags['artist']}</dc:creator> \n";
+      $output .= "  <content:encoded>" .$audio_node->body. "</content:encoded> \n";
+      $output .= "  <description>" .check_plain($audio_node->body). "</description> \n";
+      $output .= "  <comments> uploaded by {$audio_node->author} at {$base_url}</comments>";
+      $output .= "  <itunes:summary>" .check_plain($audio_node->body). "</itunes:summary> \n";
+      $output .= "  <enclosure url=\"{$audio_node->url_download}\" length=\"{$audio_node->audio_file->filesize}\" type=\"{$node->audio_file->filemime}\" /> \n";
+      //use taxonomy for keywords
+      $output .= "  "; 
+      $count = 0;
+      $keywords = '';
+      foreach ($audio_node->taxonomy as $term) {
+        $keywords .= $term->name;
+        if (count($audio_node->taxonomy) > 0 && $count < count($audio_node->taxonomy) - 1 ) {
+          $keywords .= ', ';
+        }
+        $count++;
+      }
+      $output .= "<category>{$keywords}</category>";
+      $output .= "  <itunes:keywords>{$keywords}</itunes:keywords> \n";
+      $output .= "  <itunes:duration>{$audio_node->audio_fileinfo['playtime']}</itunes:duration> \n";
+      $output .= "  <pubDate>" . date('r', $audio_node->created) . "</pubDate> \n";
+      $output .= "</item> \n";
+    }
+  }
+  $output .= "</channel> \n";
+  $output .= "</rss> \n";
+  drupal_set_header('Content-Type: text/xml; charset=UTF-8');
+  print $output;
+}
+
+/**
+  * Generate M3U feed
+  * playlist/[nid]/m3u
+  */
+function audio_playlist_m3u($parent_id) {
+  $parent = node_load($parent_id);
+  $children = playlist_get_children($parent_id, 'audio_playlist');
+  
+  $output = "#EXTM3U\r\n";
+  foreach ($children as $child) {
+    $audio_node = node_load($child);
+    if ($audio_node->audio_fileinfo['downloadable']) {
+      $output .= "#EXTINF:".$audio_node->audio_fileinfo['playtime'].",".$audio_node->audio_tags['artist']." - " .$audio_node->audio_tags['title']."\r\n";
+      $output .= $audio_node->url_download ."\r\n";
+    }
+  }
+  drupal_set_header("Pragma: no-cache"); // HTTP/1.0
+  drupal_set_header("Cache-Control: private"); // HTTP/1.1
+  drupal_set_header("Content-Type: audio/mpegurl", TRUE);
+  drupal_set_header("Content-Length: ".strlen($output)."", TRUE);
+  drupal_set_header("Content-Disposition: attachment; filename=\"".$parent->title.".m3u\"", TRUE);
+  print $output;
+}
+
+
+/**
+  * Generate PLS feed
+  * playlist/[nid]/pls
+  */
+function audio_playlist_pls($parent_id) {
+  $parent = node_load($parent_id);
+  $children = playlist_get_children($parent_id, 'audio_playlist');
+  
+  $output = "[playlist]\r\n";
+  $i = 1;
+  foreach ($children as $child) {
+    $audio_node = node_load($child);
+    if ($audio_node->audio_fileinfo['downloadable']) {
+      $output .= "File$i=". $audio_node->url_download ."\r\n";
+      $output .= "Title$i=".$audio_node->audio_tags['artist']." - " .$audio_node->audio_tags['title']."\r\n";
+      $output .= "Length$i=".$audio_node->audio_fileinfo['playtime']."\r\n";
+      $i++;
+    }
+  }
+  $output .= "NumberOfEntries=".count($children)."\r\n";
+  $output .= "Version=2\r\n";
+  drupal_set_header("Pragma: no-cache"); // HTTP/1.0
+  drupal_set_header("Cache-Control: private"); // HTTP/1.1
+  drupal_set_header("Content-Type: audio/x-scpls", TRUE);
+  drupal_set_header("Content-Length: ".strlen($output)."", TRUE);
+  drupal_set_header("Content-Disposition: attachment; filename=\"".$parent->title.".pls\"", TRUE);
+  print $output;
+}
+
+/**
+  *  Generate XSPF feed
+  * playlist/[nid]/xspf
+  */
+function audio_playlist_xspf($parent_id) {
+  global $base_url;
+  $playlist = node_load($parent_id);
+  $children = playlist_get_children($parent_id, 'audio_playlist');
+	$output = '<?xml version="1.0" encoding="UTF-8"?>';
+  $output .= '<playlist version="1" xmlns="http://xspf.org/ns/0/">';
+  $output .= "<title>{$playlist->title}</title>";
+  $output .= "<annotation>{$playlist->name}</annotation>";
+  $output .= "<creator>{$playlist->name}</creator>";
+  $output .= "<info>".$base_url."?q=node/".$playlist->nid."</info>";
+  $output .= "<location>".$base_url."?q=node/".$playlist->nid."/xspf </location>";
+  $output .= "<license>{$playlist->playlist_info['copyright']}</license>";
+  $output .= '<trackList>';
+  foreach ($children as $child) {  
+    $audio_node = node_load($child);
+    if ($audio_node->audio_fileinfo['fileformat'] == 'mp3') {
+      $output .= '<track>';
+      $output .= "<location>{$audio_node->url_play}</location>";
+      $output .= "<creator>{$audio_node->audio_tags['artist']}</creator>";
+      $output .= "<album>{$audio_node->audio_tags['album']}</album>";
+      $output .= "<title>{$audio_node->audio_tags['title']}</title>";
+      $output .= "<annotation>{$audio_node->audio_tags['artist']} - {$audio_node->audio_tags['title']}</annotation>";
+      $output .= "<duration>{$audio_node->audio_fileinfo['playtime']}</duration>";
+      $output .= "<image>{$playlist->playlist_info['image_url']}</image>";
+      $output .= "<info>".$base_url ."/?q=node/".$audio_node->nid ."</info>";
+      $output .= '</track>';
+    }
+  }
+  $output .= '  </trackList>';
+  $output .= '</playlist>';  
+
+  drupal_set_header('Content-Type: text/xml; charset=utf-8');
+  print $output;
+}
+
+/**
+  *  Menu Callback. Displays a new pop up window with the flash XSPF player.
+  */
+function audio_playlist_popup($nid) {
+  print theme('audio_playlist_popup', $nid);
+}
+
+/**
+ * Displays a Drupal page containing recent playlists of a given user
+ */
+function audio_playlist_page_user($uid) {
+  global $user;
+
+  $account = user_load(array((is_numeric($uid) ? 'uid' : 'name') => $uid, 'status' => 1));
+
+  if ($account->uid) {
+    drupal_set_title($title = t("%name's %node_names", array('%name' => $account->name, '%node_name' => AUDIO_PLAYLIST_NAME)));
+
+    if (($account->uid == $user->uid) && user_access('edit own audio playlist')) {
+      $output = '<li>'. l(t('Create new %node_name.', array('%node_name' => AUDIO_PLAYLIST_NAME)), "node/add/audio_playlist") .'</li>';
+      $output .= '<li>'. l(t('View all %node_names.', array('%node_name' => AUDIO_PLAYLIST_NAME)), "playlist") .'</li>';
+    }
+    else if ($account->uid == $user->uid) {
+      $output = '<li>'. t('You are not allowed to create a new %node_name', array('%node_name' => AUDIO_PLAYLIST_NAME)) .'</li>';
+    }
+
+    if ($output) {
+      $output = '<ul>'. $output .'</ul>';
+    }
+    else {
+      $output = '';
+    }
+
+    $result = db_query_range(db_rewrite_sql("SELECT DISTINCT n.nid, n.title, r.teaser, n.created, u.name, u.uid FROM {node} n INNER JOIN {node_revisions} r ON n.vid = r.vid INNER JOIN {users} u ON n.uid = u.uid WHERE n.type = 'audio_playlist' AND u.uid = %d AND n.status = 1 ORDER BY n.created DESC"), $uid, 0, variable_get('feed_default_items', 10));
+    while ($node = db_fetch_object($result)) {
+      $output .= node_view(node_load($node->nid), 1);
+    }
+    $output .= theme('pager', NULL, variable_get('default_nodes_main', 10));
+    $output .= theme('feed_icon', url("playlist/audio/$uid/feed"));
+
+    drupal_add_link(array('rel' => 'alternate',
+                          'type' => 'application/rss+xml',
+                          'title' => t('RSS - %title', array('%title' => $title)),
+                          'href' => url("playlist/audio/$uid/feed")));
+    return $output;
+  }
+  else {
+    drupal_not_found();
+  }
+}
+
+
+/**
+ * Displays a Drupal page containing recent audio playlists of all users.
+ */
+function audio_playlist_page_last() {
+  global $user;
+
+  $output = '';
+
+  $result = db_query_range(db_rewrite_sql("SELECT DISTINCT n.nid, n.title, r.teaser, n.created, u.name, u.uid FROM {node} n INNER JOIN {node_revisions} r ON n.vid = r.vid INNER JOIN {users} u ON n.uid = u.uid INNER JOIN {playlist_relate} p ON n.nid = p.parent_id WHERE n.type = 'audio_playlist' AND n.status = 1 ORDER BY n.created DESC"), 0, variable_get('feed_default_items', 10));
+  while ($node = db_fetch_object($result)) {
+    $output .= node_view(node_load($node->nid), 1);
+  }
+  $output .= theme('pager', NULL, variable_get('default_nodes_main', 10));
+  $output .= theme('feed_icon', url('playlist/audio/feed'));
+
+  drupal_add_link(array('rel' => 'alternate',
+                        'type' => 'application/rss+xml',
+                        'title' => t('RSS - %node_names', array('%node_name' => AUDIO_PLAYLIST_NAME)),
+                        'href' => url("playlist/audio/feed")));
+  return $output;
+}
+
+
+/**
+ * Displays an RSS feed containing recent audio playlists of a given user.
+ */
+function audio_playlist_user_feed($uid = 0) {
+  global $user;
+
+  if ($uid) {
+    $account = user_load(array('uid' => $uid, 'status' => 1));
+  }
+  else {
+    $account = $user;
+  }
+
+  //TODO: make this return a playlist of all children nodes of the playlists, not the playlists themselves.
+  $result = db_query_range(db_rewrite_sql("SELECT DISTINCT n.nid, n.title, r.teaser, n.created, u.name, u.uid FROM {node} n INNER JOIN {node_revisions} r ON n.vid = r.vid INNER JOIN {users} u ON n.uid = u.uid INNER JOIN {playlist_relate} p ON n.nid = p.parent_id WHERE n.type = 'audio_playlist' AND u.uid = %d AND n.status = 1 ORDER BY n.created DESC"), $uid, 0, variable_get('feed_default_items', 10));
+  $channel['title'] = $account->name ."'s ". AUDIO_PLAYLIST_NAME;
+  $channel['link'] = url("playlist/audio/$uid", NULL, NULL, TRUE);
+  $channel['description'] = $term->description;
+  node_feed($result, $channel);
+}
+
+
+/**
+ * Displays an RSS feed containing recent audio playlists of all users.
+ */
+function audio_playlist_feed_last() {
+  $result = db_query_range(db_rewrite_sql("SELECT DISTINCT n.nid, n.title, r.teaser, n.created, u.name, u.uid FROM {node} n INNER JOIN {node_revisions} r ON n.vid = r.vid INNER JOIN {users} u ON n.uid = u.uid INNER JOIN {playlist_relate} p ON n.nid = p.parent_id WHERE n.type = 'audio_playlist' AND n.status = 1 ORDER BY n.created DESC"), 0, variable_get('feed_default_items', 10));
+  $channel['title'] = variable_get('site_name', 'drupal') .' '. AUDIO_PLAYLIST_NAME.'s';
+  $channel['link'] = url('playlist/audio', NULL, NULL, TRUE);
+  $channel['description'] = $term->description;
+  node_feed($result, $channel);
+}
+
+
+
+/**
+ *  Return HTML for an iTunes-esque table for browsing through audio files. TODO: implement ajax onkeyup auto filtering.
+ */
+function audio_playlist_browse($playlist_id = NULL) {
+  global $user;
+  
+  // change some settings if we are managing a specific playlist
+  if (is_numeric($playlist_id)) {
+    $pager_length = 7;
+    $children = playlist_get_children($playlist_id, 'audio_playlist');
+  }
+  else {
+    $pager_length = variable_get('audio_playlist_browser', 20);
+  }
+
+  //The blank field => '' is used because it creates nice $_get['sort'] and $_get['order'] URLS when clicked.
+  $header = array(
+    array(),
+    array(),
+    array(),
+    array(),
+    array('data' => t('Name'), 'field' => ''),
+    array('data' => t('Time'), 'field' => ''),
+    array('data' => t('Artist'), 'field' => ''),
+    array('data' => t('Album'), 'field' => ''),
+    array('data' => t('Genre'), 'field' => ''),
+    array('data' => t('Track'), 'field' => '')
+  );
+  //We have to build our own method to tablesort the SQL because the audio metadata is normalized
+  //array used to convert human readable name to a database field name
+  $order_by = array('Name' => 'title', 'Time' => 'playtime', 'Artist' => 'artist', 'Album' => 'album', 'Genre' => 'genre', 'Track' => 'track');
+  $tag = isset($_GET['order']) ? $_GET['order'] : '';
+  $sort = isset($_GET['sort']) ? $_GET['sort'] : '';
+  $keys = $_GET['edit']['search'];
+
+  // Replace wildcards with MySQL/PostgreSQL wildcards.
+  $keys = preg_replace('!\*+!', '%', $keys);
+  $keys = check_plain($keys);
+  //because playtime is stored in the audio table and not as a tagged value, we have to add extra logic.
+  if ($keys && $order_by[$tag] == 'playtime') {
+    $result = pager_query("SELECT DISTINCT a.value, n.nid FROM {node} n INNER JOIN {audio_metadata} a ON n.vid = a.vid INNER JOIN {audio} af ON n.vid = af.vid WHERE n.status = 1 AND LOWER(a.value) LIKE LOWER('%%%s%%') ORDER BY af.playtime %s", $pager_length, 0, null, $keys, $sort);
+  }
+  else if ($keys) {
+    $result = pager_query("SELECT DISTINCT a.value, n.nid FROM {node} n INNER JOIN {audio_metadata} a ON n.vid = a.vid INNER JOIN {audio} af ON n.vid = af.vid WHERE n.status = 1 AND LOWER(a.value) LIKE LOWER('%%%s%%') ORDER BY a.clean %s", $pager_length, 0, null, $keys, $sort);  
+  }
+  else if ($order_by[$tag] == 'playtime') {
+    $result = pager_query("SELECT DISTINCT af.playtime, n.nid, a.vid FROM {node} n INNER JOIN {audio_metadata} a ON n.vid = a.vid INNER JOIN {audio} af ON n.vid = af.vid WHERE n.status = 1 ORDER BY af.playtime %s", $pager_length, 0, NULL, $sort);
+  }
+  else if ($tag && $sort) {
+    $result = pager_query("SELECT DISTINCT a.value, n.nid FROM {node} n INNER JOIN {audio_metadata} a ON n.vid = a.vid INNER JOIN {audio} af ON n.vid = af.vid WHERE a.tag = '%s' AND n.status = 1 ORDER BY a.clean %s", $pager_length, 0, NULL, $order_by[$tag], $sort);
+  }
+  else {
+  $result = pager_query("SELECT DISTINCT n.nid, a.vid FROM {node} n INNER JOIN {audio_metadata} a ON n.vid = a.vid INNER JOIN {audio} af ON n.vid = af.vid WHERE n.status = 1 ORDER BY n.created DESC", $pager_length, 0, NULL);
+  }
+  
+ while ($row = db_fetch_object($result)) {
+    $audio = node_load($row->nid);
+    $title = $audio->audio_tags['title'] ? $audio->audio_tags['title'] : $audio->title;
+    $edit_txt = node_access('update', $audio, $user->uid) ? l('[edit]', 'node/'.$audio->nid .'/edit') : "";
+
+    // if a specific playlist id is sent, then we must change the $add_txt.
+    if (is_numeric($playlist_id)) {
+      $add_txt = !in_array($audio->nid, $children) ? l(t('[add]'), "playlist/manage/audio_playlist/{$playlist_id}/add/{$audio->nid}") : "";  
+    }
+    else {
+      $add_txt = user_access('create audio playlist') ? l(t('[add to... ]'), 'playlist/add/audio_playlist/' . $audio->nid) : "";  
+    }  
+    
+    $rows[] = array('data' =>
+      array(
+        // Cells
+        "<small>". $add_txt ."</small>",
+        theme('audio_mp3_player', $audio),
+        "<small>". l('[info]', 'node/'.$audio->nid) ."</small>",
+        "<small>". $edit_txt ."</small>",
+        audio_playlist_replacer($title, $keys),
+        $audio->audio_fileinfo['playtime'],
+        audio_playlist_replacer($audio->audio_tags['artist'], $keys),
+        audio_playlist_replacer($audio->audio_tags['album'], $keys),
+        audio_playlist_replacer($audio->audio_tags['genre'], $keys),
+        $audio->audio_tags['track']
+      ),
+    );
+  }
+
+  if (!$rows) {
+    $rows[] = array(array('data' => t('No audio was found.'), 'colspan' => 7));
+  }
+  //Build the form, that uses METHOD = GET to filter the search results. 
+  //TODO: use POST instead?
+  $form['search'] = array(
+    '#type' => 'textfield',
+    '#prefix' => '<div class="container-inline">',
+    '#size' => 15,
+    '#default_value' => $_GET['edit']['search']
+  );
+  $form['submit'] = array('#type' => 'submit', '#value' => t('search'), '#suffix' => '</div>');
+  $form['#redirect'] = FALSE;
+  $form['#method'] = 'get';
+  // clean URL get forms breaks if we don't give it a 'q'.
+  if (!(bool)variable_get('clean_url', '0')) {
+    $form['q'] = array(
+      '#type' => 'hidden',
+      '#value' => $_GET['q'],
+      '#name' => 'q',
+    );
+  }
+  $output = drupal_get_form(null, $form);
+  
+  $output .= theme('table', $header, $rows, array('id' => 'audio-playlist-table'));
+  $output .= theme('pager', NULL, $pager_length, 0);
+  drupal_set_title("browse audio");
+  
+  // inline CSS to get iTunes-esque header
+  $output .= "<style>#audio-playlist-table th.active { background-image:url('/".AUDIO_PLAYLIST_PATH."/images/browser-header.png'); background-repeat: repeat-x;}</style>";
+  $output .= "<style>#audio-playlist-table th { background-image:url('/".AUDIO_PLAYLIST_PATH."/images/browser-header-off.png'); background-repeat: repeat-x;}</style>";
+  if ($playlist_id) {
+    $output = theme('fieldset', array('#title' => 'Add from existing files', '#value' => $output, '#collapsible' => TRUE, '#collapsed' => FALSE));
+  }
+  return $output; 
+}
+
+
+/**
+ * Highlight the search terms in the audio tag values in the audio browse table and trim long text.
+ */
+function audio_playlist_replacer($string, $keys) {
+  $terms = explode('%', $keys);
+  $string = strtolower($string);
+  if (strlen($string) > 20) {
+    $string = trim(substr($string, 0, 20)) .'<small>...</small>';
+  }
+  foreach($terms as $term) {
+  $term = strtolower($term);
+    $highlight = str_replace($term, "<b>$term</b>", $string);
+  }
+  return $highlight;  
+}
+
+/**
+ *  Fetch all audio playlists and create a select dropdown for choosing which playlist to listen to. Used in the XSPF block.
+ * TODO: restrict to only a person's playlists/albums....?
+ */
+function audio_playlist_chooser() {
+  $playlists = playlist_get_parents(array('type' => 'audio_playlist'), 'n.sticky DESC, n.title ASC');
+  if ($playlists) {
+    $options = array();
+    foreach ($playlists as $playlist_id) {
+        $playlist = node_load($playlist_id);
+        $options[$playlist_id] = $playlist->title;
+    }
+    //grab the GET parameter for consistency.
+    $selected = $_GET['edit']['audio_playlist_chooser'];
+    $default_value = ($selected) ? $selected : $playlists[0];
+    $form['audio_playlist_chooser'] = array(
+      '#type' => 'select',
+      '#default_value' => $default_value,
+      '#options' => $options,
+      '#attributes' => array('onchange' => 'submit();'),
+      '#prefix' => '<div class="container-inline">',
+    );
+    $form['submit'] = array('#type' => 'submit', '#value' => t('go'), '#prefix' => '<NOSCRIPT>', '#suffix' => '</NOSCRIPT></div>');
+    $form['#method'] = 'get';
+    // clean URL get forms breaks if we don't give it a 'q'.
+    if (!(bool)variable_get('clean_url', '0')) {
+      $form['q'] = array(
+        '#type' => 'hidden',
+        '#value' => $_GET['q'],
+        '#name' => 'q',
+      );
+    }
+    $output = drupal_get_form(null, $form); 
+    
+    //we use GET instead of POST so we have to do our own submit and validation. 
+    if ($selected) {
+      if(in_array($selected, $playlists)) {
+        $selected_playlist = $selected;
+      } 
+    }
+    else {
+        $selected_playlist = $playlists[0];
+    }
+    $xspf_settings = variable_get('xspf_block_settings', array('style' => TRUE, 'autoplay' => null, 'width' => '200', 'title' => t('Listening Station')));
+    $autoplay = $xspf_settings['autoplay'] ? array('autoplay' => TRUE) : array();
+    $output .= theme('audio_playlist_get_player', $selected_playlist, $autoplay, $xspf_settings['style'], $xspf_settings['width']); 
+    $output .= '<small>'.l('[info]', 'node/'.$selected_playlist) ." ". theme('audio_playlist_popup_link', $selected_playlist, '[popup player]').'</small>';
+  }
+  else {
+    $output = t('No playlists were found.');
+  }
+  return $output;
+}
+
+
+/**
+ *  Generate a .js file that spits out HTML to render the player.  This is like a little JS widget for distributing content to another site.  Useful for displaying the playlist on external sites.
+ * You'd include it on the other site with something like:
+ *    <link href="http://example.com/modules/playlist/audio_playlist/audio_playlist.css" rel="stylesheet" type="text/css">
+ *   <script type="text/javascript"  src="http://example.com/node/3/getplayer.js"> </script>
+ */
+function audio_playlist_js($parent_id) {
+  $html = theme('audio_playlist_get_player', $parent_id);
+  $output .= 'document.write(\' '.$html.' \');';
+  drupal_set_header("Pragma: no-cache"); // HTTP/1.0
+  drupal_set_header("Cache-Control: private"); // HTTP/1.1
+  drupal_set_header("Content-Type: text/javascript", TRUE);
+  print $output;
+}

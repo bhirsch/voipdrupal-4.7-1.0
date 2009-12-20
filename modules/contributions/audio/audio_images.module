@@ -1,0 +1,293 @@
+<?php
+// $Id: audio_images.module,v 1.1.2.5 2006/08/21 18:21:45 drewish Exp $
+
+include_once drupal_get_path('module', 'audio') .'/audio_image.inc';
+include_once drupal_get_path('module', 'audio') .'/audio_images.theme';
+
+/**
+ * Implementation of hook_help
+ */
+function audio_images_help($section) {
+  switch ($section) {
+    case 'admin/modules#description':
+      return t('Adds the ability to attach album art to audio nodes.');
+  }
+}
+
+function audio_images_menu($may_cache) {
+  $items = array();
+  if ($may_cache) {
+    $items[] = array('path' => 'admin/settings/audio/images',
+      'title' => t('images'),
+      'callback' => 'audio_images_admin_settings',
+      'access' => user_access('administer site configuration'),
+      'type' => MENU_LOCAL_TASK);
+  }
+  return $items;
+}
+
+/**
+ * Implements the audio module's hook_audio()
+ */
+function audio_images_audio($op, &$node) {
+  switch ($op) {
+    case 'load':
+      // load the images
+      $ret['audio_images'] = array();
+      $result = db_query("SELECT pid, pictype, filemime, width, height, filepath, filesize FROM {audio_image} WHERE vid=%d", $node->vid);
+      while ($img = db_fetch_array($result)) {
+        $ret['audio_images'][$img['pid']] = $img;
+      }
+      return $ret;
+
+    case 'prepare':
+      // clean out the session the first time the form is viewed
+      if(count($_POST) == 0) {
+        $_SESSION['audio_images'] = $node->audio_images;
+      }
+      else if (!empty($_SESSION['audio_images'])) {
+        $node->audio_images = $_SESSION['audio_images'];
+      }
+
+      // check for an uploaded image
+      if ($upload = file_check_upload('image_upload')) {
+        $pictype = (integer) $_POST['edit']['pictype'];
+        $imagepath = _audio_image_filename(basename($node->audio_file->filename), $upload->filemime, $pictype, TRUE);
+        if ($file = file_save_upload($upload, $imagepath, FILE_EXISTS_REPLACE)) {
+          if ($image = _audio_image_get_info($file->filepath, $pictype)) {
+            $image = _audio_image_resize($image);
+            $pid = 'new_'. count($_SESSION['audio_images']);
+            $image['pid'] = $pid;
+            $node->audio_images[$pid] = $image;
+
+            // add it to the session
+            $_SESSION['audio_images'][$pid] = $image;
+          }
+          else {
+            form_set_error('image_upload', t('There was a problem saving the image.'));
+          }
+        }
+        else {
+          form_set_error('image_upload', t('There was a problem uploading the image.'));
+        }
+      }
+
+      foreach ((array)$node->audio_images as $image) {
+        $pid = $image['pid'];
+        // process deletions on temporaries now
+        if (_audio_images_istemp($pid) && $_POST['edit']['audio_images'][$pid]['delete']) {
+          file_delete($image['filepath']);
+          unset($node->audio_images[$pid]);
+        }
+      }
+
+      $_SESSION['audio_images'] = $node->audio_images;
+
+      break;
+
+    case 'insert':
+      // only adding new images
+      foreach ((array)$node->audio_images as $pid => $image) {
+        _audio_images_save_new($node, $image);
+      }
+      break;
+
+    case 'insert revision':
+      foreach ((array)$node->audio_images as $pid => $image) {
+        // deletions
+        if ($image['delete']) {
+          _audio_images_delete($pid, $image['filepath']);
+        }
+        // additions
+        else if (_audio_images_istemp($image['pid'])) {
+          _audio_images_save_new($node, $image);
+        }
+        // make copies of unchanged
+        else {
+          _audio_images_save_copy($node, $image);
+        }
+      }
+      break;
+
+    case 'update':
+      foreach ((array)$node->audio_images as $pid => $image) {
+        // deletions
+        if ($image['delete']) {
+          _audio_images_delete($pid, $image['filepath']);
+        }
+        // additions
+        else if (_audio_images_istemp($image['pid'])) {
+          _audio_images_save_new($node, $image);
+        }
+      }
+      break;
+
+    case 'delete':
+      // delete any associated previews
+      _audio_images_delete_previews($node);
+
+      // delete the image files and remove them from the database
+      $result = db_query('SELECT filepath FROM {audio_image} WHERE vid = %d', $node->vid);
+      while ($file = db_fetch_object($result)) {
+        file_delete($file->filepath);
+      }
+      db_query('DELETE FROM {audio_image} WHERE vid = %d', $node->vid);
+      break;
+
+    case 'delete revision':
+      // delete any associated previews
+      _audio_images_del_previews($node);
+
+      // delete the image files and remove them from the database
+      $result = db_query('SELECT filepath FROM {audio_image} WHERE nid = %d', $node->nid);
+      while ($file = db_fetch_object($result)) {
+        file_delete($file->filepath);
+      }
+      db_query('DELETE FROM {audio_image} WHERE nid = %d', $node->nid);
+      break;
+  }
+}
+
+/**
+ * Is an image a temporary preview?
+ */
+function _audio_images_istemp($pid) {
+  return (strpos($pid, 'new') !== FALSE);
+}
+
+/**
+ * Adds an image to the audio_image table and moves it to the audio/images
+ * directory.
+ */
+function _audio_images_save_new(&$node, $image) {
+  $temppath = $image['filepath'];
+  _audio_images_save_copy($node, $image);
+  file_delete($temppath);
+}
+
+/**
+ * Saves an image to the audio_image table and copies it to the audio/images
+ * directory. The caller needs to delete original image file if it was a
+ * temporary.
+ */
+function _audio_images_save_copy(&$node, $image) {
+  $newpath = _audio_image_filename($node->vid, $image['filemime'], $image['pictype'], FALSE);
+  if (file_copy($image['filepath'], $newpath, FILE_EXISTS_REPLACE)) {
+    $pid = db_next_id('{audio_image}_pid');
+    db_query("INSERT INTO {audio_image} (pid, nid, vid, pictype, filemime, width, height, filepath, filesize)
+      VALUES (%d, %d, %d, %d, '%s', %d, %d, '%s', %d)",
+      $pid, $node->nid, $node->vid, $image['pictype'], $image['filemime'],
+      $image['width'], $image['height'], $newpath, filesize($newpath));
+
+    $image['filepath'] = $newpath;
+    $image['pid'] = $pid;
+    $node->audio_images[$pid] = $image;
+  }
+}
+
+function _audio_images_delete($pid, $filepath) {
+  file_delete($filepath);
+  // delete from db if it's not a preview
+  if (!_audio_images_istemp($pid)) {
+    db_query("DELETE FROM {audio_image} WHERE pid = %d", $pid);
+  }
+}
+
+// delete any associated previews
+function _audio_images_delete_previews(&$node) {
+  foreach ((array)$node->audio_images as $pid => $image) {
+    if (_audio_images_istemp($pid)) {
+      file_delete($image['filepath']);
+      unset($node->audio_images[$pid]);
+    }
+  }
+}
+
+function audio_images_admin_settings() {
+  $form['audio_image_size'] = array(
+    '#type' => 'select',
+    '#title' => t('Image size'),
+    '#default_value' => variable_get('audio_image_size', '170'),
+    '#options' => array(
+      '170' => '170 X 170',
+      '150' => '150 X 150',
+      '125' => '125 X 125',
+      '100' => '100 X 100',
+      '75'  => '75 X 75',
+    ),
+    '#description' => t("The size (in pixels) that the theme will display the images.  Default is <strong>170 X 170</strong>."),
+  );
+  $form['audio_default_image_type'] = array(
+    '#type' => 'select',
+    '#title' => t('Default image type'),
+    '#default_value' => variable_get('audio_default_image_type', 3),
+    '#options' => audio_image_type_dirty_array(),
+    '#description' => t("Select the image type you would like displayed.  <strong>NOTE:</strong> If an audio node does not have an image of this type associated with it, a random image will be chosen.")
+  );
+
+  return system_settings_form('audio_images_admin_settings', $form);
+}
+
+
+function audio_images_form_alter($form_id, &$form) {
+  if ('audio_node_form' == $form_id) {
+    $node = $form['#node'];
+    if (!isset($node->audio_file)) {
+      return;
+    }
+    // image form
+    $form['pics'] = array(
+      '#type' => 'fieldset', '#title' => t('Audio Images'),
+      '#collapsible'=> TRUE,
+      '#description' => t('Cover art or other images.'),
+      '#weight' => 0,
+    );
+
+    if (count($node->audio_images)) {
+      $form['pics']['audio_images']['#theme'] = 'audio_images_form';
+      $form['pics']['audio_images']['#tree'] = TRUE;
+      foreach ((array)$node->audio_images as $pid => $image) {
+        $form['pics']['audio_images'][$pid]['pid'] = array('#type' => 'value', '#value' => $pid);
+        $form['pics']['audio_images'][$pid]['pictype'] = array('#type' => 'value', '#value' => $image['pictype']);
+        $form['pics']['audio_images'][$pid]['filepath'] = array('#type' => 'value', '#value' => $image['filepath']);
+        $form['pics']['audio_images'][$pid]['filemime'] = array('#type' => 'value', '#value' => $image['filemime']);
+        $form['pics']['audio_images'][$pid]['filesize'] = array('#type' => 'value', '#value' => $image['filesize']);
+        $form['pics']['audio_images'][$pid]['height'] = array('#type' => 'value', '#value' => $image['height']);
+        $form['pics']['audio_images'][$pid]['width'] = array('#type' => 'value', '#value' => $image['width']);
+        $form['pics']['audio_images'][$pid]['delete'] = array('#type' => 'checkbox', '#default_value' => $image['delete']);
+      }
+    }
+
+    $form['pics']['new']['pictype'] = array(
+      '#type' => 'select',
+      '#title' => t('New image type'),
+      '#value' => variable_get('audio_image_default_type', 0x03),
+      '#options' => audio_image_type_dirty_array(),
+    );
+    $form['pics']['new']['image_upload'] = array(
+      '#tree' => FALSE, // this is so we can nest the control and still leave the upload where check_upload expects it
+      '#type' => 'file', '#title' => t('Add a new image'),
+      '#description' => t('Click "Browse..." to select an image to add to this audio file. <strong>NOTE:</strong> Supported image types include GIF, JPG, and PNG.  Suggested dimensions: 170 X 170 pixels.'),
+    );
+  }
+}
+
+/**
+ * Returns the array of the default image type. If no default image is found,
+ * returns a random image array.
+ */
+function audio_images_get($audio_images, $pictype = NULL) {
+  if (is_null($pictype)) {
+    $pictype = variable_get('audio_default_image_type', 0x03);
+  }
+  if (is_array($audio_images)) {
+    foreach ($audio_images as $image) {
+      if ($image['pictype'] == $pictype) {
+        return $image;
+      }
+    }
+    // not found, return a random image
+    return $audio_images[array_rand($audio_images)];
+  }
+  return FALSE;
+}

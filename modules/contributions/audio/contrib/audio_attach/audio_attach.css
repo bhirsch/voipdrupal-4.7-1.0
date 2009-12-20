@@ -1,0 +1,18 @@
+/*
+  $Id: audio_attach.css,v 1.1.2.1 2006/05/26 19:00:07 drewish Exp $
+  these CSS classes wrap around the audio.css classes
+*/
+.audio-attach-body {
+  margin-top: 1em;
+  }
+
+.audio-attach-teaser {
+  border:solid #dcdcdc 1px;
+  width:200px;
+  padding:5px;
+  margin-top: 1em;
+  }
+
+.audio-attach-preview {
+  margin-top: 1em;
+  }

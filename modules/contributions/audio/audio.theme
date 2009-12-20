@@ -1,0 +1,249 @@
+<?php
+// $Id: audio.theme,v 1.5.2.6 2006/08/29 16:25:55 drewish Exp $
+
+/**
+ * Format an array of nodes for display in a block.
+ */
+function theme_audio_block($nodes){
+  $items = array();
+  foreach ((array)$nodes as $node) {
+    $items[] = l($node->title, 'node/'. $node->nid);
+  }
+  return theme('item_list', $items);
+}
+
+/**
+ * Format the teaser for an audio node.
+ */
+function theme_audio_teaser($node){
+  // make sure that all the allowed tags are included.
+  foreach (audio_get_tags_allowed() as $tag) {
+    $params['%'. $tag] = isset($node->audio_tags[$tag]) ? check_plain($node->audio_tags[$tag]) : '';
+  }
+  $params['%filelength'] = theme('audio_format_filelength', $node->audio_fileinfo);
+  $params['%fileformat'] = theme('audio_format_fileformat', $node->audio_fileinfo);
+  $params['%player'] = audio_get_player($node);
+  $params['%play_count'] = check_plain($node->audio_fileinfo['play_count']);
+  $params['%download_count'] = check_plain($node->audio_fileinfo['download_count']);
+
+  $format = variable_get('audio_teaser_format', '%player %filelength');
+
+  return t($format, $params) . $node->teaser;
+}
+
+/**
+ * Format the audio node for display
+ */
+function theme_audio_display($node) {
+  $output = "<div class='audio-node block'>\n";
+
+  // give audio_image.module (or a theme) a chance to display the images.
+  $output .= theme('audio_images', $node->audio_images);
+
+  $output .= "<ul class='audio-info'>\n";
+  if ($player = audio_get_player($node)) {
+    $output .= '<li><b>'. t('Play') .':</b>&nbsp;'. $player ."&nbsp;</li>\n";
+  }
+
+  foreach (audio_get_tag_settings() as $tag => $setting) {
+    if (!$setting['hidden'] && $node->audio_tags[$tag]) {
+      $output .= '<li>'
+        .'<strong>'. t(ucwords(str_replace('_', ' ', $tag))). ':</strong> '
+        . theme('audio_format_tag', $tag, $node->audio_tags[$tag], $setting)
+        ."</li>\n";
+    }
+  }
+  $output .= '<li><strong>'. t('Length') .':</strong> '. theme('audio_format_filelength', $node->audio_fileinfo)  ."</li>\n";
+  $output .= '<li><strong>'. t('Format') .':</strong> '. theme('audio_format_fileformat', $node->audio_fileinfo) ."</li>\n";
+  $output .= "</ul>\n</div>\n";
+
+  return $output . $node->body;
+}
+
+/**
+ * Format a ID3 tag.
+ */
+function theme_audio_format_tag($tag, $value, $setting) {
+  if ($setting['browsable']) {
+    return l($value, "audio/by/$tag/". audio_clean_tag($value));
+  }
+  else {
+    switch ($tag) {
+      // url tags
+      case 'url_file':
+      case 'url_artist':
+      case 'url_source':
+      case 'url_station':
+        return '<a href="'. check_url($value) .'" title="'. $tag .'">'. check_plain($value) .'</a>';
+
+      default:
+        return check_plain($value);
+    }
+  }
+}
+
+/**
+ * Return a string describing the node's size and length.
+ *
+ * @param $audio_fileinfo
+ *   node's fileinfo array
+ */
+function theme_audio_format_filelength($audio_fileinfo) {
+  $output = t('%playtime minutes (%filesize)',
+    array(
+      '%playtime' => $audio_fileinfo['playtime'],
+      '%filesize' => format_size($audio_fileinfo['filesize']),
+    )
+  );
+  return check_plain($output);
+}
+
+/**
+ * Return a string describing the node's file information.
+ *
+ * @param $audio_fileinfo
+ *   node's fileinfo array
+ */
+function theme_audio_format_fileformat($audio_fileinfo) {
+  $output = t('%fileformat %channel_mode %sampleratekHz %bitrateKbps (%bitrate_mode)',
+    array(
+      '%fileformat' => strtoupper($audio_fileinfo['fileformat']),
+      '%samplerate' => (integer) ($audio_fileinfo['sample_rate'] / 1000),
+      '%channel_mode' => ucfirst($audio_fileinfo['channel_mode']),
+      '%bitrate' => (integer) ($audio_fileinfo['bitrate'] / 1000),
+      '%bitrate_mode' => strtoupper($audio_fileinfo['bitrate_mode']),
+    )
+  );
+  return check_plain($output);
+}
+
+/**
+ * The default mp3 player is the flash XSPF player. If you want to override
+ * this behavior you can do so at the theme level.
+ *
+ * A couple of options that may be of interest:
+ * - backgroud color. If it's not specified, it'll default to transparent.
+ *    'b_bgcolor' => "000000"
+ * - foregroung (border and icon) color.
+ *    'b_fgcolor' => "ffffff"
+ * - foreground color by state. The order is: connecting (spinner),
+ *   ready (arrow), playing (square), and ??? (not sure). The b_fgcolor value
+ *   will be used for any ommitted values.
+ *    'b_colors' => "ff0000,,00000ff,000000",
+ *
+ * @param $node
+ *   node object
+ * @param $options
+ *   array of options to pass to the player. This allows you to override the
+ *   any parameter passed to the player including colors, title,
+ * @return
+ *   HTML string with a flash player
+ */
+function theme_audio_mp3_player($node, $options = array()) {
+  global $base_url;
+
+  // flash only supports a limited range of sample rates.
+  switch ($node->audio_fileinfo['sample_rate']) {
+    case '44100': case '22050': case '11025':
+      break;
+    default:
+      return;
+  }
+
+  $options = array_merge((array) $options, array(
+    'song_url' => check_url($node->url_play),
+    'song_title' => check_plain($node->audio_tags['title']),
+  ));
+
+  $url = $base_url .'/'. drupal_get_path('module', 'audio') .'/players/mp3.swf';
+  if ($options) {
+    $url .= '?'. drupal_query_string_encode($options);
+  }
+
+  $output = '<object type="application/x-shockwave-flash" data="'. $url .'" width="17" height="17">';
+  $output .= '<param name="movie" value="'. $url .'" />';
+  $output .= '<param name="wmode" value="transparent" />';
+  $output .= '</object>';
+
+  return $output;
+}
+
+/**
+ * This is the default player... a link!
+ *
+ * @param $node
+ */
+function theme_audio_player($node) {
+  $output = '<span class="audio">';
+  // we can't use l() because the url is absolute
+  $output .= '<a href="'. check_url($node->url_play) .'">'. t('Click to play') .'</a>';
+  $output .= "</span>\n";
+  return $output;
+}
+
+
+/**
+ * Format the fileinfo fieldset on the audio node form.
+ *
+ * @param $form
+ *   array of form elements
+ * @return
+ *   html output
+ */
+function theme_audio_fileinfo_form($form) {
+  // if we've got a file...
+  if (isset($form['fileformat'])) {
+    foreach (element_children($form) as $key) {
+      if ($form[$key]['#type'] == 'value') {
+        // put a hidden copy of each property on form for the preview ...
+        $output .= theme_hidden($form[$key]);
+        // ... and convert each value into a form item
+        $form[$key]['#type'] = 'item';
+        $form[$key]['#title'] = t(ucfirst(str_replace('_', ' ', $key)));
+      }
+    }
+
+    // ...make any formatting changes...
+    $form['fileformat']['#title'] = t('Format');
+    $form['fileformat']['#value'] = strtoupper($form['fileformat']['#value']);
+    $form['filesize']['#title'] = t('Size');
+    $form['filesize']['#value'] = t('%filesize bytes', array('%filesize' => number_format($form['filesize']['#value'])));
+    $form['playtime']['#title'] = t('Length');
+    $form['sample_rate']['#value'] = t('%samplerate Hz', array('%samplerate' => number_format($form['sample_rate']['#value'])));
+    $form['channel_mode']['#value'] = ucfirst($form['channel_mode']['#value']);
+    $form['bitrate']['#value'] = t('%bitrate bytes/second', array('%bitrate' => number_format($form['bitrate']['#value'])));
+    $form['bitrate_mode']['#value'] = strtoupper($form['bitrate_mode']['#value']);
+
+    // ...then render it
+    return form_render($form);
+  }
+}
+
+
+/**
+ * Format the id3tags settings form as a table.
+ */
+function theme_audio_admin_settings_metadata($form) {
+  $rows = array();
+  foreach (element_children($form['audio_tag_settings']) as $key) {
+    $row = array();
+    if (is_array($form['audio_tag_settings'][$key]['name'])) {
+      $row[] = form_render($form['audio_tag_settings'][$key]['name']);
+      $row[] = form_render($form['audio_tag_settings'][$key]['autocomplete']);
+      $row[] = form_render($form['audio_tag_settings'][$key]['required']);
+      $row[] = form_render($form['audio_tag_settings'][$key]['hidden']);
+      $row[] = form_render($form['audio_tag_settings'][$key]['browsable']);
+      $row[] = form_render($form['audio_tag_settings'][$key]['writetofile']);
+      $row[] = form_render($form['audio_tag_settings'][$key]['weight']);
+
+      $row[] = form_render($form['delete'][$key]);
+    }
+    $rows[] = $row;
+  }
+  $header = array(t('tag'), t('autocomplete'), t('required'), t('hidden'), t('browsable'),
+    t('written to file'), t('weight'), t('delete'));
+
+  $output = theme('table', $header, $rows);
+  $output .= form_render($form);
+  return $output;
+}

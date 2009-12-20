@@ -1,0 +1,1618 @@
+<?php
+/* $Id: voip_voicemail.module,v 1.14 2007/02/01 15:44:40 leob Exp $ */
+
+/**
+ * @file
+ * Provides voicemail functionality to Drupal websites.
+ * 
+ */
+
+/**
+ * Required files
+ */
+foreach (array( 'voip_error_codes.inc') as $file) {
+  require_once('includes/' . $file);
+}
+
+// -----------------------------------------------------------------------------
+// constants
+// -----------------------------------------------------------------------------
+
+define('VOIP_VOICEMAIL_INBOX', 1);
+define('VOIP_VOICEMAIL_SENT', 2);
+
+define('VOIP_VOICEMAIL_NO_NOTIFICATIONS', 0);
+define('VOIP_VOICEMAIL_SEND_NOTIFICATIONS', 1);
+define('VOIP_VOICEMAIL_INCLUDE_ATTACHMENTS', 2);
+
+
+/**
+ * Implementation of hook_perm()
+ */
+function voip_voicemail_perm() {
+  return array('have a voice mailbox', 'send voicemail messages');
+}
+
+/**
+ * Implementation of hook_help().
+ */
+function voip_voicemail_help($section) {
+  switch ($section) {
+    case 'admin/modules#description':
+      return t('Voicemail integration.');
+    case 'admin/help#voip_voicemail':
+      return t("<p>This module offers basic voicemail functionality.");
+  }
+}
+
+/**
+ * Implementation of hook_user()
+ */
+function voip_voicemail_user($op, &$edit, &$account, $category = NULL) {
+//xdebug_break();
+/****
+  if (!module_exist( 'voip')) {
+    $f = form_set_error('', t('Please make sure voip.module is loaded and enabled.'));
+    return FALSE;
+  }
+****/  
+  switch($op) {
+    case 'delete': // user mailboxes have to be deleted even if their users are not allowed to have a voice mailbox anymore
+      $mailbox_number = $account->voip_extension_info['number']; // loaded by voip.module
+      $rc = _voip_voicemail_mailbox_delete($mailbox_number);
+      if ($rc !== TRUE) {
+        form_set_error('', t('Could not delete voicemail box. Please contact your system administrator.'));
+        $error_msg = t('Could not delete voice mailbox: %e', array('%e' => $rc));
+  	    watchdog('voip_voicemail', $error_msg, WATCHDOG_ERROR);
+      }
+      break;
+    case 'form':
+      if (user_access('have a voice mailbox', $account) && ($category == 'voip')) {
+        return _voip_voicemail_user_form($edit, $account);
+      }
+      break;
+    case 'insert':
+      if (user_access('have a personal voip extension', $account) && user_access('have a voice mailbox', $account)) {
+        $r = voip_get_extension_info_from_uid($account->uid);
+        if ($r['error_code'] != VOIP_SUCCESS) {
+          watchdog('voip_voicemail', t("Error retrieving extension info for user %uid", array('%uid' => $account->uid)), WATCHDOG_ERROR);
+        }
+        $is_active = isset($edit['voip_voicemail_form_is_active'])?$edit['voip_voicemail_form_is_active']:TRUE;
+        $email_notification = isset($edit['voip_voicemail_form_email_notification'])?$edit['voip_voicemail_form_email_notification']:VOIP_VOICEMAIL_SEND_NOTIFICATIONS;
+        $result = _voip_voicemail_mailbox_create($r['extension_info']['number'], $is_active, $email_notification);
+        if (!$result) {
+          form_set_error('', t('Could not create voice mailbox. Please contact your system administrator.'));
+          watchdog('voip_voicemail', eh_error_msg(), WATCHDOG_ERROR);
+        }  
+        // remove fields from $edit
+        $edit['voip_voicemail_form_is_active'] = NULL;
+      }
+      break;
+    case 'load':
+      if (user_access('have a personal voip extension', $account) && user_access('have a voice mailbox', $account)) {
+        $rc = voip_voicemail_mailbox_get_info($account->voip_extension_info['number']);
+        if (($rc['error_code'] == VOIP_SUCCESS)) {
+  	      $account->voip_mailbox_info = $rc['mailbox_info'];
+        }
+      } 
+      break;
+    case 'update':
+      if (user_access('have a personal voip extension', $account) && user_access('have a voice mailbox', $account) && ($category == 'voip')) {
+        // retrieve updated fields
+        $mailbox_info = array();
+        if (isset($edit['voip_voicemail_form_is_active'])) {
+          $mailbox_info['is_active'] = $edit['voip_voicemail_form_is_active'];
+          $edit['voip_voicemail_form_is_active'] = NULL;
+        }
+        if (isset($edit['voip_voicemail_form_email_notification'])) {
+          $mailbox_info['email_notification'] = $edit['voip_voicemail_form_email_notification'];
+          $edit['voip_voicemail_form_email_notification'] = NULL;
+        }
+        if (!empty($mailbox_info)) {
+          $mailbox_number = $account->voip_mailbox_info['number'];
+          $result = _voip_voicemail_mailbox_update($mailbox_number, $mailbox_info);
+          if (!$result) {
+            form_set_error('', t('Could not update voice mailbox. Please contact your system administrator.'));
+            watchdog('voip_voicemail', eh_error_msg(), WATCHDOG_ERROR);
+          } 
+        } 
+      }
+      break;
+    case 'validate':
+        // **************_voip_voicemail_user_validate($edit, $account);
+        break;
+    case 'view':
+      // user currently logged in (which may be different from $account)
+      global $user;
+      // display public voice mail info
+      $a = NULL;
+      if ((($account->uid == $user->uid) || ($user->uid == 1)) 
+          && user_access('have a personal voip extension', $account) 
+          && user_access('have a voice mailbox', $account)) {
+        $mailbox_info = $account->voip_mailbox_info;
+        $a = _voip_voicemail_get_status_fields($account->voip_extension_info);
+      }
+      return $a;
+  }
+}
+
+/*
+ * Implementation of hook_audio()
+ */
+function voip_voicemail_audio($op, $node, $a3, $a4) {
+  global $user;
+  if ($node->voip_voicemail_message) {
+    switch ($op) {
+      case 'play':
+      case 'download':
+        // change the status of the message
+        $msg_id = isset($_SESSION['voip_voicemail_nids2msg_ids'][$node->nid])?$_SESSION['voip_voicemail_nids2msg_ids'][$node->nid]:NULL;
+        if ($msg_id) {
+          $sql = "UPDATE {voip_voicemail_messages} m SET m.is_new = 0 WHERE m.msg_id = %d";
+          $db_result = db_query($sql, $msg_id);
+          if (!$db_result) {
+            $error_msg = t("Could not update messages associated with msg_id %n: %e", array('%n' => $msg_id, '%e' => db_error()));
+             watchdog('voip_voicemail', $error_msg, WATCHDOG_ERROR);
+             return FALSE;
+          }
+        }
+        break;
+    }
+  }
+}
+
+/**
+ * Returns a string with the current status of the specified mailbox
+ */
+function _voip_voicemail_get_status_fields($extension_info) {
+  $items = array();
+
+  if ($extension_info['is_active']) {
+    $mailbox_number = $extension_info['number'];
+    $voicemail_status = t('Mailbox is not active.');
+  
+    $rc = voip_voicemail_mailbox_get_info($extension_info['number']);
+    $mailbox_info = $rc['mailbox_info'];
+      
+    if ($mailbox_info['is_active']) {	
+      $new_msg_count = _voip_voicemail_count_new_messages($mailbox_number);
+      if ($new_msg_count == -1) {
+        $f = form_set_error('', t('Error checking voicemail database.'));
+        return NULL;
+      }
+      $new_msg_text = ($new_msg_count <= 0)?'':(($new_msg_count == 1)?t('1 new message'):t('%count new messages  ', array('%count' => $new_msg_count)));
+
+      $saved_msg_count = _voip_voicemail_count_saved_messages($mailbox_number);
+      if ($saved_msg_count == -1) {
+        $f = form_set_error('', t('Error checking voicemail database.'));
+        return NULL;
+      }
+      $saved_msg_text = ($saved_msg_count <= 0)?'':(($saved_msg_count == 1)?t('1 saved message'):t('%count saved messages  ', array('%count' => $saved_msg_count)));
+
+      if (empty($new_msg_text) && empty($saved_msg_text)){
+        $voicemail_status = t('Voicemail box is empty.');
+      }
+      else {
+        $and_text = ((!empty($new_msg_text)) && (!empty($saved_msg_text)))?t('and'):'';
+        if (($new_msg_count > 1) || (($new_msg_count <= 0) && ($saved_msg_count > 1))) {
+          $final_text = t('There are %new_text %and_text %saved_text in the voicemail box.', array('%new_text' => $new_msg_text, '%and_text' => $and_text, '%saved_text' => $saved_msg_text));
+        }
+        else {
+          $final_text = t('There is %new_text %and_text %saved_text in the voicemail box.', array('%new_text' => $new_msg_text, '%and_text' => $and_text, '%saved_text' => $saved_msg_text));
+        }
+        $voip_menu_path = arg(0).'/'.arg(1).'/voip';
+        $final_text .= l(t(' Click here to check the messages.'), "$voip_menu_path/voicemail", array('title' => t("voice mailbox for %owner", array('%owner' => $extension_info['name']))));
+         
+        $voicemail_status = $final_text;
+      }
+    }
+    
+    $items[] = array('title' => t('Voicemail status'),
+                     'value' => "$voicemail_status",
+                     'class' => 'voip_item');
+  }
+    
+  return array( t('Voicemail settings') => $items);
+
+}
+
+
+/**
+ * Generate additions for the user edit form
+ */
+function _voip_voicemail_user_form($edit, $account) {
+
+  $f = array();
+
+  if (isset($account->voip_extension_info) && $account->voip_extension_info['is_active'] 
+      && user_access('have a personal voip extension', $account) && user_access('have a voice mailbox', $account)) {
+
+    $m = $account->voip_mailbox_info;
+
+    // our form additions
+
+    // create a collapsible field set for voicemail information
+    $f['voip_voicemail_form'] = array( 
+      '#type' => 'fieldset',
+      '#title' => t('Voicemail settings'),
+      '#collapsible' => TRUE,
+      '#collapsed' => FALSE,
+      '#weight' => 4,
+    );
+
+    $f['voip_voicemail_form']['voip_voicemail_form_is_active'] = array(
+      '#type' => 'radios',
+      '#title' => t('Activate voicemail?'),
+      '#default_value' => $m['is_active'],
+      '#options' => array(t('no'), t('yes')),
+     );
+                        
+    if ($m['is_active']) {
+
+      $f['voip_voicemail_form']['voip_voicemail_form_email_notification'] = array(
+        '#type' => 'radios',
+        '#title' => t('Send email notification for each voicemail received?'),
+        '#default_value' => $m['email_notification'],
+        '#options' => array(t("Don't send email notifications."), t('Send email notifications.'), t('Send email notifications with the voicemail message file attached.')),
+      );
+
+      $greetings = t('Your voicemail greetings message is not available');
+      if ($m['nid_audio_greetings']) {
+   	    $audio_node = node_load($m['nid_audio_greetings']);
+        $greetings = audio_get_player($audio_node);  
+      }
+
+      $f['voip_voicemail_form']['voip_voicemail_form_greetings'] = array(
+        '#type' => 'textfield',
+        '#title' => t('Voicemail greetings message'),
+        '#default_value' => $greetings,
+        '#size' => 50,
+        '#maxlength' => 50,
+        '#attributes' => array('disabled' => 'disabled'),    // Need to add this attribute in order to have a read-only field
+       );
+
+    }
+  }
+  return $f;
+}
+
+
+/**
+ * Implementation of hook_settings()
+ */
+function voip_voicemail_settings() {
+  if (!module_exist( 'voip')) {
+    $f2 = form_set_error('', t('Please make sure voip.module is loaded and enabled.'));
+  }
+  
+  $voip_voicemail_node_type_options = array();
+  foreach (node_get_types() as $type => $name) {
+    if (voip_is_voip_type($type)) {
+      $voip_voicemail_node_type_options[$type] = t($name);
+    }
+  }
+
+  $f = array();
+  if (!empty($voip_voicemail_node_type_options)) {
+    $f['voip_voicemail_node_types'] = array(
+      '#type' => 'select', 
+      '#title' => t('Voicemail-enabled node types'), 
+      '#default_value' => variable_get('voip_voicemail_node_types', array()), 
+      '#options' => $voip_voicemail_node_type_options, 
+      '#description' => t("Select the VoIP types which will have a voicemail box associated with their nodes." ),
+      '#multiple' => TRUE);
+  }
+  
+  $f['voip_voicemail_form_is_active_default'] = array(
+    '#type' => 'radios',
+    '#title' => t('Activate voicemail for new mailboxes?'),
+    '#default_value' => variable_get('voip_voicemail_form_is_active_default', TRUE),
+    '#options' => array(t('no'), t('yes')),
+    );
+                                
+  $f['voip_voicemail_form_email_notification_default'] = array(
+    '#type' => 'radios',
+    '#title' => t('Enable email notification for new mailboxes?'),
+    '#default_value' => variable_get('voip_voicemail_form_email_notification_default', TRUE),
+    '#options' => array(t('no'), t('yes')),
+    );
+                                
+  return $f;
+}
+
+function voip_voicemail_has_mailbox_type($type) {
+  return in_array($type, variable_get('voip_voicemail_node_types', array()));
+}
+
+
+/**
+ * Implementation of hook_nodeapi()
+ */
+function voip_voicemail_nodeapi(&$node, $op, $teaser = NULL, $page = NULL) {
+//xdebug_break();
+  // handle audio files that are associated with voicemail messages
+  if ($node->type == 'audio') {
+    switch ($op) {
+      case 'update':
+      case 'insert':
+        // process audio files that may have just been uploaded as audio nodes for a particular voicemail message
+        if ($node->voip_voicemail_audio_key) {
+          _voip_voicemail_message_add_audio_node($node);
+          unset($node->voip_voicemail_audio_key);
+        }
+        break;
+      case 'load':
+        // mark the audio node if it is associated with a voicemail message
+        $query = "SELECT COUNT(*) FROM {voip_voicemail_messages} WHERE `nid` = %d";
+        $count = db_result(db_query($query, $node->nid));
+        if ($count) {
+          $node->voip_voicemail_message = TRUE;
+        }
+        break;
+    }   
+  }
+
+  // provide voicemail functionality to voip-enabled nodes.
+  // Note: extensions associated with users are handled by voip_voicemail_user()
+  if (voip_voicemail_has_mailbox_type($node->type) && (empty($node->voip_extension_info['uid']))) {
+    switch ($op) {
+      case 'insert':
+// watchdog('vm', "creating mailbox for node type: $node->type, node: " . print_r($node, TRUE));
+        // determine the extension node associated with this mailbox
+        // assume voip_insert() has already been called; cannot call voip_get_extension_info_from_nid() to avoid recursion
+        $query = "SELECT `number` FROM {voip_extensions} WHERE `nid_contents` = %d";
+        $db_entry = db_fetch_array(db_query($query, $node->nid));
+        if (!$db_entry) {
+          watchdog('voip_voicemail', t("Error retrieving info for node %nid. Extension does not exist, yet.", array('%nid' => $node->nid)), WATCHDOG_ERROR);
+          return FALSE;
+        }
+        $extension_number = $db_entry['number'];
+        $is_active = isset($node->voip_voicemail_form_is_active)?$node->voip_voicemail_form_is_active:variable_get('voip_voicemail_form_is_active_default', TRUE);
+        $email_notification = isset($node->voip_voicemail_form_email_notification)?$node->voip_voicemail_form_email_notification:variable_get('voip_voicemail_form_email_notification_default', TRUE);
+         _voip_voicemail_mailbox_create($extension_number, $is_active, $email_notification);
+        $node->voip_voicemail_form_is_active = NULL;
+        $node->voip_voicemail_form_email_notification = NULL;
+        break;
+      case 'load':
+        // determine the extension node associated with this mailbox
+        $r = voip_get_extension_info_from_nid($node->nid);
+//watchdog('vm', "extension info for node $node->nid: " . print_r($r, TRUE));
+        // retrieve the mailbox info
+        $rc = voip_voicemail_mailbox_get_info($r['extension_info']['number']);
+        if ($rc['error_code'] != VOIP_SUCCESS) {
+          if ($rc['error_code'] == VOIP_VOICEMAIL_MAILBOX_DOES_NOT_EXIST) {
+          	watchdog('voip_voicemail', "Compensating lack of mailbox for node $node->nid", WATCHDOG_WARNING);
+//watchdog('vm', "(load) creating mailbox for node type: $node->type, node: " . print_r($node, TRUE));
+//            if (!$node->voip_mailbox_info) {
+              $is_active = variable_get('voip_voicemail_form_is_active_default', TRUE);
+              $email_notification = variable_get('voip_voicemail_form_email_notification_default', TRUE);
+              _voip_voicemail_mailbox_create($r['extension_info']['number'], $is_active, $email_notification);
+//            }
+             $rc = voip_voicemail_mailbox_get_info($r['extension_info']['number']);
+           }
+          else {
+            watchdog('voip_voicemail', t("Error retrieving mailbox info for extension %x.", array('%x' => $r['extension_info']['number'])), WATCHDOG_ERROR);
+          }
+        }
+         $additions = array('voip_mailbox_info' => $rc['mailbox_info']);
+        return $additions;
+      case 'update':
+        $is_active = isset($node->voip_voicemail_form_is_active)?$node->voip_voicemail_form_is_active:variable_get('voip_voicemail_form_is_active_default', TRUE);
+        $email_notification = isset($node->voip_voicemail_form_email_notification)?$node->voip_voicemail_form_email_notification:variable_get('voip_voicemail_form_email_notification_default', TRUE);
+        if ($node->revision) {
+//watchdog('vm', "(update revision) creating mailbox for node type: $node->type, node: " . print_r($node));
+          _voip_voicemail_mailbox_create($node->voip_mailbox_info['number'], $is_active, $email_notification);
+        }
+        else {
+         $mailbox_info = array('is_active' => $is_active, 'email_notification' => $email_notification);
+         _voip_voicemail_mailbox_update($node->voip_mailbox_info['number'], $mailbox_info);
+        }
+        $node->voip_voicemail_form_is_active = NULL;
+        $node->voip_voicemail_form_email_notification = NULL;
+        break;
+      case 'view':
+        // handled by voip_voicemail_voip_get_view_fields()
+        break;
+      case 'delete':
+        _voip_voicemail_mailbox_delete($node->voip_mailbox_info['number']);
+        break;
+    }
+  }
+}
+
+/**
+ * Add specified audio node into the voicemail message associated with the node's audio_key
+ */
+function _voip_voicemail_message_add_audio_node(&$node) {
+
+  // determine which mailboxes and messages are expecting the given audio node
+  $query = "SELECT mbx.number, mbx.email_notification, msg.folder, msg.caller_extension, msg.caller_id FROM {voip_voicemail_mailboxes} mbx INNER JOIN {voip_voicemail_messages} msg ON mbx.number = msg.mailbox WHERE msg.audio_key = '%s'";
+  $db_result = db_query($query, $node->voip_voicemail_audio_key);
+  if (!$db_result) {
+    $error_msg = t("Could not fetch mailbox associated with audio node %n: %e", array('%n' => $node->nid, '%e' => db_error()));
+    watchdog('voip_voicemail', $error_msg, WATCHDOG_ERROR);
+    return FALSE;
+  }
+  $recipients = array();
+  while( $db_entry = db_fetch_array($db_result)) {
+  	if ($db_entry['folder'] == VOIP_VOICEMAIL_INBOX) {
+      $recipients[] = $db_entry;
+  	}
+  }
+ 
+  // add the new audio node to all the associated messages
+  $query = "UPDATE {voip_voicemail_messages} SET `nid` = %d, `audio_key` = 0 WHERE `audio_key` = '%s'";
+  $db_result = db_query($query, $node->nid, $node->voip_voicemail_audio_key);
+  if (!$db_result) {
+    $error_msg = t("Could not insert audio node %n in voicemail messages: %e", array('%n' => $node->nid, '%e' => db_error()));
+    watchdog('voip_voicemail', $error_msg, WATCHDOG_ERROR);
+    return FALSE;
+  }
+
+  // retrieve the sender's information
+  if ($recipients) {
+  	$sender_info = array('caller_extension' => $recipients[0]['caller_extension'], 'caller_id' => $recipients[0]['caller_id']);
+  	if ($recipients[0]['caller_extension']) {
+  	  $rc = voip_get_extension_info($recipients[0]['caller_extension']);
+  	  $sender_info['caller_name'] = $rc['extension_info']['name'];
+  	}
+  }
+  
+  // determine the message file information
+  $file_info['name'] = $node->audio_file->filename;
+  $file_info['mime_type'] = $node->audio_file->filemime;
+  $file_info['size'] = $node->audio_file->filesize;
+  $file_info['path'] = $node->audio_file->filepath;
+
+  // send an email notification to all the recipients of the voicemail message
+  foreach ($recipients as $recipient) {
+  	if ($recipient['email_notification']) {
+  	  _voip_voicemail_send_email_notification($recipient['number'], $sender_info, $file_info);
+  	}
+  }
+  
+  return TRUE;
+}
+
+function _voip_voicemail_send_email_notification($extension_number, $caller_info, $file_info) {
+  // get the owners of the extension
+  $rc = voip_get_extension_info($extension_number);
+  $extension_info =& $rc['extension_info'];
+  
+  $owners = voip_get_extension_owners($extension_info);
+
+  // determine the extension number, the name and the email of the message recipients
+  $recipients = array();
+  foreach ($owners as $owner_extension_info) {
+  	// make sure the owner's extension is active
+  	if (!$owner_extension_info['is_active']) {
+  	  continue;
+  	}
+  	// make sure the owner's mailbox is active and that email_notification is enabled
+  	$r = voip_voicemail_mailbox_get_info($owner_extension_info['number']);
+  	if (($r['error_code'] == VOIP_SUCCESS) && ($r['mailbox_info']['is_active']) && ($r['mailbox_info']['email_notification'] != VOIP_VOICEMAIL_NO_NOTIFICATIONS)) {
+      $query = "SELECT u.mail FROM {users} u WHERE u.uid = %d";
+  	  $mail = db_result(db_query($query, $owner_extension_info['uid']));
+  	  if ($mail) {
+        $recipients[] = array('extension_number' => $owner_extension_info['number'], 
+                              'name' => $owner_extension_info['name'], 
+                              'mail' => $mail, 
+                              'uid' => $owner_extension_info['uid'],
+                              'notification' => $r['mailbox_info']['email_notification']);
+  	  }
+  	}
+  }  
+  
+  // send email notification to all recipients
+  foreach ($recipients as $recipient) {
+    $to = trim($recipient['mail']);
+    $name = $recipient['name'];
+    $caller = (isset($caller_info['caller_name']))? $caller_info['caller_name'] : $caller_info['caller_id'];
+    $subject = t('New voicemail message received from %caller', array('%caller' => $caller));
+    $mailbox_url = 'user/' . $recipient['uid'] . '/voip/voicemail';
+    $url = url($mailbox_url, NULL, NULL, TRUE);
+
+    if ($recipient['notification'] == VOIP_VOICEMAIL_SEND_NOTIFICATIONS) {
+      $body = t("Dear %name, \n\nYou have just received a new voicemail message from %caller.\n\nTo check your voicemail messages, please dial 1(866)460.6602 and go to your personal area.\n\nYou may also check your messages online by clicking here: %url. You will need to login to be able to access your messages. \n\nThe What's Up Central Team",
+            array('%name' => $name, '%caller' => $caller, '%url' => $url));
+      $filename = NULL;
+      $filecontents = NULL;
+      $filemime = '';
+    }
+    else {
+      $body = t("Dear %name, \n\nYou have just received a new voicemail message from %caller.\n\nA copy of the message can be found in the attached file.\n\nTo access all your voicemail messages, please dial 1(866)460.6602 and go to your personal area.\n\nYou may also check your messages online by clicking here: %url. You will need to login to be able to access your messages. \n\nThe What's Up Central Team",
+            array('%name' => $name, '%caller' => $caller, '%url' => $url));
+      $filename = $file_info['name'];
+      $filecontents = file_get_contents($file_info['path']);
+      $filemime = $file_info['mime_type'];
+    }
+    $from = variable_get('site_mail', ini_get('sendmail_from'));
+    voip_mail($to, $subject, $body, $from, $filename, $filecontents, $filemime);
+  }
+  watchdog('voip_voicemail', t('%count voicemail messages sent for extension %x.', array('%count' => count($recipients), '%x' => $extension_number)));
+}
+
+/**
+ * Implementation of hook_form_alter()
+ **/
+function voip_voicemail_form_alter($form_id, &$form) {
+  global $user;
+  $type = (isset($form['type']) && isset($form['type']['#value'])) ? $form['type']['#value'] : NULL;
+  $node = isset($form['#node']) ? $form['#node'] : NULL;
+
+  if (isset($type) && (voip_voicemail_has_mailbox_type($type))) {
+    switch ($form_id) {
+      // node settings form
+      case $type .'_node_settings':
+        break;
+
+      // node edit form
+      case $type .'_node_form':
+        if (isset($node) && ($node->nid) && isset($node->voip_extension_info) && $node->voip_extension_info['is_active']) {
+
+            $m = $node->voip_mailbox_info;
+        
+            // our form additions
+            
+            $f = array();
+        
+            // create a collapsible field set for voicemail information
+            $f['voip_voicemail_form'] = array( 
+              '#type' => 'fieldset',
+              '#title' => t('Voicemail settings'),
+              '#collapsible' => TRUE,
+              '#collapsed' => FALSE,
+              '#weight' => 4,
+            );
+        
+            $f['voip_voicemail_form']['voip_voicemail_form_is_active'] = array(
+              '#type' => 'radios',
+              '#title' => t('Activate voicemail?'),
+              '#default_value' => $m['is_active'],
+              '#options' => array(t('no'), t('yes')),
+             );
+                                
+            if ($m['is_active']) {
+
+              $f['voip_voicemail_form']['voip_voicemail_form_email_notification'] = array(
+                '#type' => 'radios',
+                '#title' => t('Send email notification for each voicemail received?'),
+                '#default_value' => $m['email_notification'],
+                '#options' => array(t("Don't send email notifications."), t('Send email notifications.'), t('Send email notifications with the voicemail message file attached.')),
+               );
+                                
+              $greetings = t('Your voicemail greetings message is not available');
+              if ($m['nid_audio_greetings']) {
+                $audio_node = node_load($m['nid_audio_greetings']);
+                $greetings = audio_get_player($audio_node);  
+              }
+        
+              $f['voip_voicemail_form']['voip_voicemail_form_greetings'] = array(
+                '#type' => 'textfield',
+                '#title' => t('Voicemail greetings message'),
+                '#default_value' => $greetings,
+                '#size' => 50,
+                '#maxlength' => 50,
+                '#attributes' => array('disabled' => 'disabled'),    // Need to add this attribute in order to have a read-only field
+               );
+            }
+            
+            // add the voicemail form elements to the broader voip form
+           $form['voip_node_form']['voip_voicemail'] = $f;
+        }
+        break;
+    }
+  }
+}
+
+/**
+ * Implementation of hook_xmlrpc()
+ */
+function voip_voicemail_xmlrpc() {
+  return array(
+    array('voip_voicemail.messageCreate',
+          '_voip_voicemail_xmlrpc_message_create',
+          array('array', 'array', 'array', 'array'),
+          t('Creates a voicemail message for the specified mailboxes.')
+    ),
+    array('voip_voicemail.messageDelete',
+          '_voip_voicemail_xmlrpc_message_delete',
+          array('array', 'array', 'array'),
+          t('Deletes the specified voicemail message.')
+    ),
+    array('voip_voicemail.messageSave',
+          '_voip_voicemail_xmlrpc_message_save',
+          array('array', 'array', 'array'),
+          t('Updates statistics associated with the playing of the specified voicemail message.')
+    ),
+    array('voip_voicemail.mailboxGetInfo',
+          '_voip_voicemail_xmlrpc_mailbox_get_info',
+          array('array', 'array', 'string'),
+          t('Returns basic information about the specified mailbox.')
+    ),
+    array('voip_voicemail.mailboxGetMessages',
+          '_voip_voicemail_xmlrpc_mailbox_get_messages',
+          array('array', 'array', 'string'),
+          t('Returns the array with information about the voicemail messages in the specified mailbox.')
+    ),
+    array('voip_voicemail.mailboxGetNumberOfMessages',
+          '_voip_voicemail_xmlrpc_mailbox_get_number_of_messages',
+          array('array', 'array', 'string'),
+          t('Returns the number of messages in the specified mailbox.')
+    ),
+
+  );
+} 
+
+
+/**
+ * Implementation of hook_menu
+ */
+function voip_voicemail_menu($may_cache) {
+
+  $items = array();
+
+  if ($may_cache) {
+    $items[] = array('path' => 'voicemail', 'title' => t('check voicemail'),
+                     'access' => user_access('access content'),
+                     'type' => MENU_SUGGESTED_ITEM,
+                     'callback' => '_voip_voicemail_page');
+  }
+  else {
+  	global $user;
+  	$voip_view_access = FALSE;
+  	
+    if ((arg(0) == 'user') && is_numeric(arg(1))) {
+      $account = user_load(array('uid' => arg(1)));
+      $voip_view_access = ($account->voip_extension_info) && (($user->uid == 1) || ($user->uid == arg(1)) || user_access('administer users'));
+      $extension_info = $account->voip_extension_info;
+      $voip_menu_path = 'user/'. arg(1) .'/voip';
+    } 
+    else if (arg(0) == 'node' && is_numeric(arg(1)))  {
+      $node = node_load(arg(1));
+      $voip_view_access = (($node->voip_extension_info) && voip_extension_access($node->voip_extension_info, 'update'));
+      $extension_info = $node->voip_extension_info;
+      $voip_menu_path = 'node/'. arg(1) .'/voip';
+    } 
+
+    if ($voip_view_access) {
+      $rc = voip_voicemail_mailbox_get_info($extension_info['number']);
+      if (($rc['error_code'] == VOIP_SUCCESS) && ($rc['mailbox_info']['is_active'])) {
+        $items[] = array(
+          'path' => "$voip_menu_path/voicemail", 
+          'title' => t('voicemail'),
+          'type' => MENU_LOCAL_TASK, 
+          'access' => $voip_view_access,
+          'weight' => 3,
+          'callback' => '_voip_voicemail_page', 
+          'callback arguments' => array($extension_info)
+        );
+      }
+    }
+  }
+//watchdog('voicemail', "menu: arg(0): " . arg(0) . ", arg(1): " . arg(1) . ", items: " . print_r($items, TRUE));  
+  return $items;
+}
+
+//-- Page functions --//
+/**
+ * Menu callback; displays a Drupal page containing voicemail entries of a given mailbox.
+ */
+function _voip_voicemail_page($extension_info, $op = NULL, $arg = NULL) {
+// watchdog('voicemail', "entering: voip_voicemail_page($extension_info, $op = NULL, $arg = NULL)");
+  global $user;
+
+  $voicemail_path = arg(0) .'/'.arg(1).'/voip/voicemail';
+  
+  switch($op) {
+   case NULL:
+   case 'view':
+     // since only extension 'owners' are allowed to access mailbox info, below we check for 'update' rather than 'view'
+     if (!voip_extension_access($extension_info, 'update', $user) 
+         || ((isset($extension_info['uid']) && ($user->uid != $extension_info['uid']) && (!user_access('administer users'))))) {
+       drupal_access_denied();
+       break;
+     }
+
+     $title = isset($extension_info['name'])?$extension_info['name']:t('extension %x', array('%x' => $extension_info['number']));
+     drupal_set_title($title = t("Voice mailbox for %t", array('%t' => $title)));
+     $output = _voip_voicemail_mailbox_table($extension_info['number'], $voicemail_path);
+     print theme('page', $output);
+     break;
+   
+   case 'delete_msg':
+     if (!isset($_POST['edit']['confirm'])) {
+        return confirm_form('user_confirm_voicemail_delete', 
+                            array(), 
+                            t('Are you sure you want to delete this message?'), 
+                            $voicemail_path, 
+                            t('This action cannot be undone.'),
+                            t('Delete'), t('Cancel'));
+     }
+     else {
+       $result = _voip_voicemail_message_delete($arg);
+       if ($result !== TRUE) {
+         watchdog('voip_voicemail', $result, WATCHDOG_ERROR); 
+       }
+//       drupal_set_message(t('The voicemail message has been deleted.'));
+       drupal_goto($voicemail_path);
+     }
+     break;
+     
+   default:
+     drupal_not_found();
+     break;
+  }
+}
+
+    
+/**
+ * Delete a mailbox from the voicemail database
+ *
+ * @param $mailbox_number
+ * int
+ * 
+ * @return mixed
+ * TRUE if the mailbox is successfully deleted, a string with the error description in case of failure
+ */
+function _voip_voicemail_mailbox_delete($mailbox_number) {
+
+  // delete all audio messages from the mailbox
+  $query = "SELECT m.msg_id FROM {voip_voicemail_messages} m WHERE m.mailbox = '%d'";
+  $db_result = db_query($query, $mailbox_number);
+ 
+  if (!$db_result) {
+    $error_msg = t("Could not query messages from mailbox %m: %e", array('%m' => $mailbox_number, '%e' => db_error()));
+    return $error_msg;
+  }
+  
+  while ($msg = db_fetch_object($db_result)) {
+    $result = _voip_voicemail_message_delete($msg->msg_id);
+    if ($result !== TRUE) {
+      return $result;
+    }
+  }
+
+  // now delete the mailbox itself...
+  $query = "DELETE FROM {voip_voicemail_mailboxes} WHERE `number` = '%d'";
+  $db_result = db_query($query, $mailbox_number);
+
+   if (!$db_result) {
+     return t("Could not delete voice mailbox %m: %e", array('%m' => $mailbox_number, '%e' => db_error()));
+   }
+
+  return TRUE;
+}
+
+/*
+ * Delete the specified voicemail message
+ * 
+ * @param $msg_id
+ * int.
+ * 
+ * @return
+ * TRUE in case of success, string with error message in case of failure
+ * 
+ */
+ function _voip_voicemail_message_delete($msg_id) {
+  
+  // determine the audio node associated with the message
+  $query = "SELECT m.nid FROM {voip_voicemail_messages} m WHERE m.msg_id = '%d'";
+  $db_result = db_query($query, $msg_id);
+ 
+  if (!$db_result) {
+    $error_msg = t("Could not query message %m for deletion: %e", array('%m' => $msg_id, '%e' => db_error()));
+    return $error_msg;
+  }
+  
+  if ($nid_audio = db_result($db_result)) {
+    
+    // determine how many messages point to the same audio node
+    $query = "SELECT COUNT(*) FROM {voip_voicemail_messages} m WHERE `nid` = '%d'";
+    $count_msgs = db_result(db_query($query, $nid_audio));
+// watchdog('vm', "count: $count_msgs");    
+    // delete the audio node only if there's only one message pointing at it
+    if ($count_msgs == 1) {
+// watchdog ("vm", "about to delete: $nid_audio");
+      // NOTE: since only the audio node author or the system administrator are allowed to delete the audio node, 
+      // become system admin for the node deletion...
+      global $user;
+      $current_user = $user;
+      $user = user_load(array('uid' => 1));
+      node_delete($nid_audio);
+      $user = $current_user;
+    }
+    $query = "SELECT COUNT(*) FROM {voip_voicemail_messages} m WHERE `nid` = '%d'";
+    $count_msgs = db_result(db_query($query, $nid_audio));
+// watchdog('vm', "after count: $count_msgs");    
+    
+    // delete the message itself
+    $query = "DELETE FROM {voip_voicemail_messages} WHERE `msg_id` = '%d'";
+    $db_result2 = db_query($query, $msg_id);
+    if (!$db_result2) {
+      return t("Could not delete voicemail message %m: %e", array('%m' => $msg_id, '%e' => db_error()));
+    }
+  }
+  else {
+    $error_msg = t("There is no voicemail message associated with the specified message id: %id", array('%id' => $msg_id));
+    return $error_msg;
+  }
+
+  // log statistics
+  $user_extension_number = isset($user->voip_extension_info)?$user->voip_extension_info['number']:NULL;
+  $user_info = array('extension_number' => $user_extension_number, 'uid' => $account->uid, 'caller_id' => $msg_info['caller_id']);
+  voip_log($user_info, 'voicemail', 'deleted voicemail message', NULL, "message id: $msg_id");
+
+  return TRUE;
+}
+
+/**
+ * Saves the specified message back in the voicemail database. To be called after the message is played.
+ *
+ * @param $msg_info
+ * array with meta-information about the voicemail message being saved
+ * 
+ * @return boolean
+ * TRUE if the message is successfully updated; I case of error, returns FALSE and sets eh_error_msg() with the appropriate error description
+ */
+function _voip_voicemail_message_save($msg_info) {
+  $new_msg_info = array('is_new' => FALSE);  
+  $rc = _voip_voicemail_message_update($msg_info['msg_id'], $new_msg_info);
+  // update other statistics associated with the message
+  if ($rc) {
+    audio_update_access_statistics($msg_info['nid']);
+    $rc = TRUE;
+  }
+  return $rc;
+}
+
+
+
+/**
+ * Update the specified message in the voicemail database
+ *
+ * @param $msg_id
+ * int with the message identifier
+ * 
+ * @param $msg_info
+ * $array with message fields and values to be updated
+ * 
+ * @return boolean
+ * TRUE if the message is successfully updated; I case of error, returns FALSE and sets eh_error_msg() with the appropriate error description
+ */
+function _voip_voicemail_message_update($msg_id, $msg_info) {
+  // update voicemail box in the database
+  
+  $c = count($msg_info);
+  if ($c == 0) { // Nothing to be updated
+    return TRUE;
+  }
+
+  // delete the audio nodes being updated, if any
+  if (array_key_exists('nid', $msg_info)) {
+    $query = "SELECT m.nid FROM {voip_voicemail_messages} m WHERE m.msg_id = '%d'";
+    $nid = db_result(db_query($query, $msg_id));
+    if ($nid) {
+      // NOTE: since only the audio node author or the system administrator are allowed to delete the audio node, 
+      // become system admin for the node deletion...
+      global $user;
+      $current_user = $user;
+      $user = user_load(array('uid' => 1));
+      node_delete($nid);
+      $user = $current_user;
+    }
+  }
+
+  // build the UPDATE query dynamically
+  foreach ($msg_info as $key => $value) {
+    $q[] = db_escape_string($key) ." = '%s'";
+    $v[] = $value;
+  }
+  $query = "UPDATE {voip_voicemail_messages} SET " . implode(', ', $q) . " WHERE `msg_id` = '$msg_id'";
+
+  $db_result = db_query($query, $v);
+  if (!$db_result) {
+    $error_msg = t("Could not update message %m in the voicemail database: %e", array('%m' => $msg_id, '%e' => db_error()));
+    watchdog('voip_voicemail', $error_msg, WATCHDOG_ERROR);
+    return FALSE;
+  }
+
+  return TRUE;
+}
+
+
+ 
+/**
+ * Returns the array with the meta-voicemail messages of the specified mailbox
+ * 
+ * @param $mailbox_number
+ * int.
+ * 
+ * @param $mailbox_folder
+ * int. the folder to be retrieved
+ * 
+ * @return
+ * In case of success, returns array with information about messages in the mailbox.  Otherwise, returns -1 and sets eh_error with the error description.
+ */
+function _voip_voicemail_mailbox_get_messages($mailbox_number, $mailbox_folder = VOIP_VOICEMAIL_INBOX) {
+
+  // return unread messages first. all messages are ordered by date received.
+  $query = 'SELECT m.mailbox, m.msg_id, m.nid, m.caller_extension, m.caller_id, m.received, m.is_new ' .
+  		   'FROM {voip_voicemail_messages} m ' .
+  		   'WHERE m.mailbox = %d AND m.folder = %d AND m.nid <> 0 ' .
+  		   'ORDER BY m.is_new DESC, m.received DESC';
+  $db_result = db_query($query, $mailbox_number, $mailbox_folder);
+  if (!$db_result) {
+    eh_error(t('Error getting messages from mailbox %m: %e'), array('%m' => $mailbox_number, '%e' => db_error()));
+    return -1;
+  }
+  
+  $msgs = array();
+  while ($msg_info = db_fetch_array($db_result)) {
+    $msgs[] = $msg_info;
+  }
+
+  return $msgs;
+}
+
+ 
+/**
+ * Returns the number of new voicemail messages in the specified inbox
+ * 
+ * @param int
+ * $mailbox being checked
+ * 
+ * @return int
+ * In case of success, returns the number of new messages in the mailbox.  Otherwise, returns -1
+ */
+function _voip_voicemail_count_new_messages($mailbox) {
+
+  $query = "SELECT COUNT(*) FROM {voip_voicemail_messages} m WHERE m.mailbox = %d AND m.folder = %d AND m.nid <> 0 AND m.is_new = 1";
+  $count_msgs = db_result(db_query($query, (int)$mailbox, VOIP_VOICEMAIL_INBOX));
+  return $count_msgs;
+}
+
+/**
+ * Returns the number of old voicemail messages in the specified inbox
+ * 
+ * @param int
+ * $mailbox being checked
+ * 
+ * @return int
+ * In case of success, returns the number of old messages in the mailbox.  Otherwise, returns -1
+ */
+function _voip_voicemail_count_saved_messages($mailbox) {
+
+  $query = "SELECT COUNT(*) FROM {voip_voicemail_messages} m WHERE m.mailbox = %d AND m.folder = %d AND m.nid <> 0 AND m.is_new = 0";
+  $count_msgs = db_result(db_query($query, (int)$mailbox, VOIP_VOICEMAIL_INBOX));
+
+  return $count_msgs;
+}
+
+/**
+ * Update an existing user in the voicemail database
+ *
+ * @param $mailbox_number
+ * int with the number of the mailbox to be updated
+ * 
+ * @param $mailbox_info
+ * $array with mailbox fields and values to be updated
+ * 
+ * @return boolean
+ * TRUE if the mailbox is successfully updated; I case of error, returns FALSE and sets eh_error_msg() with the appropriate error description
+ */
+function _voip_voicemail_mailbox_update($mailbox_number, $mailbox_info) {
+  // update voicemail box in the database
+  
+  $c = count($mailbox_info);
+
+  if ($c == 0) { // Nothing to be updated
+    return TRUE;
+  }
+
+  // build the UPDATE query dynamically
+
+  foreach ($mailbox_info as $key => $value) {
+    $q[] = '`' . db_escape_string($key) . '`' ." = '%s'";
+    $v[] = $value;
+  }
+
+  $query = "UPDATE {voip_voicemail_mailboxes} SET " . implode(', ', $q) . " WHERE `number` = '$mailbox_number'";
+  $db_result = db_query($query, $v);
+  if (!$db_result) {
+    $error_msg = t("Could not update mailbox %m in the voicemail database: %e", array('%m' => $mailbox_number, '%e' => db_error()));
+    watchdog('voip_voicemail', $error_msg, WATCHDOG_ERROR);
+    return FALSE;
+  }
+
+  return TRUE;
+}
+
+/**
+ * Create a voice mailbox with the given number
+ *
+ * @param $extension_number
+ * int number of the mailbox being created
+ * 
+ * @param $is_active
+ * boolean. TRUE if the voice mailbox is to be active
+ * 
+ * @param $email_notification
+ * boolean. TRUE if the system is to send an email notifying the user of the arrival of new voicemail messages
+ * 
+ * @return 
+ * boolean. FALSE in case of error, TRUE in case of success
+ */
+function _voip_voicemail_mailbox_create($extension_number, $is_active = FALSE, $email_notification = TRUE) {
+// watchdog('voip_voicemail', "calling _voip_voicemail_mailbox_create($extension_number, $is_active, $email_notification)");
+  // query the user's inbox 
+  $query = "INSERT INTO {voip_voicemail_mailboxes} (`number`, `is_active`, `email_notification`) VALUES (%d, '%d', %d)";
+  $r = db_query($query, $extension_number, $is_active, $email_notification);
+
+  if (!$r) {
+    $error_msg = t("Error creating voicemail box: %e", array('%e' => db_error()));
+    watchdog('voip_voicemail', $error_msg, WATCHDOG_ERROR);
+    return FALSE;
+  }
+
+  return TRUE;
+}
+
+/**
+ * Returns information associated with the given extension's mailbox'
+ *
+ * @param $mailbox_number
+ * int number of the extension being checked
+ * 
+ * @return
+ *   array with
+ *     ['error_code'] :: VOIP_SUCCESS, VOIP_VOICEMAIL_MAILBOX_DOES_NOT_EXIST, VOIP_PROCESSING_FAILURE
+ *     ['error_msg'] :: string with eventual error message
+ *     ['mailbox_info'] :: array with mailbox information
+ */
+function voip_voicemail_mailbox_get_info($mailbox_number) {
+
+  $rc = array();
+
+  // query the specified mailbox 
+  $query = "SELECT * FROM {voip_voicemail_mailboxes} WHERE `number`='%d'";
+  $db_result = db_query($query, $mailbox_number);
+  if (!$db_result) {
+    $rc['error_code'] = VOIP_PROCESSING_FAILURE;
+    $rc['error_msg'] = t("Could not query mailbox database: %e", array('%e' => db_error()));
+    watchdog('voip_voicemail', $rc['error_msg'] , WATCHDOG_ERROR);
+    return $rc;
+  }
+  
+  $result = db_fetch_array($db_result);
+  if (!$result) {
+    $rc['error_code'] = VOIP_VOICEMAIL_MAILBOX_DOES_NOT_EXIST;
+    $rc['error_msg'] = t('Specified mailbox does not exist.');
+  }
+  else {
+    $rc['error_code'] = VOIP_SUCCESS;
+    $rc['mailbox_info'] = $result;
+  }
+  
+  return $rc;
+}
+
+
+/*
+ * Returns a formated html table with the contents of the specified mailbox
+ */
+ function _voip_voicemail_mailbox_table($mailbox, $voicemail_path) {
+ // NOTE: this function is based on user_admin_account()
+
+  $_SESSION['voip_voicemail_nids2msg_ids'] = array();
+
+  $header = array(
+    array('data' => t('Received'), 'field' => 'm.received', 'sort' => 'desc'),
+    array('data' => t('Caller Extension'), 'field' => 'm.caller_extension'),
+    array('data' => t('Caller Id'), 'field' => 'm.caller_id'),
+    array('data' => t('Status'), 'field' => 'm.is_new'),
+    t('Duration'),
+    t('Operations')
+  );
+  
+  // retrieve meta-information for all the messages in the specified voice mailbox and folder
+  $sql = 'SELECT m.msg_id, m.nid, m.caller_extension, m.caller_id, m.received, m.is_new FROM {voip_voicemail_messages} m WHERE m.mailbox = %d AND m.folder = %d AND m.nid <> 0';
+  $sql .= tablesort_sql($header);
+  $result = pager_query($sql, 50, 0, NULL, $mailbox, VOIP_VOICEMAIL_INBOX);
+
+  while ($msg = db_fetch_object($result)) {
+    $date = format_date($msg->received, 'small');
+    $caller_id = $msg->caller_id;
+    $caller_extension = '';
+    if ($msg->caller_extension) {
+      $rc = voip_get_extension_info($msg->caller_extension);
+      $extension_info = $rc['extension_info'];
+      $caller_extension = l("$msg->caller_extension", "user/{$extension_info['uid']}");
+      $caller_id = '';
+    }
+  	$status = ($msg->is_new)? theme_placeholder(t('new')) : '';
+  	$audio_node = node_load($msg->nid);
+  	// since multiple messages may point to the same audio file, keep track of the messages being displayed to the user
+    $_SESSION['voip_voicemail_nids2msg_ids'][$audio_node->nid] = $msg->msg_id;
+	$duration = $audio_node->audio_fileinfo['playtime'];
+   	$operations = audio_get_player($audio_node)
+  	              . ' ' . l(t('delete'), "$voicemail_path/delete_msg/$msg->msg_id");
+    $rows[] = array($date, $caller_extension, $caller_id, $status, $duration, $operations);
+  }
+  
+  if (!$rows) {
+    $rows[] = array(array('data' => t('No voicemail messages available.'), 'colspan' => 6));
+  }
+
+  $output = theme('table', $header, $rows);
+  $output .= theme('pager', NULL, 50, 0);
+
+  return $output;
+}
+
+/**
+ * XML-RPC callback. Create a message in the specified mailbox.
+ *
+ * @param $user_info
+ * array with Drupal user_name and md5_password of the voicemail sender
+ * 
+ * @param $destination_list
+ * array with the extension numbers the message is being sent to
+ * 
+ * @param $msg_info
+ * array with meta information about the voicemail message
+ * 
+ * @return
+ *   array with
+ *     ['error_code'] :: VOIP_SUCCESS, VOIP_PROCESSING_FAILURE, VOIP_INVALID_USER_INFO, VOIP_LACK_OF_PERMISSION
+ *     ['error_msg'] :: string with eventual error message
+ *     ['audio_key'] :: unique identifier to be used by the audio node which will carry the actual contents of the audio message
+ */
+function _voip_voicemail_xmlrpc_message_create($user_info, $destination_list, $msg_info) {
+// watchdog('vm', "destination: " . print_r($destination_list, TRUE));
+  $rc = array();
+  $rc['error_code'] = VOIP_SUCCESS;
+  $rc['error_msg'] = '';
+
+  // validate given user info
+  global $user;
+  if (empty($user_info['user_name']) || empty($user_info['password'])) {
+  	$account = $user; // anonymous user
+  }
+  else {
+    $account = voip_user_authenticate($user_info['user_name'], $user_info['password']);
+  
+    if (!$account->uid) {
+  	  $rc['error_code'] = VOIP_INVALID_USER_INFO;
+  	  $rc['error_msg'] = t('Invalid combination of user name and password.');
+      return $rc;
+    }
+  }
+
+  // make sure sender is allowed to send voicemail messages
+  $access = user_access('send voicemail messages', $account);
+  if (!$access) {
+  	$rc['error_code'] = VOIP_LACK_OF_PERMISSION; 
+  	$rc['error_msg'] = t('User not allowed to send voicemail messages');
+  	return $rc;
+  }
+
+  // initialize local variables
+  $destin_extension = $msg_info['destin_extension'];
+  
+  // caller_extension is only set if user has an extension number
+  $caller_extension = isset($account->voip_extension_info)?$account->voip_extension_info['number']:0;
+  $caller_id = (isset($msg_info['caller_id']))?("{$msg_info['caller_id']['name']}<{$msg_info['caller_id']['number']}>"):'';
+  $reference_id = isset($msg_info['reference_id'])?$msg_info['reference_id']:NULL;
+    
+  // create the key to be used by the audio node that has the contents of the voice message
+  $rc['audio_key'] = 'voip_voicemail_' . mt_rand();
+  
+  $time = time();
+  
+  foreach ($destination_list as $extension_number) {
+    // check if the extension exists
+    $result = voip_get_extension_info($extension_number);
+    if ($result['error_code'] != VOIP_SUCCESS) { // error
+      return $result;
+    }
+    
+    // create a new message with the extension number and key in the destination's inbox
+    $query = "INSERT INTO {voip_voicemail_messages} (mailbox, folder, destin_extension, caller_extension, caller_id, reference_id, received, is_new, audio_key) values('%d', '%d', '%d', '%d', '%s', %d, '%d', '%d', '%s')";
+    $db_result = db_query($query, $extension_number, VOIP_VOICEMAIL_INBOX, $destin_extension, $caller_extension, $caller_id, $reference_id, $time, TRUE, $rc['audio_key']);
+  
+    if (!$db_result) {
+      $rc['error_code'] = VOIP_PROCESSING_FAILURE;
+      $error_msg = t('Processing error. Could not create new voicemail message');
+  	  watchdog('voip_voicemail', $error_msg, WATCHDOG_ERROR);
+  	  $rc['error_msg'] = $error_msg;
+  	  return $rc;
+    }
+    
+    // log statistics
+    $user_info = array('extension_number' => $caller_extension, 'uid' => $account->uid, 'caller_id' => $msg_info['caller_id']);
+    voip_log($user_info, 'voicemail', 'sent voicemail to', $extension_number);
+  }
+ 
+  // add a copy of the message to sender's sent folder
+  if ($caller_extension) {
+    $query = "INSERT INTO {voip_voicemail_messages} (mailbox, folder, destin_extension, caller_extension, caller_id, reference_id, received, is_new, audio_key) values('%d', '%d', '%d', '%d', '%s', %d, '%d', '%d', '%s')";
+    $db_result = db_query($query, $caller_extension, VOIP_VOICEMAIL_SENT, $destin_extension, $caller_extension, $caller_id, $reference_id, $time, TRUE, $rc['audio_key']);
+  
+    if (!$db_result) {
+      $rc['error_code'] = VOIP_PROCESSING_FAILURE;
+      $error_msg = t('Processing error. Could not create new voicemail message');
+      watchdog('voip_voicemail', $error_msg, WATCHDOG_ERROR);
+      $rc['error_msg'] = $error_msg;
+  	  return $rc;
+    }
+  }
+  
+  return $rc;
+}
+
+/**
+ * XML-RPC callback. Deletes the specified voicemail message.
+ *
+ * @param $user_info
+ * array with Drupal user_name and md5_password of the voicemail sender
+ * 
+ * @param $msg_info
+ * array with meta-information about the message to be deleted
+ * 
+ * @return
+ *   array with
+ *     ['error_code'] :: VOIP_SUCCESS, VOIP_PROCESSING_FAILURE, VOIP_INVALID_USER_INFO, VOIP_LACK_OF_PERMISSION
+ *     ['error_msg'] :: string with eventual error message
+ */
+function _voip_voicemail_xmlrpc_message_delete($user_info, $msg_info) {
+
+  $rc = array();
+  $rc['error_code'] = VOIP_SUCCESS;
+  $rc['error_msg'] = '';
+
+  // validate given user info
+  global $user;
+  if (empty($user_info['user_name']) || empty($user_info['password'])) {
+  	$account = $user; // anonymous user
+  }
+  else {
+    $account = voip_user_authenticate($user_info['user_name'], $user_info['password']);
+  
+    if (!$account->uid) {
+  	  $rc['error_code'] = VOIP_INVALID_USER_INFO;
+  	  $rc['error_msg'] = t('Invalid combination of user name and password.');
+      return $rc;
+    }
+  }
+
+  // make sure sender is allowed to delete this message
+  
+  // ... get the associated extension info and check if user is allowed to update it
+  $result = voip_get_extension_info($msg_info['mailbox']);
+  if ($result['error_code'] != VOIP_SUCCESS) { // error
+    return $result;
+  }
+  $access = voip_extension_access($result['extension_info'], 'update', $account);
+  if (!$access) {
+  	$rc['error_code'] = VOIP_LACK_OF_PERMISSION; 
+  	$rc['error_msg'] = t('User not allowed to delete message from mailbox %m', array('%m' => $msg_info['mailbox']));
+  	return $rc;
+  }
+    
+  // delete the message
+  $res = _voip_voicemail_message_delete($msg_info['msg_id']);
+  if ($res !== TRUE) {
+    $rc['error_code'] = VOIP_PROCESSING_FAILURE;
+    $rc['error_msg'] = t('Could not delete voicemail message: %e', array('%e' => $res));
+    return $rc;
+  }
+  return $rc;
+}
+    
+/**
+ * XML-RPC callback. Saves the specified voicemail message back in the database.  To be called after message is played.
+ *
+ * @param $user_info
+ * array with Drupal user_name and md5_password of the user performing the operation
+ * 
+ * @param $msg_info
+ * array with meta-information about the message being saved
+ * 
+ * @return
+ *   array with
+ *     ['error_code'] :: VOIP_SUCCESS, VOIP_PROCESSING_FAILURE, VOIP_INVALID_USER_INFO, VOIP_LACK_OF_PERMISSION
+ *     ['error_msg'] :: string with eventual error message
+ */
+function _voip_voicemail_xmlrpc_message_save($user_info, $msg_info) {
+
+  $rc = array();
+  $rc['error_code'] = VOIP_SUCCESS;
+  $rc['error_msg'] = '';
+
+  // validate given user info
+  global $user;
+  if (empty($user_info['user_name']) || empty($user_info['password'])) {
+  	$account = $user; // anonymous user
+  }
+  else {
+    $account = voip_user_authenticate($user_info['user_name'], $user_info['password']);
+  
+    if (!$account->uid) {
+  	  $rc['error_code'] = VOIP_INVALID_USER_INFO;
+  	  $rc['error_msg'] = t('Invalid combination of user name and password.');
+      return $rc;
+    }
+  }
+
+  // make sure sender is allowed to delete this message
+  
+  // ... get the associated extension info and check if user is allowed to update it
+  $result = voip_get_extension_info($msg_info['mailbox']);
+  if ($result['error_code'] != VOIP_SUCCESS) { // error
+    return $result;
+  }
+
+  $access = voip_extension_access($result['extension_info'], 'update', $account);
+  if (!$access) {
+  	$rc['error_code'] = VOIP_LACK_OF_PERMISSION; 
+  	$rc['error_msg'] = t('User not allowed to update messages of mailbox %m', array('%m' => $msg_info['mailbox']));
+  	return $rc;
+  }
+    
+  // save the message
+  $res = _voip_voicemail_message_save($msg_info);
+  if ($res !== TRUE) {
+    $rc['error_code'] = VOIP_PROCESSING_FAILURE;
+    $rc['error_msg'] = t('Could not save voicemail message: %e', array('%e' => $res));
+    return $rc;
+  }
+ 
+  return $rc;
+}
+    
+
+    
+/**
+ * XML-RPC callback. Returns number of messages in the specified mailbox.
+ *
+ * @param $user_info
+ * array with Drupal user_name and md5_password of the voicemail sender
+ * 
+ * @param $mailbox_number
+ * string with the number of the mailbox where the messages are to be counted from
+ * 
+ * @return
+ *   array with
+ *     ['error_code'] :: VOIP_SUCCESS, VOIP_VOICEMAIL_MAILBOX_DOES_NOT_EXIST, VOIP_PROCESSING_FAILURE, VOIP_INVALID_USER_INFO, VOIP_LACK_OF_PERMISSION
+ *     ['error_msg'] :: string with eventual error message
+ *     ['count_new_messages'] :: number of new messages in the mailbox
+ *     ['count_saved_messages'] :: number of old messages in the mailbox
+ */
+function _voip_voicemail_xmlrpc_mailbox_get_number_of_messages($user_info, $mailbox_number) {
+
+  $rc = array();
+  $rc['error_code'] = VOIP_SUCCESS;
+  $rc['error_msg'] = '';
+
+  // validate given user info
+  global $user;
+  if (empty($user_info['user_name']) || empty($user_info['password'])) {
+  	$account = $user; // anonymous user
+  }
+  else {
+    $account = voip_user_authenticate($user_info['user_name'], $user_info['password']);
+  
+    if (!$account->uid) {
+  	  $rc['error_code'] = VOIP_INVALID_USER_INFO;
+  	  $rc['error_msg'] = t('Invalid combination of user name and password.');
+      return $rc;
+    }
+  }
+
+  // check if the mailbox exists
+  $result = voip_voicemail_mailbox_get_info($mailbox_number);
+  if ($result['error_code'] != VOIP_SUCCESS) {
+    return $result;
+  }
+  
+  $result = voip_get_extension_info($mailbox_number);
+  if ($result['error_code'] != VOIP_SUCCESS) { // processing error
+  	return $result;
+  }
+  
+  $extension_info = $result['extension_info'];
+
+  // since only extension 'owners' are allowed to access mailbox info, below we check for 'update' rather than 'view'
+  if (!voip_extension_access($extension_info, 'update', $account)) {
+  	$rc['error_code'] = VOIP_LACK_OF_PERMISSION; 
+  	$rc['error_msg'] = t('User not allowed to retrieve information from mailbox %m', array('%m' => $mailbox_number));
+  	return $rc;
+  }
+
+  // get the number of new and old messages
+  
+  $c_new = _voip_voicemail_count_new_messages($mailbox_number);
+  if ($c_new < 0) {
+    $rc['error_code'] = VOIP_PROCESSING_FAILURE;
+    $rc['error_msg'] = t('Error counting number of new messages in mailbox %m', array('%m' => $mailbox_number));
+    return $rc;
+  }
+  
+  $c_old = _voip_voicemail_count_saved_messages($mailbox_number);
+  if ($c_old < 0) {
+    $rc['error_code'] = VOIP_PROCESSING_FAILURE;
+    $rc['error_msg'] = t('Error counting number of old messages in mailbox %m', array('%m' => $mailbox_number));
+    return $rc;
+  }
+  
+  $rc['count_new_messages'] = $c_new;
+  $rc['count_saved_messages'] = $c_old;
+ 
+  return $rc;
+}
+    
+/**
+ * XML-RPC callback. Returns information about the specified mailbox.
+ *
+ * @param $user_info
+ * array with Drupal user_name and md5_password of the user retrieving the information
+ * 
+ * @param $mailbox_number
+ * string with the number of the mailbox
+ * 
+ * @return
+ *   array with
+ *     ['error_code'] :: VOIP_SUCCESS, VOIP_VOICEMAIL_MAILBOX_DOES_NOT_EXIST, VOIP_PROCESSING_FAILURE, VOIP_INVALID_USER_INFO, VOIP_LACK_OF_PERMISSION
+ *     ['error_msg'] :: string with eventual error message
+ *     ['mailbox_info'] :: array with the mailbox information
+ */
+function _voip_voicemail_xmlrpc_mailbox_get_info($user_info, $mailbox_number) {
+  $rc = array();
+  $rc['error_code'] = VOIP_SUCCESS;
+  $rc['error_msg'] = '';
+
+  // validate given user info
+  global $user;
+  if (empty($user_info['user_name']) || empty($user_info['password'])) {
+  	$account = $user; // anonymous user
+  }
+  else {
+    $account = voip_user_authenticate($user_info['user_name'], $user_info['password']);
+  
+    if (!$account->uid) {
+  	  $rc['error_code'] = VOIP_INVALID_USER_INFO;
+  	  $rc['error_msg'] = t('Invalid combination of user name and password.');
+      return $rc;
+    }
+  }
+
+  // make sure user is allowed to access mailbox information
+  $result = voip_get_extension_info($mailbox_number);
+  if ($result['error_code'] != VOIP_SUCCESS) { //  error
+  	return $result;
+  }
+  $extension_info = $result['extension_info'];
+  if (!voip_extension_access($extension_info, 'view', $account)) {
+  	$rc['error_code'] = VOIP_LACK_OF_PERMISSION; 
+  	$rc['error_msg'] = t('User not allowed to retrieve information from mailbox %m', array('%m' => $mailbox_number));
+  	return $rc;
+  }
+
+  // return mailbox info
+  $rc = voip_voicemail_mailbox_get_info($mailbox_number);
+  return $rc;
+}
+    
+/**
+ * XML-RPC callback. Returns messages from the specified mailbox.
+ *
+ * @param $user_info
+ * array with Drupal user_name and md5_password of the voicemail sender
+ * 
+ * @param $mailbox_number
+ * string with the number of the mailbox where the messages are to be counted from
+ * 
+ * @return
+ *   array with
+ *     ['error_code'] :: VOIP_SUCCESS, VOIP_VOICEMAIL_MAILBOX_DOES_NOT_EXIST, VOIP_PROCESSING_FAILURE, VOIP_INVALID_USER_INFO, VOIP_LACK_OF_PERMISSION
+ *     ['error_msg'] :: string with eventual error message
+ *     ['meta_messages'] :: array with information about the messages in the mailbox
+  */
+function _voip_voicemail_xmlrpc_mailbox_get_messages($user_info, $mailbox_number) {
+
+  $rc = array();
+  $rc['error_code'] = VOIP_SUCCESS;
+  $rc['error_msg'] = '';
+
+  // validate given user info
+  global $user;
+  if (empty($user_info['user_name']) || empty($user_info['password'])) {
+  	$account = $user; // anonymous user
+  }
+  else {
+    $account = voip_user_authenticate($user_info['user_name'], $user_info['password']);
+  
+    if (!$account->uid) {
+  	  $rc['error_code'] = VOIP_INVALID_USER_INFO;
+  	  $rc['error_msg'] = t('Invalid combination of user name and password.');
+      return $rc;
+    }
+  }
+
+  // check if the mailbox exists
+  $result = voip_voicemail_mailbox_get_info($mailbox_number); 
+  if ($result['error_code'] != VOIP_SUCCESS) {
+    return $result;
+  }
+
+  // make sure mailbox is active
+  if (!$result['mailbox_info']['is_active']) {
+    $rc['error_code'] = VOIP_VOICEMAIL_MAILBOX_NOT_ACTIVE;
+    $rc['error_msg'] = t('Voicemail mailbox %m is not active.', array('%m' => $mailbox_number));
+    return $rc;
+  }
+
+  // make sure user is allowed to access mailbox information
+    
+  $result = voip_get_extension_info($mailbox_number);
+  if ($result['error_code'] != VOIP_SUCCESS) { // processing error
+  	return $result;
+  }
+  
+  $extension_info = $result['extension_info'];
+  // since only extension 'owners' are allowed to access mailbox info, below we check for 'update' rather than 'view'
+  if (!voip_extension_access($extension_info, 'update', $account)) {
+  	$rc['error_code'] = VOIP_LACK_OF_PERMISSION; 
+  	$rc['error_msg'] = t('User not allowed to retrieve information from mailbox %m', array('%m' => $mailbox_number));
+  	return $rc;
+  }
+
+  // get the messages from the mailbox
+  $msgs = _voip_voicemail_mailbox_get_messages($mailbox_number);
+  
+  if ($msgs == -1) {
+    $rc['error_code'] = VOIP_PROCESSING_FAILURE;
+    $rc['error_msg'] = eh_error_msg();
+    return $rc;
+  }
+  
+  $rc['meta_messages'] = $msgs;
+  
+  return $rc;
+}
+    
+/**
+ * Implementations of hook_voip_get_view_fields() 
+ */
+function voip_voicemail_voip_get_view_fields($extension_info, $account, $teaser = NULL, $page = NULL) {
+  // make sure the given extension has a voicemail box
+  $rc = voip_voicemail_mailbox_get_info($extension_info['number']);
+  if ($rc['error_code'] == VOIP_SUCCESS) {
+    // voicemail status information is only provided to users who have 'update' privileges
+    if (voip_extension_access($extension_info, 'update', $account)) {
+      $a = _voip_voicemail_get_status_fields($extension_info);
+      return $a;
+    }
+  }
+}
+
+/*
+ * maintain a table pointing from nids to msg_ids
+ */
+/******** 
+ function _voip_voicemail_nids2msg_ids($nid = NULL, $msg_id = NULL, $reset = FALSE) {
+   static $nids2msg_ids;
+// watchdog('zz', "nids2msg_ids: " . print_r($nids2msg_ids, TRUE));
+   if ($reset) {
+     $nids2msg_ids = array();
+     return;
+   }
+   if ($msg_id) {
+     $nids2msg_ids[$nid] = $msg_id;
+     return;
+   }
+   return isset($nids2msg_ids[$nid])?$nids2msg_ids[$nid]:NULL;
+}
+**********/	
+?>

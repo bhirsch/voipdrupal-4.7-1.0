@@ -1,0 +1,118 @@
+-- Handles all domain-keyed data. Included in civicrm_data.tpl for base initialization (@domain_id = 1).
+-- When invoked by itself, includes logic to insert data for next available domain_id.
+
+    select max(id) + 1 from civicrm_domain into @domain_id;
+
+set @domain_name = CONCAT('Domain Name ',@domain_id);
+
+INSERT INTO civicrm_domain( id, name, contact_name, email_domain ) 
+    VALUES ( @domain_id, @domain_name, 'Domain Contact Name', 'FIXME.ORG' );
+
+-- Sample location types
+INSERT INTO civicrm_location_type( domain_id, name, vcard_name, description, is_reserved, is_active, is_default ) VALUES( @domain_id, 'Home', 'HOME', 'Place of residence', 0, 1, 1 );
+INSERT INTO civicrm_location_type( domain_id, name, vcard_name, description, is_reserved, is_active ) VALUES( @domain_id, 'Work', 'WORK', 'Work location', 0, 1 );
+INSERT INTO civicrm_location_type( domain_id, name, vcard_name, description, is_reserved, is_active ) VALUES( @domain_id, 'Main', NULL, 'Main office location', 0, 1 );
+INSERT INTO civicrm_location_type( domain_id, name, vcard_name, description, is_reserved, is_active ) VALUES( @domain_id, 'Other', NULL, 'Other location', 0, 1 );
+
+-- Sample relationship types
+INSERT INTO civicrm_relationship_type( domain_id, name_a_b, name_b_a, description, contact_type_a, contact_type_b, is_reserved )
+    VALUES( @domain_id, 'Child of', 'Parent of', 'Parent/child relationship.', 'Individual', 'Individual', 0 );
+INSERT INTO civicrm_relationship_type( domain_id, name_a_b, name_b_a, description, contact_type_a, contact_type_b, is_reserved )
+    VALUES( @domain_id, 'Spouse of', 'Spouse of', 'Spousal relationship.', 'Individual', 'Individual', 0 );
+INSERT INTO civicrm_relationship_type( domain_id, name_a_b, name_b_a, description, contact_type_a, contact_type_b, is_reserved )
+    VALUES( @domain_id, 'Sibling of','Sibling of', 'Sibling relationship.','Individual','Individual', 0 );
+INSERT INTO civicrm_relationship_type( domain_id, name_a_b, name_b_a, description, contact_type_a, contact_type_b, is_reserved )
+    VALUES( @domain_id, 'Employee of', 'Employer of', 'Employment relationship.','Individual','Organization', 0 );
+INSERT INTO civicrm_relationship_type( domain_id, name_a_b, name_b_a, description, contact_type_a, contact_type_b, is_reserved )
+    VALUES( @domain_id, 'Volunteer for', 'Volunteer is', 'Volunteer relationship.','Individual','Organization', 0 );
+INSERT INTO civicrm_relationship_type( domain_id, name_a_b, name_b_a, description, contact_type_a, contact_type_b, is_reserved )
+    VALUES( @domain_id, 'Head of Household for', 'Head of Household is', 'Head of household.','Individual','Household', 0 );
+INSERT INTO civicrm_relationship_type( domain_id, name_a_b, name_b_a, description, contact_type_a, contact_type_b, is_reserved )
+    VALUES( @domain_id, 'Household Member of', 'Household Member is', 'Household membership.','Individual','Household', 0 );
+
+-- Sample Tags
+INSERT INTO civicrm_tag( domain_id, name, description, parent_id )
+    VALUES( @domain_id, 'Non-profit', 'Any not-for-profit organization.', NULL );
+INSERT INTO civicrm_tag( domain_id, name, description, parent_id )
+    VALUES( @domain_id, 'Company', 'For-profit organization.', NULL );
+INSERT INTO civicrm_tag( domain_id, name, description, parent_id )
+    VALUES( @domain_id, 'Government Entity', 'Any governmental entity.', NULL );
+INSERT INTO civicrm_tag( domain_id, name, description, parent_id )
+    VALUES( @domain_id, 'Major Donor', 'High-value supporter of our organization.', NULL );
+INSERT INTO civicrm_tag( domain_id, name, description, parent_id )
+    VALUES( @domain_id, 'Volunteer', 'Active volunteers.', NULL );
+
+-- Sample Instant Msg service providers
+INSERT INTO civicrm_im_provider(name, domain_id, is_reserved, is_active) VALUES('Yahoo', @domain_id, 0, 1);
+INSERT INTO civicrm_im_provider(name, domain_id, is_reserved, is_active) VALUES('MSN', @domain_id, 0, 1);
+INSERT INTO civicrm_im_provider(name, domain_id, is_reserved, is_active) VALUES('AIM', @domain_id, 0, 1);
+INSERT INTO civicrm_im_provider(name, domain_id, is_reserved, is_active) VALUES('GTalk', @domain_id, 0, 1);
+INSERT INTO civicrm_im_provider(name, domain_id, is_reserved, is_active) VALUES('Jabber', @domain_id, 0, 1);
+INSERT INTO civicrm_im_provider(name, domain_id, is_reserved, is_active) VALUES('Skype', @domain_id, 0, 1);
+
+-- Sample mobile phone service providers
+INSERT INTO civicrm_mobile_provider (name, domain_id, is_reserved, is_active) VALUES ('Sprint', @domain_id, 0, 1);
+INSERT INTO civicrm_mobile_provider (name, domain_id, is_reserved, is_active) VALUES ('Verizon', @domain_id, 0, 1);
+INSERT INTO civicrm_mobile_provider (name, domain_id, is_reserved, is_active) VALUES ('Cingular', @domain_id, 0, 1);
+
+-- Activity types
+INSERT INTO civicrm_activity_type (domain_id, name, description, is_active, is_reserved) VALUES ( @domain_id, 'Meeting', 'Schedule a Meeting', 1, 1);
+INSERT INTO civicrm_activity_type (domain_id, name, description, is_active, is_reserved) VALUES ( @domain_id, 'Phone Call', 'Schedule a Phone Call', 1, 1);
+INSERT INTO civicrm_activity_type (domain_id, name, description, is_active, is_reserved) VALUES ( @domain_id, 'Email', 'Email Sent', 1, 1);
+INSERT INTO civicrm_activity_type (domain_id, name, description, is_active, is_reserved) VALUES ( @domain_id, 'SMS', 'SMS', 1, 0);
+INSERT INTO civicrm_activity_type (domain_id, name, description, is_active, is_reserved) VALUES ( @domain_id, 'Event', 'Event', 1, 0);
+
+-- sample CiviCRM mailing components
+INSERT INTO civicrm_mailing_component
+    (domain_id,name,component_type,subject,body_html,body_text,is_default,is_active)
+VALUES
+    (@domain_id,'Mailing Header','Header','This is the Header','HTML Body of Header','Text Body of Header',1,1),
+    (@domain_id,'Mailing Footer','Footer','This is the Footer','HTML Body of Footer','Text Body of Footer',1,1),
+    (@domain_id,'Subscribe Message','Subscribe','Subscription confirmation request','You have a pending subscription to {subscribe.group}.  To confirm this subscription, reply to this email.','You have a pending subscription to {subscribe.group}.  To confirm this subscription, reply to this email.',1,1),
+    (@domain_id,'Welcome Message','Welcome','Welcome','Welcome to {welcome.group}!','Welcome to {welcome.group}!',1,1),
+    (@domain_id,'Unsubscribe Message','Unsubscribe','Unsubscribe results','You have been unsubscribed from {unsubscribe.group}.','You have been unsubscribed from {unsubscribe.group}.',1,1),
+    (@domain_id,'Opt-out Message','OptOut','Goodbye','You have been removed from {domain.name}.  Goodbye.','You have been removed from {domain.name}.  Goodbye.',1,1),
+    (@domain_id,'Auto-responder','Reply','Automated response','Thank you for your reply.','Thank you for your reply.',1,1);
+
+-- individual prefix and suffix enums 
+INSERT INTO civicrm_individual_prefix (domain_id, name, weight, is_active) VALUES ( @domain_id, 'Mrs', 1, 1);
+INSERT INTO civicrm_individual_prefix (domain_id, name, weight, is_active) VALUES ( @domain_id, 'Ms', 2, 1);
+INSERT INTO civicrm_individual_prefix (domain_id, name, weight, is_active) VALUES ( @domain_id, 'Mr', 3, 1);
+INSERT INTO civicrm_individual_prefix (domain_id, name, weight, is_active) VALUES ( @domain_id, 'Dr', 4, 1);
+
+INSERT INTO civicrm_individual_suffix (domain_id, name, weight, is_active) VALUES ( @domain_id, 'Jr', 1, 1);
+INSERT INTO civicrm_individual_suffix (domain_id, name, weight, is_active) VALUES ( @domain_id, 'Sr', 2, 1);
+INSERT INTO civicrm_individual_suffix (domain_id, name, weight, is_active) VALUES ( @domain_id, 'II', 3, 1);
+
+INSERT INTO civicrm_gender (domain_id, name, weight, is_active) VALUES ( @domain_id, 'Female', 1, 1);
+INSERT INTO civicrm_gender (domain_id, name, weight, is_active) VALUES ( @domain_id, 'Male', 2, 1);
+INSERT INTO civicrm_gender (domain_id, name, weight, is_active) VALUES ( @domain_id, 'Transgender', 3, 1);
+
+INSERT INTO civicrm_dupe_match (domain_id, entity_table , rule) VALUES ( @domain_id,'contact_individual','first_name AND last_name AND email');
+
+-- contribution types
+INSERT INTO
+   civicrm_contribution_type(name, domain_id, is_reserved, is_active, is_deductible)
+VALUES
+  ( 'Donation'             , @domain_id, 0, 1, 1 ),
+  ( 'Member Dues'          , @domain_id, 0, 1, 1 ), 
+  ( 'Campaign Contribution', @domain_id, 0, 1, 0 );
+
+-- payment instrument
+INSERT INTO  
+   civicrm_payment_instrument(name, domain_id, is_reserved, is_active)  
+VALUES  
+  ( 'Credit Card', @domain_id, 1, 1 ),   
+  ( 'Debit Card' , @domain_id, 1, 1 ),    
+  ( 'Cash'       , @domain_id, 1, 1 ),     
+  ( 'Check'      , @domain_id, 1, 1 ),      
+  ( 'EFT'        , @domain_id, 1, 1 );
+  
+-- accepted credit cards
+INSERT INTO
+    civicrm_accept_credit_card(name, title, domain_id, is_reserved, is_active)
+VALUES
+  ( 'Visa', 'Visa', @domain_id, 0, 1 ),
+  ( 'MasterCard', 'MasterCard', @domain_id, 0, 1 ),
+  ( 'Amex', 'American Express', @domain_id, 0, 1 ),   
+  ( 'Discover', 'Discover', @domain_id, 0, 1 );

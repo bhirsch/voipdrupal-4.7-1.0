@@ -1,0 +1,804 @@
+<?php
+/* $Id: voip_event.module,v 1.8 2007/03/28 16:33:57 leob Exp $ */
+
+/**
+ * @file
+ * Allows callers to create/announce community events.
+ * 
+ */
+
+/**
+ * Required files
+ */
+foreach (array( 'voip_error_codes.inc') as $file) {
+  require_once('includes/' . $file);
+}
+
+/**
+ * Contants
+ */
+
+// Use a settings variable to control the readable name of the node type.
+define("VOIP_EVENT_NAME", variable_get('voip_event_name', t('voip event')), true);
+ 
+/**
+ * Implementation of hook_node_info().
+ */
+function voip_event_node_info() {
+  return array('voip_event' => array('name' => VOIP_EVENT_NAME, 'base' => 'voip_event'));
+}
+
+/**
+ * Implementation of hook_help().
+ */
+function voip_event_help($section) {
+  switch ($section) {
+    case 'admin/modules#description':
+      return t('Creation and management of community events by phone.');
+    case 'node/add#voip_event':
+      return variable_get('voip_event_desc', t('Create a voip event with an extension, audio name, description and an optional location.'));
+    case 'admin/help#voip_event':
+      return t("Allows users to organize community events by phone.");
+  }
+}
+
+/**
+ * Implementation of hook_perm().
+ */
+function voip_event_perm() {
+  return array('create voip events', 'event administrator');
+}
+
+/**
+ * Implementation of hook_access().
+ */
+function voip_event_access($op, $node) {
+  global $user;
+  
+  switch($op) {
+  	case 'create': 
+  	  // NOTE: until we figure out a good way to upload multiple audio fields with a form, voip_events can only be created via xmlrpc
+/*****
+ 	  // the variable $voip_xmlrpc_call below is used to prevent node_add() from displaying a link that would allow users to create voip_events on the website
+  	  global $voip_xmlrpc_call;
+      return (user_access('create voip events') && $voip_xmlrpc_call);
+******/
+//      return FALSE;
+      return user_access('create voip events');
+    case 'update':
+    case 'delete':
+      // only the event owner and the event administrators are allowed to update or delete the event
+      if ($node->type == 'voip_event') {
+        if (($user->uid == $node->uid) || user_access('event administrator')) {
+          $access = TRUE;
+        }
+        else {
+          $access = FALSE;
+        }
+        return $access;
+      }
+      break;
+  }
+}
+
+
+/**
+ * Implementation of hook_menu().
+ */
+function voip_event_menu($may_cache) {
+  $items = array();
+
+  if ($may_cache) {
+    $items[] = array('path' => 'node/add/voip_event', 'title' => t('voip event'),
+//      'access' => user_access('create voip events'));
+      // NOTE: until we figure out a way to add multiple audio files to the creation form, users will only be allowed to create voip_event nodes via xmlrpc...
+//      'access' => FALSE);
+      'access' => user_access('create voip events'));
+   }
+
+  return $items;
+}
+
+/**
+ * Implementation of hook_settings().
+ */
+function voip_event_settings() {
+  $form['voip_event_name'] = array('#type' => 'fieldset', '#title' => t('Name settings'));
+  $form['voip_event_name']['voip_event_name'] = array('#type' => 'textfield', '#title' => t('voip event readable name'), '#default_value' => variable_get('voip_event_name', t('voip event')), '#size' => 30, '#description' => t('You can rename voip event to other commonly used terminology such as "community event", "meeting", etc. Users will see this when they go to create >> content.'));
+  $form['voip_event_name']['voip_event_desc'] = array('#type' => 'textfield', '#title' => t('admin/modules#description help text'), '#default_value' => variable_get('voip_event_desc', t('Create a voip event with an extension, audio name, description and an optional location.')), '#size' => 55, '#description' => t('You can change the help text that users see when they go to create >> content.'));
+  return $form;
+}
+
+/**
+ * Implementation of hook_xmlrpc()
+ */
+function voip_event_xmlrpc() {
+  return array(
+    array('voip_event.createEvent',
+          '_voip_event_xmlrpc_create_event',
+          array('array', 'array', 'array'),
+          t('Create a voip event.')
+    ),
+    array('voip_event.deleteEvent',
+          '_voip_event_xmlrpc_delete_event',
+          array('array', 'array', 'int'),
+          t('Delete a voip event.')
+    ),
+    array('voip_event.getAmpmFlag',
+          '_voip_event_xmlrpc_get_ampm_flag',
+          array('array'),
+          t('Return whether event times should be entered in 12h- or 24h-format.')
+    ),
+    array('voip_event.getEventInfoFromNid',
+          '_voip_event_xmlrpc_get_event_info_from_nid',
+          array('array', 'array', 'int'),
+          t('Return information about the event associated with the specified node id.')
+    ),
+    array('voip_event.getEvents',
+          '_voip_event_xmlrpc_get_events',
+          array('array', 'array', 'array', 'array', 'int', 'array', 'int', 'int'),
+          t('Return the events that obey the specified criteria.')
+    ),
+  );
+} 
+
+/**
+ * Implementation of hook_form().
+ */
+function voip_event_form(&$node) {
+  
+  $f = array();
+  
+  $f['title'] = array(
+    '#type' => 'textfield', 
+    '#title' => t('Event name'), 
+    '#weight' => 0, 
+    '#default_value' => $node->title, 
+    '#size' => 60, 
+    '#maxlength' => 128, 
+    '#required' => true
+  );
+    
+  $f['body_filter']['body'] = array(
+    '#type' => 'textarea', 
+    '#title' => t('Event description'), 
+    '#default_value' => $node->body, 
+    '#rows' => 10, 
+    '#required' => FALSE, 
+    '#description' => t('Please write a brief description of what your event is all about.')
+  );
+  
+  $f['body_filter']['format'] = filter_form($node->format);
+  
+  return $f;
+}
+
+/*
+ * Implementation of hook_get_voip_type_name
+ */
+function voip_event_get_voip_type_name() {
+  return t('event');
+}
+
+
+/**
+ * XMLRPC callback. Creates a new voip event
+ *
+ * @param $user_info
+ *   array with Drupal name and password of the author of the entry
+ * 
+ * @param $event_info
+ *   array with all the values required for the new event: 
+ *     node options (optional): 'title', 'body', 'status', 'promote', 'sticky', 'revision'
+ *     'start' : array with 'year', 'month', 'day', 'hour' (in 24h-format) and 'minute' of the event start
+ *     'end' : array with 'year', 'month', 'day', 'hour' (in 24h-format) and 'minute' of the event end
+ *     'categories': (optional) array of 'categoryId's. Default: none
+ *     'og_public': (optional) whether or not the event is to be accessible by everyone. Default: TRUE
+ *     'og_groups': (optional) array with the ids of the groups the event is to be associated with. Default: none
+ * 
+ * @return
+ *   array.  In case of success, 'error_code' will be set to VOIP_SUCCESS and 'extension_info' 
+ *     will be set with information about the extension associated with the new event created.
+ *     In case of failure, 'error_code' will be set to the appropriate error code and 'error_msg' will contain an explanation of the error.
+ */
+function _voip_event_xmlrpc_create_event($user_info, $event_info) {
+
+  $rc = array();
+
+  // validate given user info
+  global $user;
+  if ((!empty($user_info['user_name'])) && (!empty($user_info['password']))) {
+    $account = voip_user_authenticate($user_info['user_name'], $user_info['password']);
+    if (!$account->uid) {
+  	  $rc['error_code'] = VOIP_INVALID_USER_INFO;
+  	  $rc['error_msg'] = t('Invalid combination of user name and password.');
+      return $rc;
+    }
+    $user = $account;
+  }
+
+  // make sure user has permission to create voip events
+  if (!user_access('create voip events')) {
+//watchdog('create_entry', "rc: " . serialize($rc));
+  	$rc['error_code'] = VOIP_LACK_OF_PERMISSION;
+  	$rc['error_msg'] = t('User does not have permission to create voip_event nodes.');
+    return $rc;
+  }
+  
+  // create a basic voip_event node
+  $node = new stdClass();
+// TODO: the type is the only thing that is specific to voip_event in this function...
+  $node->type = 'voip_event';
+  
+  $node->uid = $user->uid;
+
+  $node->title = isset($event_info['title'])?$event_info['title']:'';  // to be set after node is saved
+  $node->body  = isset($event_info['body'])?$event_info['body']:NULL; 
+  
+  // node-specific options
+  $node_options = variable_get('node_options_'. $node->type, array('status'));
+
+  $node->status = isset($event_info['status']) ? $event_info['status'] : in_array('status', $node_options);
+  $node->promote = isset($event_info['promote']) ? $event_info['promote'] : in_array('promote', $node_options);
+  $node->sticky = isset($event_info['sticky']) ? $event_info['sticky'] : in_array('sticky', $node_options);
+  $node->revision = isset($event_info['revision']) ? $event_info['revision'] : in_array('revision', $node_options);
+ 
+  //
+  // event-specific options
+  //
+  
+  // get the event start and end times
+  $prefixes = array('start', 'end');
+  $date_fields = array('year', 'month', 'day', 'hour', 'minute'); // always in 24h format
+  foreach ($prefixes as $prefix) {
+    foreach ($date_fields as $field) {
+      $node_field = $prefix . '_' . $field;
+      $node->$node_field = $event_info[$prefix][$field];
+    }
+  }
+  // convert time format if needed
+  if (variable_get('event_ampm', '0')) {
+  	foreach($prefixes as $prefix) {
+  	  $node_ampm = $prefix . '_ampm';
+  	  $node_hour = $prefix . '_hour';
+  	  if ($node->$node_hour > 12) {
+  	    $node->$node_hour -= 12;
+  	    $node->$node_ampm = 'pm';
+  	  }
+  	  else {
+  	    $node->$node_ampm = 'am';
+  	  }
+    }
+  }  
+  
+  // set timezone based on either on the user timezone or the site default one
+  include_once(drupal_get_path('module', 'event') .'/event_timezones.inc');
+
+  if (variable_get('configurable_timezones', 1) && $user->uid && (isset($user->timezone)) && (!empty($user->timezone)) && (variable_get('event_timezone_input', 'site') == 'user')) {
+    $node->timezone = event_timezone_map($user->timezone);
+  }
+  else {
+    $node->timezone = event_timezone_map(variable_get('date_default_timezone', 0));
+  }
+
+  // associate node with the specified groups
+  $node->og_public = isset($event_info['og_public'])? $event_info['og_public'] : TRUE;  // nodes are public by default
+  $node->og_groups = isset($event_info['og_groups'])? $event_info['og_groups'] : array();
+
+  // 
+  // voip-specific options
+  //
+  $node->voip_form_is_listed = isset($event_info['is_listed'])?$event_info['is_listed']:TRUE;
+  
+  // associate the node with the desired categories
+  $categories =& $event_info['categories'];
+  if (!empty($categories) && !in_array(NULL, $categories)) {
+    $node->voip_form_taxonomy = $categories;
+  }
+    
+
+  //
+  //  voip_event-specific options
+  //
+  $node->voip_event_info = array();
+
+  // make sure the node to be created is valid
+  node_validate($node);
+  if ($errors = form_get_errors()) {
+    $rc['error_code'] = VOIP_PROCESSING_ERROR;
+    $rc['error_msg'] = implode("\n", $errors);
+    watchdog('voip_event', t('XMLRPC error creating voip event: %e', array('%e' => $rc->error_msg)), WATCHDOG_ERROR);
+    return $rc;
+  }
+  
+  // prepare the node to be saved
+// TODO: the node_submit() below changes the author and also the setting of 'status' and 'promote' for users that 
+// do not have 'administer node' permissions. 
+$original_status = $node->status;
+$original_promote = $node->promote;
+  $node = node_submit($node);
+//watchdog('create_entry', 'after submit: ' . print_r($node, TRUE));  
+$node->uid = $user->uid;
+$node->status = $original_status;
+$node->promote = $original_promote;
+
+  // save the node
+  node_save($node); 
+
+  if (!$node->nid) {
+  	$rc->result = VOIP_PROCESSING_ERROR;
+  	$rc->error_msg = t('Error creating new voip_event node.');
+    return $rc;
+  }
+
+  // set a default title and body for the new event based on the extension created for it
+  if (empty($node->title) || empty($node->body)) {
+  	$node = node_load($node->nid);
+    if (empty($node->title) && isset($node->voip_extension_info)) {
+      $node->title = t('event %n', array('%n' => $node->voip_extension_info['number']));
+    }
+    if (empty($node->body)) {
+      $node->body = t('Event associated with extension number %n.', array('%n' => $node->voip_extension_info['number']));
+    }
+    node_save($node);
+  }
+
+
+  // return
+  $rc['error_code'] = VOIP_SUCCESS;
+  $node = node_load($node->nid);
+  $rc['extension_info'] = $node->voip_extension_info;  // return the voip extension associated with the new event
+  $rc['voip_event_audio_key'] = $node->voip_event_info['audio_key_location'];   // return the key for the audio location node which will be created
+
+  return $rc;
+}
+
+/**
+ * Implementation of hook_nodeapi()
+ */
+function voip_event_nodeapi(&$node, $op, $teaser = NULL, $page = NULL) {
+//xdebug_break();
+  // process audio files that may have just been uploaded as audio location for a particular voip event
+  switch ($op) {
+    case 'update':
+    case 'insert':
+      if ($node->voip_event_audio_key) {
+        // remove old audio node if any...
+        $query = "SELECT `nid_audio_location` FROM {voip_events} WHERE `audio_key_location` = '%s'";
+        $nid_audio = db_result(db_query($query, $node->voip_event_audio_key));
+        if ($nid_audio) {
+          node_delete($nid_audio); 
+        }
+        // now insert the new audio node in the appropriate field
+        $query = "UPDATE {voip_events} SET `nid_audio_location` = %d, `audio_key_location` = NULL WHERE `audio_key_location` = '%s'";
+        $db_result = db_query($query, $node->nid, $node->voip_event_audio_key);
+        if (!$db_result) {
+          $error_msg = t("Could not update audio location field of node %n in the database: %e", array('%n' => $node->nid, '%e' => db_error()));
+          watchdog('voip_events', $error_msg, WATCHDOG_ERROR);
+        }
+        else {
+watchdog('voip_events', "Inserted audio node $node->nid into voip events");
+        }
+        // delete key from node object
+        unset($node->voip_event_audio_key);
+      }
+      break;
+  }   
+}
+
+/*
+ * Implementation of hook_submit()
+ */
+function voip_event_submit (&$node) {
+ // TODO: convert the edit form variables into $event_info...
+  if (!$node->voip_event_info) {
+    $node->voip_event_info = array();
+  }
+}
+
+/*
+ * Implementation of hook_insert()
+ */
+function voip_event_insert($event_node) {
+  // initialize local variables
+  $event_table_types = array('nid_event' => "'%d'", 
+                             'nid_audio_location' => '%d', 'audio_key_location' => "'%s'" );
+  
+  $insert_fields = array();
+  $insert_types = array();
+  $insert_values = array();
+  
+  $event_info = $event_node->voip_event_info;
+  $event_info['nid_event'] = $event_node->nid;
+  
+  // create the key to be used by the audio node that will contain the location of the event
+  $key = 'voip_event_' . mt_rand();
+  $event_info['audio_key_location'] = $key;
+  
+  foreach ($event_table_types as $field => $type) {
+    if (isset($event_info[$field])) {
+      $insert_fields[] = "`$field`";
+      $insert_types[] = "$type";
+      $insert_values[] = $event_info[$field];
+    }
+  } 
+
+  // create an entry in the voip_events table
+  $query_fields = implode(', ', $insert_fields);
+  $query_types = implode(', ', $insert_types);
+  $query = "INSERT INTO {voip_events} ($query_fields) VALUES ($query_types)";
+  $db_result = db_query($query, $insert_values);
+  if (!$db_result) {
+    $error_msg = t("Could not create voip_event entry: %e", array('%e' => db_error()));
+  watchdog('voip_event', $error_msg, WATCHDOG_ERROR);
+    return FALSE;
+  }
+  
+  // record statistics
+  global $user;
+  $user_extension_number = isset($user->voip_extension_info)?$user->voip_extension_info['number']:NULL;
+  $user_info = array('extension_number' => $user_extension_number, 'uid' => $user->uid);
+  $notes = "nid: $event_node->nid, name: $event_node->title";
+  voip_log($user_info, 'events', 'created', NULL, $notes);
+  
+  return TRUE;
+}
+
+/**
+ * Implementation of hook_delete()
+ */
+function voip_event_delete(&$node) {
+  // delete the audio nodes associated with the event
+  $query = "SELECT e.nid_audio_location FROM {voip_events} e WHERE e.nid_event = '%d'";
+  $db_result = db_query($query, $node->nid);
+ 
+  if (!$db_result) {
+    $error_msg = t("Could not query audio_location associated with event nid: %nid for deletion: %e", array('%nid' => $node->nid, '%e' => db_error()));
+    return $error_msg;
+  }
+  
+  while ($event = db_fetch_array($db_result)) {
+    if ($event['nid_audio_location']) {
+    	
+      // NOTE: since only the audio node author or the system administrator are allowed to delete the audio node, 
+      // become system admin for the node deletion. This is particularly relevant for events associated with groups
+      global $user;
+      $current_user = $user;
+      $user = user_load(array('uid' => 1));
+      node_delete($event['nid_audio_location']); 
+      $user = $current_user;
+    }
+  }
+
+  // now delete the voip_events entry itself
+  db_query("DELETE FROM {voip_events} WHERE `nid_event` = %d", $node->nid);
+  
+  // record statistics
+  $user_extension_number = isset($user->voip_extension_info)?$user->voip_extension_info['number']:NULL;
+  $user_info = array('extension_number' => $user_extension_number, 'uid' => $user->uid);
+  $notes = "nid: $node->nid, name: $node->title";
+  voip_log($user_info, 'events', 'deleted', NULL, $notes);
+
+  return TRUE; 
+}
+
+/**
+ * Implementation of hook_load()
+ */
+function voip_event_load($node) {
+  $voip_event_info = db_fetch_array(db_query('SELECT * FROM {voip_events} e WHERE e.nid_event = %d', $node->nid));
+  $additions = new stdClass();
+  $additions->voip_event_info = $voip_event_info;
+  return $additions; 
+}
+ 
+ 
+/**
+ * XMLRPC callback. Deletes the specified voip event
+ *
+ * @param $user_info
+ *   array with Drupal name and password of the author of the entry
+ * 
+ * @param $nid
+ *   int. the node id of the event to be deleted
+ * 
+ * @return
+ *   array.  In case of success, 'error_code' will be set to VOIP_SUCCESS.
+ *     In case of failure, 'error_code' will be set to the appropriate error code and 'error_msg' will contain an explanation of the error.
+ */
+function _voip_event_xmlrpc_delete_event($user_info, $nid) {
+//watchdog('delete_event', "user_info: " . serialize($user_info));
+// TODO: generalize this function for delete_extension...
+  $rc = array();
+
+  // make sure the specified user is valid
+  global $user;
+  if ((!empty($user_info['user_name'])) && (!empty($user_info['password']))) {
+    $account = voip_user_authenticate($user_info['user_name'], $user_info['password']);
+    if (!$account->uid) {
+  	  $rc['error_code'] = VOIP_INVALID_USER_INFO;
+  	  $rc['error_msg'] = t('Invalid combination of user name and password.');
+      return $rc;
+    }
+    $user = $account;
+  }
+
+  // make sure user has permission to delete the event
+  $node = node_load($nid);
+  if (!node_access('delete', $node)) {
+//watchdog('delete_event', "rc: " . serialize($rc));
+  	$rc['error_code'] = VOIP_LACK_OF_PERMISSION;
+  	$rc['error_msg'] = t('User does not have permission to delete the event whose nid is %n.', (array('%n' => $nid)));
+    return $rc;
+  }
+
+  // delete the event
+  node_delete($nid); 
+
+  // return success
+  $rc['error_code'] = VOIP_SUCCESS;
+  return $rc;
+}
+
+
+/**
+ * XMLRPC callback. Retrieve events that obey the specified criteria. Note: this function is based on event_block_upcoming()
+ *
+ * @param $user_info
+ *   array with Drupal name and password of the author of the entry
+ * 
+ * @param $start
+ *   array with the hour, minute, second, month, day and year of the first event to be retrieved
+ * 
+ * @param $end
+ *   array with the hour, minute, second, month, day and year of the last event to be retrieved
+ * 
+ * @param $limit
+ *   int. maximum number of events to return. If $limit < 0, return all upcoming events available
+ * 
+ * @param $uid_author
+ *   int. the id of the user who posted the event. Use NULL for any.
+ * 
+ * @param $gid
+ *   int. the id of the group the retrieved events have been posted to
+ * 
+ * @return
+ *   array.  In case of success, 'error_code' will be set to VOIP_SUCCESS and 'events' will contain an array of events 
+ *     In case of failure, 'error_code' will be set to the appropriate error code and 'error_msg' will contain an explanation of the error.
+ */
+function _voip_event_xmlrpc_get_events($user_info, $start, $end = NULL, $limit = 5, $terms = NULL, $uid_author = NULL, $gid = NULL) {
+
+  $rc = array();
+  $rc['error_code'] = VOIP_SUCCESS;
+
+  // make sure the specified user is valid
+  global $user;
+  if ((!empty($user_info['user_name'])) && (!empty($user_info['password']))) {
+    $account = voip_user_authenticate($user_info['user_name'], $user_info['password']);
+    if (!$account->uid) {
+  	  $rc['error_code'] = VOIP_INVALID_USER_INFO;
+  	  $rc['error_msg'] = t('Invalid combination of user name and password.');
+      return $rc;
+    }
+    $user = $account;
+  }
+
+  // initialize local variables
+  $args = ($gid) ? array('og_nid' => $gid): NULL;
+
+  // build the query
+  $and_clauses = array();
+  $query_args = array();
+  
+  $gmt_start_time = _event_mktime($start['hour'], $start['minute'], $start['second'], $start['month'], $start['day'], $start['year']);
+  $and_clauses[] = "e.event_start >= %d";
+  $query_args[] = $gmt_start_time;
+
+  if ($end) {
+    $gmt_end_time = _event_mktime($end['hour'], $end['minute'], $end['second'], $end['month'], $end['day'], $end['year']);
+    $and_clauses[] = "e.event_start <= %d";
+    $query_args[] = $gmt_end_time;
+  }
+  
+  if ($uid_author) {
+    $and_clauses[] = 'n.uid = %d ';
+    $query_args[] = $uid_author;
+  }
+
+  $categories_join = '';
+  if (!empty($terms) && !in_array(NULL, $terms)) { // make sure none of the array elements is NULL
+    $query_tids_or = '( t.tid=' . implode(' OR t.tid=', $terms) . ')';
+  	$and_clauses[] = $query_tids_or;
+    $categories_join = ' INNER JOIN {voip_extensions} x ON n.nid=x.nid_contents INNER JOIN {term_node} t ON x.nid_extension=t.nid ';
+  }
+
+  $limit_clause = '';
+  if ($limit) {
+    $limit_clause = 'LIMIT 0, %d';
+    $query_args[] = $limit;
+  }
+
+  // query events
+  $query = "SELECT n.nid FROM {node} n INNER JOIN {event} e ON n.nid = e.nid $categories_join WHERE n.status = 1 AND " . implode(' AND ', $and_clauses) . " ORDER BY event_start $limit_clause";
+  $result = db_query(db_rewrite_sql($query, 'n', 'nid', $args), $query_args);
+
+  $rc['events'] = array();
+  while ($nid = db_fetch_object($result)) {
+    $event_node = node_load($nid);
+//watchdog('events', 'event_node: ' . print_r($event_node, TRUE));
+    $start = array();
+    $start['year'] = _event_date('Y', $event_node->event_start, $event_node->start_offset);
+    $start['month'] = _event_date('n', $event_node->event_start, $event_node->start_offset);
+    $start['day'] = _event_date('d', $event_node->event_start, $event_node->start_offset);
+    $start['hour'] = _event_date('G', $event_node->event_start, $event_node->start_offset);
+    $start['minute'] = _event_date('i', $event_node->event_start, $event_node->start_offset);
+    $start['second'] = _event_date('s', $event_node->event_start, $event_node->start_offset);
+    $end = array();
+    $end['year'] = _event_date('Y', $event_node->event_end, $event_node->end_offset);
+    $end['month'] = _event_date('n', $event_node->event_end, $event_node->end_offset);
+    $end['day'] = _event_date('d', $event_node->event_end, $event_node->end_offset);
+    $end['hour'] = _event_date('G', $event_node->event_end, $event_node->end_offset);
+    $end['minute'] = _event_date('i', $event_node->event_end, $event_node->end_offset);
+    $end['second'] = _event_date('s', $event_node->event_end, $event_node->end_offset);
+      
+    $r = voip_get_extension_info_from_uid($event_node->uid);
+    if ($r['error_code'] == VOIP_PROCESSING_FAILURE) {
+      return $r;
+    }
+    // NOTE: it may be the case that the author of the event has already been removed from the system
+    $author_extension_number = ($r['error_code'] == VOIP_SUCCESS)?$r['extension_info']['number']:NULL;
+    $event_info = array(
+                              'number' => $event_node->voip_extension_info['number'],
+                              'name' => $event_node->voip_extension_info['name'],
+                              'description' => $event_node->body,
+                              'start' => $start,
+                              'end' => $end,
+                              'author_extension_number' => $author_extension_number,
+                              'nid_audio_location' => $event_node->voip_event_info['nid_audio_location'],
+                             );
+    $rc['events'][] = $event_info;
+  }
+  return $rc;
+}
+
+/**
+ * XMLRPC callback. Retrieve the flag that determines whether input time should be in 12h or 24h format.
+ */
+function _voip_event_xmlrpc_get_ampm_flag() {
+  // return the value of the ampm flag
+  $rc = array();
+  $rc['error_code'] = VOIP_SUCCESS;
+  $rc['ampm_format'] = (boolean)variable_get('event_ampm', '0');
+  return $rc;
+}
+
+/**
+ * XMLRPC callback. Retrieve event associated with the specified node id.
+ */
+function _voip_event_xmlrpc_get_event_info_from_nid($user_info, $nid) {
+  $rc = array();
+
+  // make sure the specified user is valid
+  global $user;
+  if ((!empty($user_info['user_name'])) && (!empty($user_info['password']))) {
+    $account = voip_user_authenticate($user_info['user_name'], $user_info['password']);
+    if (!$account->uid) {
+  	  $rc['error_code'] = VOIP_INVALID_USER_INFO;
+  	  $rc['error_msg'] = t('Invalid combination of user name and password.');
+      return $rc;
+    }
+    $user = $account;
+  }
+
+  // retrieve the event associated with the given node id
+  $event_node = node_load($nid);
+//xdebug_break();
+//watchdog('event_nid', 'node: ' . print_r($event_node, TRUE));
+  if (!$event_node->nid) {
+    $rc['error_code'] = VOIP_INVALID_NID;
+    $rc['error_msg'] = t('Invalid event node id: %nid', array('%nid' => $nid));
+    return $rc;
+  }
+  
+    // calculate event state -- this is sort of based on event_get_calendar()
+    $start_day = gmmktime(0, 0, 0, _event_date('m', $event_node->event_start, $event_node->start_offset), _event_date('d', $event_node->event_start, $event_node->start_offset), _event_date('Y', $event_node->event_start, $event_node->start_offset));
+    if ($event_node->event_end) {
+      $end_day = gmmktime(0, 0, 0, _event_date('m', $event_node->event_end, $event_node->end_offset), _event_date('d', $event_node->event_end, $event_node->end_offset), _event_date('Y', $event_node->event_end, $event_node->end_offset));
+    }
+    else {
+      $end_day = $start_day;
+    }
+    $timestamp_gmt = mktime(gmdate('G'), gmdate('i'), gmdate('s'), gmdate('n'), gmdate('j'), gmdate('Y'));
+    if ($start_day == $end_day) {
+      $state = 'singleday';
+    }
+    else if ($event_node->event_end <= $timestamp_gmt) {
+      $state = 'end';
+    }
+    else if ($event_node->event_start >= $timestamp_gmt) {
+      $state = 'start';
+    }
+    else {
+      $state = 'ongoing';
+    }
+
+    $start = array();
+    $start['year'] = _event_date('Y', $event_node->event_start, $event_node->start_offset);
+    $start['month'] = _event_date('n', $event_node->event_start, $event_node->start_offset);
+    $start['day'] = _event_date('j', $event_node->event_start, $event_node->start_offset);
+    $start['hour'] = _event_date('G', $event_node->event_start, $event_node->start_offset);
+    $start['minute'] = _event_date('i', $event_node->event_start, $event_node->start_offset);
+    $start['second'] = _event_date('s', $event_node->event_start, $event_node->start_offset);
+    $end = array();
+    $end['year'] = _event_date('Y', $event_node->event_end, $event_node->end_offset);
+    $end['month'] = _event_date('n', $event_node->event_end, $event_node->end_offset);
+    $end['day'] = _event_date('j', $event_node->event_end, $event_node->end_offset);
+    $end['hour'] = _event_date('G', $event_node->event_end, $event_node->end_offset);
+    $end['minute'] = _event_date('i', $event_node->event_end, $event_node->end_offset);
+    $end['second'] = _event_date('s', $event_node->event_end, $event_node->end_offset);
+
+    $r = voip_get_extension_info_from_uid($event_node->uid);
+    if ($r['error_code'] == VOIP_PROCESSING_FAILURE) {
+      return $r;
+    }
+    $rc['error_code'] = VOIP_SUCCESS;
+    // NOTE: it may be the case that the author of the event has already been removed from the system
+    $author_extension_number = ($r['error_code'] == VOIP_SUCCESS)?$r['extension_info']['number']:NULL;
+
+    $rc['event_info'] = array( 
+                          'number' => $event_node->voip_extension_info['number'],
+                          'name' => $event_node->voip_extension_info['name'],
+                          'description' => $event_node->body,
+                          'event_state' => $state,
+                          'start' => $start,
+                          'end' => $end,
+                          'author_extension_number' => $author_extension_number,
+                          'nid_audio_location' => $event_node->voip_event_info['nid_audio_location'],
+                        );
+
+  // return success
+  $rc['error_code'] = VOIP_SUCCESS;
+//watchdog('event_nid', 'rc: ' . serialize($rc));
+
+  return $rc;
+}
+
+/*
+ * Implementation of hook_voip_get_owners()
+ */
+function voip_event_voip_get_owners($extension_info) {
+  $owners = array();
+  // the owner of a voip_event is the user who created the event
+  $event_node = node_load($extension_info['nid_contents']);
+  $r = voip_get_extension_info_from_uid($event_node->uid);
+  if ($r['error_code'] == VOIP_SUCCESS) {
+    $owners[] = $r['extension_info'];
+  }
+  return $owners;
+}
+
+/**
+ * Implementations of hook_voip_get_view_fields() 
+ */
+function voip_event_voip_get_view_fields($extension_info, $account, $teaser = NULL, $page = NULL) {
+  if ($extension_info['type_contents'] == 'voip_event') {
+  $items = array();
+/****
+    $voip_event_info = db_fetch_array(db_query('SELECT * FROM {voip_events} e WHERE e.nid_event = %d', $extension_info['nid_contents']));
+    if ($voip_event_info['nid_audio_location']) {
+      $audio_node = node_load($voip_event_info['nid_audio_location']);
+      $audio_location = audio_get_player($audio_node); 
+    }
+    else {
+      $audio_location = t('No location has been recorded for this event, yet.');
+    }
+
+    $items[] = array('title' => t('Audio location'),
+                     'value' => $audio_location,
+                     'class' => 'voip_item',
+               );
+****/
+    return array( t('Event settings') => $items);
+  }
+}
+

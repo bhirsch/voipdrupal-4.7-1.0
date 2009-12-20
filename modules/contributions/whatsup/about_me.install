@@ -1,0 +1,28 @@
+<?php
+
+// $Id$
+
+
+/**
+ * Install the initial schema.
+ */
+function about_me_install() {
+  switch ($GLOBALS['db_type']) {
+    case 'mysql':
+    case 'mysqli':
+      db_query(
+<<<MYSQL_UPDATE
+CREATE TABLE `about_me` (
+  `am_id` int(10) NOT NULL auto_increment,
+  `uid` int(10) unsigned NOT NULL default '0',
+  `title` varchar(128) character set utf8 NOT NULL default '',
+  `contents` text character set utf8 NOT NULL,
+  `format` int(2) NOT NULL default '0',
+  PRIMARY KEY  (`am_id`),
+  KEY `uid` (`uid`)
+) TYPE=MyISAM /*!40100 DEFAULT CHARACTER SET utf8 */;
+MYSQL_UPDATE
+      );
+      break;
+  }
+}

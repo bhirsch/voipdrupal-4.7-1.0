@@ -1,0 +1,15 @@
+#list {
+  margin:0px;
+  margin-top:0px;
+  margin-left:25px;
+  padding:3px;
+  list-style-type: decimal-leading-zero;
+}
+
+#list li {
+  margin:0px;
+  padding:1px;
+  border:0px solid #888;
+  cursor:move;
+}
+

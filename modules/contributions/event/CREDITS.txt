@@ -1,0 +1,2 @@
+Coded by Kjartan Mannes and Gerhard Killesreiter and Moshe Weitzman.
+Updated for Drupal v4.6 by Aaron Welch.

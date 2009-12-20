@@ -1,0 +1,77 @@
+# LANGUAGE translation of Drupal (views_audio.inc)
+# Copyright YEAR NAME <EMAIL@ADDRESS>
+# Generated from file: views_audio.inc,v 1.4 2006/08/08 15:40:35 drewish
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: PROJECT VERSION\n"
+"POT-Creation-Date: 2006-08-08 08:48-0700\n"
+"PO-Revision-Date: YYYY-mm-DD HH:MM+ZZZZ\n"
+"Last-Translator: NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <EMAIL@ADDRESS>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=INTEGER; plural=EXPRESSION;\n"
+
+#: views_audio.inc:18
+msgid "Audio: Play count"
+msgstr ""
+
+#: views_audio.inc:20
+msgid "This will display the number of times this has been played."
+msgstr ""
+
+#: views_audio.inc:23
+msgid "Audio: Download count"
+msgstr ""
+
+#: views_audio.inc:25
+msgid "This will display the number of times this has been downloaded."
+msgstr ""
+
+#: views_audio.inc:28
+msgid "Audio: Length"
+msgstr ""
+
+#: views_audio.inc:30
+msgid "This will display the play length of the audio."
+msgstr ""
+
+#: views_audio.inc:33
+msgid "Audio: Player link/flash"
+msgstr ""
+
+#: views_audio.inc:37
+msgid "This will display a flash player/link."
+msgstr ""
+
+#: views_audio.inc:40
+msgid "Audio: Download link"
+msgstr ""
+
+#: views_audio.inc:44
+msgid "This will display a download link if the node allows it."
+msgstr ""
+
+#: views_audio.inc:49
+msgid "Audio: Downloadable"
+msgstr ""
+
+#: views_audio.inc:53;110
+msgid "Filter by whether or not the audio is downloadable. "
+msgstr ""
+
+#: views_audio.inc:71
+msgid "Audio: File size"
+msgstr ""
+
+#: views_audio.inc:74
+msgid "This will display the audio file's size."
+msgstr ""
+
+#: views_audio.inc:96;103
+msgid "Audio: Tag %tag"
+msgstr ""
+

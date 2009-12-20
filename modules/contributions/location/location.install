@@ -1,0 +1,63 @@
+<?php
+ 
+function location_install() {
+  drupal_set_message('Installing location');
+  switch ($GLOBALS['db_type']) {
+    case 'mysql':
+    case 'mysqli':
+      db_query("
+      CREATE TABLE {location} (
+        oid int(10) unsigned NOT NULL default '0',
+        type varchar(6) NOT NULL default '',
+        name varchar(255) default NULL,
+        street varchar(255) default NULL,
+        additional varchar(255) default NULL,
+        city varchar(255) default NULL,
+        province varchar(16) default NULL,
+        postal_code varchar(16) default NULL,
+        country char(2) default NULL,
+        latitude decimal(10,6) default NULL,
+        longitude decimal(10,6) default NULL,
+        source tinyint(4) default '0',
+        PRIMARY KEY  (type,oid)
+      ) /*!40100 DEFAULT CHARACTER SET utf8 */;
+      ");
+    
+      db_query("
+      CREATE TABLE {zipcodes} (
+        zip varchar(16) NOT NULL default '0',
+        city varchar(30) NOT NULL default '',
+        state varchar(30) NOT NULL default '',
+        latitude decimal(10,6) NOT NULL default '0.000000',
+        longitude decimal(10,6) NOT NULL default '0.000000',
+        timezone tinyint(2) NOT NULL default '0',
+        dst tinyint(1) NOT NULL default '0',
+        country char(2) default '',
+        PRIMARY KEY (country, zip),
+        KEY pc (country, zip),
+        KEY zip (zip),
+        KEY latitude (latitude),
+        KEY longitude (longitude),
+        KEY country (country)
+      ) /*!40100 DEFAULT CHARACTER SET utf8 */;
+      ");
+      $success = TRUE;
+      break;
+    case 'pgsql':
+
+       break;
+    default:
+      break;
+  } // End case
+
+  if ($success) {
+    drupal_set_message(t('Location module installed tables successfully. If you would also like a database of zip codes, please manually import the appropriate zipcode.XX.mysql file(s) in the %module directory.', array('%module' => drupal_get_path('module', 'location') . '/database')));
+  }
+  else {
+    drupal_set_message(t('The installation of Location module was unsuccessful.'), 'error');
+  }
+}
+
+function location_update_1() {
+  return _system_update_utf8(array('location', 'zipcodes'));
+}

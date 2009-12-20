@@ -1,0 +1,109 @@
+.xspf-player {
+  margin-bottom: 10px;
+  margin-right: 10px;
+  margin-top:3px;
+  margin-left:2px;
+  }
+
+.xspf-player-slim {
+  margin-bottom: 10px;
+  margin-right:10px;
+  }
+  
+a.xspf-pop-up-link {
+  cursor: pointer;
+  }
+.audio-playlist-listing {
+  float:left;
+  margin:0;
+  padding:0;
+  margin-left:10px;
+  }  
+
+.audio-playlist-body ol { 
+  text-indent:none;
+  margin:0;
+  padding:0;
+  padding-left:2.3em;
+  margin-bottom:10px;
+  list-style-type: decimal-leading-zero;
+  }
+
+.audio-playlist-body img {
+  float:left;
+  height:150px;
+  width:150px;
+  margin:0px 10px 10px 0px;
+  padding:3px;
+  border:solid black 1px;
+  }
+.audio-playlist-body h2 {
+  margin:0;
+  padding:0;
+  font-size:.9em;
+  color:#777777;
+  font-size:georgia;
+  }
+  
+.clear {
+  clear: both;
+  }  
+
+#audio-playlist-table {
+  margin:3px 0px 10px 3px;
+  border:solid #D9D9D9 1px;
+  width:100%;
+  font-family:verdana;
+  }
+
+#audio-playlist-table a {
+  color:#A6A6A6;
+  }
+
+#audio-playlist-table a:hover {
+  color:#FFB400;
+  }  
+  
+#audio-playlist-table th {
+  padding:0;
+  margin:0;
+  padding-left:5px;
+  padding-right:5px;
+  border-bottom:solid #666666 1px;
+  height:12px;
+  font-weight:normal;
+  }
+
+#audio-playlist-table b {
+  color: red;
+  }
+  
+#audio-playlist-table th:hover {
+  background-color:#BAD1FB;
+  }  
+  
+#audio-playlist-table th a{
+  color:black;
+  font-weight:normal;
+  }
+
+#audio-playlist-table td, #audio-playlist-table th {
+  border-left:solid #D9D9D9 1px;
+  }
+  
+#audio-playlist-table tr.even {
+  background-color:#EDF3FE;
+  }
+
+#audio-playlist-table tr.odd {
+  background-color:#FFF;
+  }
+#audio-playlist-table tr:hover {
+  background-color:#BAD1FB;
+  }    
+#audio-playlist-table thead tr:hover {
+  background-color:transparent;
+  }   
+#audio-playlist-table tr {
+  border:none; 
+  }  

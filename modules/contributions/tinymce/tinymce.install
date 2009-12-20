@@ -1,0 +1,49 @@
+<?php
+// $Id: tinymce.install,v 1.5.2.1 2006/05/11 16:59:34 m3avrck Exp $
+
+/**
+ * Implementation of hook_install()
+ *
+ * This will automatically install the database tables for the TinyMCE module for both the MySQL and PostgreSQL databases.
+ *
+ * If you are using another database, you will have to install the tables by hand, using the queries below as a reference.
+ *
+ * Note that the curly braces around table names are a drupal-specific feature to allow for automatic database table prefixing,
+ * and will need to be removed.
+ */
+function tinymce_install() {
+  switch ($GLOBALS['db_type']) {
+    case 'mysql':
+    case 'mysqli':
+      db_query("CREATE TABLE {tinymce_settings} (
+                name varchar(128) NOT NULL default '',
+                settings text NOT NULL default '',
+                PRIMARY KEY (name)
+               ) /*!40100 DEFAULT CHARACTER SET utf8 */;");
+  
+      db_query("CREATE TABLE {tinymce_role} (
+                name varchar(128) NOT NULL default '',
+                rid tinyint(3) unsigned NOT NULL default '0',
+                PRIMARY KEY (name,rid)
+               ) /*!40100 DEFAULT CHARACTER SET utf8 */;");
+      break;
+      
+    case 'pgsql':
+      db_query("CREATE TABLE {tinymce_settings} (
+                name varchar(128) NOT NULL default '',
+                settings text NOT NULL default '',
+                PRIMARY KEY (name)
+               );");
+     
+      db_query("CREATE TABLE {tinymce_role} (
+                name varchar(128) NOT NULL default '',
+                rid smallint NOT NULL default '0',
+                PRIMARY KEY (name,rid)
+               );");
+      break;
+   }
+}
+
+function tinymce_update_1() {
+  return _system_update_utf8(array('tinymce_settings', 'tinymce_role'));
+}

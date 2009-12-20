@@ -1,0 +1,232 @@
+Index: includes/unicode.inc
+===================================================================
+RCS file: /cvs/drupal/drupal/includes/unicode.inc,v
+retrieving revision 1.17
+diff -u -Ffunction -r1.17 unicode.inc
+--- includes/unicode.inc	13 Mar 2006 21:44:49 -0000	1.17
++++ includes/unicode.inc	17 Oct 2006 09:27:18 -0000
+@@ -128,7 +128,7 @@ function drupal_xml_parser_create(&$data
+       $data = ereg_replace('^(<\?xml[^>]+encoding)="([^"]+)"', '\\1="utf-8"', $out);
+     }
+     else {
+-      watchdog('php', t("Could not convert XML encoding '%s' to UTF-8.", array('%s' => $encoding)), WATCHDOG_WARNING);
++      watchdog('php', t("Could not convert XML encoding '%s' to UTF-8.", array('%s' => theme('placeholder', $encoding))), WATCHDOG_WARNING);
+       return 0;
+     }
+   }
+Index: modules/blog.module
+===================================================================
+RCS file: /cvs/drupal/drupal/modules/Attic/blog.module,v
+retrieving revision 1.245.2.2
+diff -u -Ffunction -r1.245.2.2 blog.module
+--- modules/blog.module	14 May 2006 15:17:13 -0000	1.245.2.2
++++ modules/blog.module	17 Oct 2006 09:27:18 -0000
+@@ -138,7 +138,7 @@ function blog_page_user($uid) {
+   $account = user_load(array((is_numeric($uid) ? 'uid' : 'name') => $uid, 'status' => 1));
+ 
+   if ($account->uid) {
+-    drupal_set_title($title = t("%name's blog", array('%name' => $account->name)));
++    drupal_set_title($title = t("%name's blog", array('%name' => check_plain($account->name))));
+ 
+     if (($account->uid == $user->uid) && user_access('edit own blog')) {
+       $output = '<li>'. l(t('Post new blog entry.'), "node/add/blog") .'</li>';
+Index: modules/contact.module
+===================================================================
+RCS file: /cvs/drupal/drupal/modules/Attic/contact.module,v
+retrieving revision 1.51
+diff -u -Ffunction -r1.51 contact.module
+--- modules/contact.module	17 Apr 2006 20:48:26 -0000	1.51
++++ modules/contact.module	17 Oct 2006 09:27:18 -0000
+@@ -305,10 +305,10 @@ function contact_mail_user() {
+       drupal_access_denied();
+     }
+     else if (!$account->contact && !$admin_access) {
+-      $output = t('%name is not accepting e-mails.', array('%name' => $account->name));
++      $output = t('%name is not accepting e-mails.', array('%name' => check_plain($account->name)));
+     }
+     else if (!$user->uid) {
+-      $output = t('Please <a href="%login">login</a> or <a href="%register">register</a> to send %name a message.', array('%login' => url('user/login'), '%register' => url('user/register'), '%name' => $account->name));
++      $output = t('Please <a href="%login">login</a> or <a href="%register">register</a> to send %name a message.', array('%login' => url('user/login'), '%register' => url('user/register'), '%name' => check_plain($account->name)));
+     }
+     else if (!valid_email_address($user->mail)) {
+       $output = t('You need to provide a valid e-mail address to contact other users. Please update your <a href="%url">user information</a> and try again.', array('%url' => url("user/$user->uid/edit")));
+@@ -317,16 +317,16 @@ function contact_mail_user() {
+       $output = t('You cannot contact more than %number users per hour. Please try again later.', array('%number' => variable_get('contact_hourly_threshold', 3)));
+     }
+     else {
+-      drupal_set_title($account->name);
++      drupal_set_title(check_plain($account->name));
+ 
+       $form['#token'] = $user->name . $user->mail;
+       $form['from'] = array('#type' => 'item',
+         '#title' => t('From'),
+-        '#value' => $user->name .' &lt;'. $user->mail .'&gt;',
++        '#value' => check_plain($user->name) .' &lt;'. $user->mail .'&gt;',
+       );
+       $form['to'] = array('#type' => 'item',
+         '#title' => t('To'),
+-        '#value' => $account->name,
++        '#value' => check_plain($account->name),
+       );
+       $form['subject'] = array('#type' => 'textfield',
+         '#title' => t('Subject'),
+Index: modules/forum.module
+===================================================================
+RCS file: /cvs/drupal/drupal/modules/Attic/forum.module,v
+retrieving revision 1.328.2.3
+diff -u -Ffunction -r1.328.2.3 forum.module
+--- modules/forum.module	14 Jul 2006 12:16:01 -0000	1.328.2.3
++++ modules/forum.module	17 Oct 2006 09:27:18 -0000
+@@ -869,7 +869,7 @@ function theme_forum_display($forums, $t
+     }
+   }
+ 
+-  drupal_set_title($title);
++  drupal_set_title(check_plain($title));
+ 
+   $breadcrumb[] = array('path' => $_GET['q']);
+   menu_set_location($breadcrumb);
+Index: modules/path.module
+===================================================================
+RCS file: /cvs/drupal/drupal/modules/Attic/path.module,v
+retrieving revision 1.83
+diff -u -Ffunction -r1.83 path.module
+--- modules/path.module	13 Apr 2006 08:25:27 -0000	1.83
++++ modules/path.module	17 Oct 2006 09:27:18 -0000
+@@ -85,7 +85,7 @@ function path_admin() {
+ function path_admin_edit($pid = 0) {
+   if ($pid) {
+     $alias = path_load($pid);
+-    drupal_set_title($alias['dst']);
++    drupal_set_title(check_plain($alias['dst']));
+     $output = path_form(path_load($pid));
+   }
+   else {
+Index: modules/profile.module
+===================================================================
+RCS file: /cvs/drupal/drupal/modules/Attic/profile.module,v
+retrieving revision 1.154.2.1
+diff -u -Ffunction -r1.154.2.1 profile.module
+--- modules/profile.module	2 Jul 2006 20:53:52 -0000	1.154.2.1
++++ modules/profile.module	17 Oct 2006 09:27:18 -0000
+@@ -137,7 +137,7 @@ function profile_block($op = 'list', $de
+       }
+ 
+       if ($output) {
+-         $block['subject'] = t('About %name', array('%name' => $account->name));
++         $block['subject'] = t('About %name', array('%name' => check_plain($account->name)));
+          $block['content'] = $output;
+          return $block;
+       }
+@@ -184,7 +184,7 @@ function profile_field_form($arg = NULL)
+         drupal_not_found();
+         return;
+       }
+-      drupal_set_title(t('edit %title', array('%title' => $edit['title'])));
++      drupal_set_title(t('edit %title', array('%title' => check_plain($edit['title']))));
+       $form['fid'] = array('#type' => 'value',
+         '#value' => $fid,
+       );
+@@ -460,7 +460,7 @@ function profile_browse() {
+     }
+     $output .= '</div>';
+ 
+-    drupal_set_title($title);
++    drupal_set_title(check_plain($title));
+     return $output;
+   }
+   else if ($name && !$field->fid) {
+Index: modules/statistics.module
+===================================================================
+RCS file: /cvs/drupal/drupal/modules/Attic/statistics.module,v
+retrieving revision 1.225.2.1
+diff -u -Ffunction -r1.225.2.1 statistics.module
+--- modules/statistics.module	5 May 2006 12:03:51 -0000	1.225.2.1
++++ modules/statistics.module	17 Oct 2006 09:27:18 -0000
+@@ -216,7 +216,7 @@ function statistics_user_tracker() {
+         l(t('details'), "admin/logs/access/$log->aid"));
+     }
+ 
+-    drupal_set_title($account->name);
++    drupal_set_title(check_plain($account->name));
+     $output = theme('table', $header, $rows);
+     $output .= theme('pager', NULL, 30, 0);
+     return $output;
+Index: modules/tracker.module
+===================================================================
+RCS file: /cvs/drupal/drupal/modules/Attic/tracker.module,v
+retrieving revision 1.129
+diff -u -Ffunction -r1.129 tracker.module
+--- modules/tracker.module	17 Apr 2006 20:48:26 -0000	1.129
++++ modules/tracker.module	17 Oct 2006 09:27:18 -0000
+@@ -66,7 +66,7 @@ function tracker_menu($may_cache) {
+ function tracker_track_user() {
+   if ($account = user_load(array('uid' => arg(1)))) {
+     if ($account->status || user_access('administer users')) {
+-      drupal_set_title($account->name);
++      drupal_set_title(check_plain($account->name));
+       return tracker_page($account->uid);
+     }
+     else {
+Index: modules/user.module
+===================================================================
+RCS file: /cvs/drupal/drupal/modules/Attic/user.module,v
+retrieving revision 1.612.2.16
+diff -u -Ffunction -r1.612.2.16 user.module
+--- modules/user.module	2 Aug 2006 18:13:27 -0000	1.612.2.16
++++ modules/user.module	17 Oct 2006 09:27:18 -0000
+@@ -242,7 +242,8 @@ function user_validate_name($name) {
+                    '\x{205F}-\x{206F}'.      // Various text hinting characters
+                    '\x{FEFF}'.               // Byte order mark
+                    '\x{FF01}-\x{FF60}'.      // Full-width latin
+-                   '\x{FFF9}-\x{FFFD}]/u',   // Replacement characters
++                   '\x{FFF9}-\x{FFFD}'.      // Replacement characters
++                   '\x{0}]/u',               // NULL byte
+                    $name)) {
+     return t('The username contains an illegal character.');
+   }
+@@ -585,7 +586,7 @@ function user_block($op = 'list', $delta
+ 
+       case 1:
+         if ($menu = theme('menu_tree')) {
+-           $block['subject'] = $user->uid ? $user->name : t('Navigation');
++           $block['subject'] = $user->uid ? check_plain($user->name) : t('Navigation');
+            $block['content'] = $menu;
+         }
+         return $block;
+@@ -1092,7 +1093,7 @@ function user_pass_submit($form_id, $for
+   $mail_success = user_mail($account->mail, $subject, $body, $headers);
+ 
+   if ($mail_success) {
+-    watchdog('user', t('Password reset instructions mailed to %name at %email.', array('%name' => '<em>'. $account->name .'</em>', '%email' => '<em>'. $account->mail .'</em>')));
++    watchdog('user', t('Password reset instructions mailed to %name at %email.', array('%name' => theme('placeholder', $account->name), '%email' => theme('placeholder', $account->mail))));
+     drupal_set_message(t('Further instructions have been sent to your e-mail address.'));
+   }
+   else {
+@@ -1133,7 +1134,7 @@ function user_pass_reset($uid, $timestam
+       else if ($account->uid && $timestamp > $account->login && $timestamp < $current && $hashed_pass == user_pass_rehash($account->pass, $timestamp, $account->login)) {
+         // First stage is a confirmation form, then login
+         if ($action == 'login') {
+-          watchdog('user', t('User %name used one-time login link at time %timestamp.', array('%name' => "<em>$account->name</em>", '%timestamp' => $timestamp)));
++          watchdog('user', t('User %name used one-time login link at time %timestamp.', array('%name' => theme('placeholder', $account->name), '%timestamp' => theme('placeholder', $timestamp))));
+           // Update the user table noting user has logged in.
+           // And this also makes this hashed password a one-time-only login.
+           db_query("UPDATE {users} SET login = %d WHERE uid = %d", time(), $account->uid);
+@@ -1449,7 +1450,7 @@ function user_edit($category = 'account'
+   }
+   $form['#attributes']['enctype'] = 'multipart/form-data';
+ 
+-  drupal_set_title($account->name);
++  drupal_set_title(check_plain($account->name));
+   return drupal_get_form('user_edit', $form);
+ }
+ 
+@@ -1495,7 +1496,7 @@ function user_view($uid = 0) {
+       }
+     }
+   }
+-  drupal_set_title($account->name);
++  drupal_set_title(check_plain($account->name));
+   return theme('user_profile', $account, $fields);
+ }
+ 

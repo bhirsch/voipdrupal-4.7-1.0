@@ -1,0 +1,206 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: DRUPAL MODULE AUDIO\n"
+"POT-Creation-Date: \n"
+"PO-Revision-Date: 2005-10-09 02:08+0100\n"
+"Last-Translator: Damien COLA <damien.cola@gmail.com>\n"
+"Language-Team: alliax <damien.cola@gmail.com>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"X-Poedit-Language: French\n"
+"X-Poedit-Country: FRANCE\n"
+"X-Poedit-SourceCharset: utf-8\n"
+
+#: modules/audio/audio.module:21
+msgid "Allows uploading and playback of audio files."
+msgstr "Permet l'envoi et la lecture de fichiers audio."
+
+#: modules/audio/audio.module:23
+msgid "An audio file. The audio file could be used for adding music, podcasts, or audio clips to your site."
+msgstr "Un fichier audio. Le fichier audio peut être utilisé pour ajouter de la musique, des podcasts ou des clips audio sur votre site."
+
+#: modules/audio/audio.module:31
+#: ;82;92;97;0
+msgid "audio"
+msgstr "audio"
+
+#: modules/audio/audio.module:67
+#, fuzzy
+msgid "Path to uploaded audio files"
+msgstr "Chemin vers les fichiers audio envoyés"
+
+#: modules/audio/audio.module:68
+msgid "Subdirectory in the directory \"%dir\" where audio files will be stored."
+msgstr "Sous-répertoire dans le répertoire \"%dir\" où les fichiers audio seront stockés."
+
+#: modules/audio/audio.module:69
+msgid "Path to the 'getID3' folder"
+msgstr "Chemin vers le dossier 'getID3'"
+
+#: modules/audio/audio.module:69
+msgid "The path to the 'getid3' library folder. (include trailing slash.)"
+msgstr "Le chemin vers le dossier de la bibliothèque 'getid3'. (inclure le caractère oblique / à la fin)"
+
+#: modules/audio/audio.module:70
+msgid "File paths"
+msgstr "Chemins de fichier"
+
+#: modules/audio/audio.module:86
+msgid "audio files"
+msgstr "fichiers audio"
+
+#: modules/audio/audio.module:103
+msgid "add audio"
+msgstr "ajouter audio"
+
+#: modules/audio/audio.module:119
+msgid "download audio file"
+msgstr "télécharger le fichier audio"
+
+#: modules/audio/audio.module:152
+#: ;161
+msgid "Latest audio"
+msgstr "Audio récents"
+
+#: modules/audio/audio.module:153
+#: ;166
+msgid "Random audio"
+msgstr "Audio aléatoire"
+
+#: modules/audio/audio.module:211
+msgid "Description"
+msgstr "Description"
+
+#: modules/audio/audio.module:222
+msgid "Current Audio File"
+msgstr "Fichier audio actuel"
+
+#: modules/audio/audio.module:223
+msgid "Your current audio file is:"
+msgstr "Votre fichier audio actuel est :"
+
+#: modules/audio/audio.module:225
+msgid "Use the 'browse' button below to upload a different audio file, or do nothing to keep it the same."
+msgstr "Utilisez le bouton 'parcourir' ci-dessous pour envoyer un fichier audio différent, ou ne faites rien pour garder le même."
+
+#: modules/audio/audio.module:229
+#: ;231
+msgid "Audio File"
+msgstr "Fichier Audio"
+
+#: modules/audio/audio.module:229
+msgid "Click \"Browse...\" to select an audio file to upload."
+msgstr "Cliquez \"Parcourir...\" pour sélectionner un fichier audio à envoyer."
+
+#: modules/audio/audio.module:230
+msgid "Allow file downloads."
+msgstr "Permettre les téléchargements de fichier."
+
+#: modules/audio/audio.module:230
+msgid "If checked, people will be able to download this audio file on to their own computer."
+msgstr "Si coché, les gens pourront télécharger ce fichier audio sur leur ordinateur."
+
+#: modules/audio/audio.module:235
+msgid "Song Title"
+msgstr "Titre de la chanson"
+
+#: modules/audio/audio.module:236
+#: ;658
+msgid "Artist"
+msgstr "Artiste"
+
+#: modules/audio/audio.module:237
+#: ;659
+msgid "Album"
+msgstr "Album"
+
+#: modules/audio/audio.module:238
+#: ;660
+msgid "Year"
+msgstr "Année"
+
+#: modules/audio/audio.module:239
+msgid "Track Number"
+msgstr "Numéro de piste"
+
+#: modules/audio/audio.module:239
+msgid "Enter a single number here. \"1\" means that this is the first track on the album."
+msgstr "Entrez un nombre ici. \"1\" signifie que c'est la première piste de l'album."
+
+#: modules/audio/audio.module:240
+msgid "Genre"
+msgstr "Genre"
+
+#: modules/audio/audio.module:242
+msgid "Audio File Information"
+msgstr "Information du fichier audio"
+
+#: modules/audio/audio.module:305
+msgid " audio files"
+msgstr " fichiers audio"
+
+#: modules/audio/audio.module:320
+msgid "%name's audio files"
+msgstr "Les fichiers audio de %name"
+
+#: modules/audio/audio.module:323
+msgid "Add a new audio file."
+msgstr "Ajouter un nouveau fichier audio."
+
+#: modules/audio/audio.module:326
+msgid "You are not allowed to add audio files."
+msgstr "Vous n'êtes pas autorisé à ajouter des fichiers audio."
+
+#: modules/audio/audio.module:372
+msgid "RSS - blogs"
+msgstr "RSS - blogs"
+
+#: modules/audio/audio.module:382
+msgid "History"
+msgstr "Historique"
+
+#: modules/audio/audio.module:382
+msgid "Audio"
+msgstr "Audio"
+
+#: modules/audio/audio.module:382
+msgid "listen to the most recent audio files added"
+msgstr "écouter les fichiers audio les plus récemment ajoutés"
+
+#: modules/audio/audio.module:382
+msgid "Listen to %username's latest audio files."
+msgstr "Ecouter les fichiers audio récents de %username."
+
+#: modules/audio/audio.module:425
+msgid "Click here"
+msgstr "Cliquez ici"
+
+#: modules/audio/audio.module:501
+msgid "Uploaded file is not an audio file"
+msgstr "Le fichier envoyé n'est pas un fichier audio"
+
+#: modules/audio/audio.module:544
+msgid "Delete"
+msgstr "Supprimer"
+
+#: modules/audio/audio.module:656
+msgid "Play"
+msgstr "Jouer"
+
+#: modules/audio/audio.module:657
+msgid "Song Name"
+msgstr "Titre de la chanson"
+
+#: modules/audio/audio.module:667
+msgid "by"
+msgstr "par"
+
+#: modules/audio/audio.module:38
+msgid "administer audio"
+msgstr "administrer audio"
+
+#: modules/audio/audio.module:38
+msgid "create audio"
+msgstr "créer audio"
+

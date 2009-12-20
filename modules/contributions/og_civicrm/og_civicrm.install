@@ -1,0 +1,25 @@
+<?php
+
+// $Id$
+
+
+/**
+ * Install the initial schema.
+ */
+function og_civicrm_install() {
+  switch ($GLOBALS['db_type']) {
+    case 'mysql':
+    case 'mysqli':
+      db_query(
+<<<MYSQL_UPDATE
+CREATE TABLE `og_civicrm` (
+  `nid` int(11) NOT NULL,
+  `gid` int(11) NOT NULL,
+  `did` int(11) NOT NULL,
+  PRIMARY KEY  (`nid`, gid, did)
+) TYPE=MyISAM /*!40100 DEFAULT CHARACTER SET utf8 */;
+MYSQL_UPDATE
+      );
+      break;
+  }
+}

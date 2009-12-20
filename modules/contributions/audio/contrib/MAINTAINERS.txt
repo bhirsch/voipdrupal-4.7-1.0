@@ -1,0 +1,7 @@
+The modules in audio/contrib are distributed with the audio module for
+your convenience.
+
+The following individuals maintain each module:
+
+audio_attach        zirafa <http://drupal.org/user/10692>
+audio_import        drewish <http://drupal.org/user/34869>

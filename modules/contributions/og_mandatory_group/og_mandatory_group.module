@@ -1,0 +1,96 @@
+<?php
+// $Id: og_mandatory_group.module,v 1.4.2.1 2006/07/22 12:40:59 pwolanin Exp $
+/**
+ * Implementation of hook_help
+ * 
+ */
+function og_mandatory_group_help($section) {
+  switch ($section) {
+    case 'admin/modules#description':
+      return t('Make one group mandatory for new users.');
+    case 'admin/settings/og_mandatory_group':
+      return t('Choose one group that all new users will be put into. You can chose either an open or a closed group. The user will be auto-approved as member of the group.');
+   }
+}
+
+/**
+ * Implementation of hook_user
+ * 
+ */
+function og_mandatory_group_user($op, &$edit, &$account, $category = NULL) {
+  switch ($op) {
+    case 'insert':
+      if (($group = variable_get('og_mandatory_group', 0)) != 0) {
+        og_save_subscription($group, $account->uid, array('is_active' => 1));
+        // mail the admins
+        $node = node_load($group);
+        $subj = t("'%name' joined %site and was assigned to group '%group'.", array('%group' => check_plain($node->title), '%name' => check_plain($account->name), '%site' => variable_get('site_name', 'drupal')));
+        $from = variable_get('site_mail', ini_get('sendmail_from'));
+        $headers = "From: $from\nX-Mailer: Drupal\nReturn-path: $from\nErrors-to: $from";
+
+        $groups = '';
+	if ($edit['og_register']) {
+	  $result = db_query(db_rewrite_sql('SELECT n.nid, n.title, o.* FROM {node} n INNER JOIN {og} o ON n.nid = o.nid WHERE n.type IN ('. str_pad('', count(variable_get('og_node_types', array('og'))) * 5 - 1, "'%s',") .') AND n.status = 1 AND o.register = 1'), variable_get('og_node_types', array('og')));
+	  while ($row = db_fetch_object($result)) {
+	    if ($edit['og_register'][$row->nid]) {
+	      switch ($row->selective) {
+		case OG_OPEN:
+		  $groups .= check_plain($row->title) .' '. t('(open group)');
+		  break;
+		case OG_MODERATED:
+		  $groups .= check_plain($row->title) .' '. t('(moderated group)');
+		  break;
+		case OG_INVITE_ONLY:
+		  $groups .= check_plain($row->title) .' '. t('(invite only group)');
+		  break;
+		case OG_CLOSED:
+		  $groups .= check_plain($row->title) .' '. t('(closed group)');
+		  break;
+	      }
+	      $groups .= "\n\t". url("node/$row->nid", NULL, NULL, TRUE) ."\n\n";
+	    }
+	  }
+	}
+        $sql = og_list_users_sql(1, 1);
+        $result = db_query($sql, $group);
+        while ($row = db_fetch_object($result)) {
+          if ($row->mail) {
+            $body = t('You may manage subscribers at %url', array('%url' => url("og/users/$node->nid", NULL, NULL, TRUE)));
+            if (strlen($groups)) {
+              $body .= "\n". t('The user also subscribed to the following groups:') ."\n\n". $groups;
+            }
+            if (user_access('administer users', user_load(array('uid' => $row->uid)))) {
+              $body .= "\n". t('You may manage this user at %url', array('%url' => url("user/$account->uid/edit", NULL, NULL, TRUE)));
+            }
+            user_mail($row->mail, $subj, $body, $headers);
+          }
+        }
+      }
+      break;
+  }
+}
+
+/**
+ * Implementation of hook_settings
+ * 
+ */
+function og_mandatory_group_settings() {
+  $options = array();
+  $values = array();
+  $result = db_query("SELECT n.nid, n.title, o.* FROM {node} n INNER JOIN {og} o ON n.nid = o.nid WHERE (o.selective = %d OR o.selective = %d) ORDER BY n.title", OG_CLOSED, OG_OPEN);
+  while ($group = db_fetch_object($result)) {
+    $options[$group->nid] = check_plain($group->title);
+    switch ($group->selective) {
+      case OG_OPEN:
+        $options[$group->nid] .= ' '. theme('placeholder', t('Open group, users can unsubscribe.'));
+        break;
+      case OG_CLOSED:
+        $options[$group->nid] .= ' '. theme('placeholder', t('Closed group, users can not leave.'));
+        break;
+    }
+  }
+  if (count($options)) {
+    $form['og_mandatory_group'] = array('#type' => 'radios', '#options' => $options, '#default_value' => variable_get('og_mandatory_group', 0));
+    return $form;
+  }
+}

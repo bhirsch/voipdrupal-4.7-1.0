@@ -1,0 +1,201 @@
+# LANGUAGE translation of Drupal (./modules/audio/audio.module)
+# Copyright YEAR NAME <EMAIL@ADDRESS>
+# Generated from file: audio.module,v 1.16 2005/08/26 04:07:43 cbrumelle
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: PROJECT VERSION\n"
+"POT-Creation-Date: 2005-10-08 16:31-0700\n"
+"PO-Revision-Date: 2006-08-19 01:29+0100\n"
+"Last-Translator: karlos g liberal <karlos@investic.net>\n"
+"Language-Team: investic.net <karlos@investic.net>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"X-Poedit-Language: Spanish\n"
+"X-Poedit-Country: SPAIN\n"
+
+#: ./modules/audio/audio.module:21
+msgid "Allows uploading and playback of audio files."
+msgstr "Permitir subidas y playback del fichero de audio."
+
+#: ./modules/audio/audio.module:23
+msgid "An audio file. The audio file could be used for adding music, podcasts, or audio clips to your site."
+msgstr "un archivo audio. el fichero de audio puede ser añadido como podcast o audio clips en tu sitio web"
+
+#: ./modules/audio/audio.module:31;81;91;96;0
+msgid "audio"
+msgstr "audio"
+
+#: ./modules/audio/audio.module:67
+msgid "Path to uploaded audio files"
+msgstr "Ruta para la subida de ficheros de audio"
+
+#: ./modules/audio/audio.module:67
+msgid "Subdirectory in the directory \"%dir\" where audio files will be stored."
+msgstr "Subdirectorio en el directorio  \"%dir\" donde el fichero de audio sera almacenado."
+
+#: ./modules/audio/audio.module:68
+msgid "Path to the 'getID3' folder"
+msgstr "ruta del directorio  'getID3'"
+
+#: ./modules/audio/audio.module:68
+msgid "The path to the 'getid3' library folder. (include trailing slash.)"
+msgstr "La ruta de la libraría 'getid3' (incluir la barra /)"
+
+#: ./modules/audio/audio.module:69
+msgid "File paths"
+msgstr "Ruta del ficheros"
+
+#: ./modules/audio/audio.module:85
+msgid "audio files"
+msgstr "ficheros de audio"
+
+#: ./modules/audio/audio.module:102
+msgid "add audio"
+msgstr "añadir audio"
+
+#: ./modules/audio/audio.module:118
+msgid "download audio file"
+msgstr "descargar fichero de audio"
+
+#: ./modules/audio/audio.module:151;160
+msgid "Latest audio"
+msgstr "El último audio "
+
+#: ./modules/audio/audio.module:152;165
+msgid "Random audio"
+msgstr "audio aleatorio "
+
+#: ./modules/audio/audio.module:210
+msgid "Description"
+msgstr "Descripción"
+
+#: ./modules/audio/audio.module:221
+msgid "Current Audio File"
+msgstr "Fichero de Audio actual"
+
+#: ./modules/audio/audio.module:222
+msgid "Your current audio file is:"
+msgstr "El fichero de audio actual es:"
+
+#: ./modules/audio/audio.module:224
+msgid "Use the 'browse' button below to upload a different audio file, or do nothing to keep it the same."
+msgstr "Usa el botón del navegador de debajo para subir otro archivo diferente da audio, no hagas nada para que se quede igual. "
+
+#: ./modules/audio/audio.module:228;230
+msgid "Audio File"
+msgstr "Archivo de audio"
+
+#: ./modules/audio/audio.module:228
+msgid "Click \"Browse...\" to select an audio file to upload."
+msgstr "Pincha \"Broese,,,\" para selecionar un archivo de audio para transferirlo."
+
+#: ./modules/audio/audio.module:229
+msgid "Allow file downloads."
+msgstr "Permitir las transferencias del archivo. "
+
+#: ./modules/audio/audio.module:229
+msgid "If checked, people will be able to download this audio file on to their own computer."
+msgstr "si esta chequeado los usuarios podrán descargarse los ficheros de audio a su ordenador."
+
+#: ./modules/audio/audio.module:234
+msgid "Song Title"
+msgstr "Título de la canción"
+
+#: ./modules/audio/audio.module:235;657
+msgid "Artist"
+msgstr "Artista"
+
+#: ./modules/audio/audio.module:236;658
+msgid "Album"
+msgstr "Album"
+
+#: ./modules/audio/audio.module:237;659
+msgid "Year"
+msgstr "Año"
+
+#: ./modules/audio/audio.module:238
+msgid "Track Number"
+msgstr "Numero de la pista"
+
+#: ./modules/audio/audio.module:238
+msgid "Enter a single number here. \"1\" means that this is the first track on the album."
+msgstr "Introduce un numero simple aquí \"1\" esto significa que sera la primera canción del album"
+
+#: ./modules/audio/audio.module:239
+msgid "Genre"
+msgstr "Genero"
+
+#: ./modules/audio/audio.module:241
+msgid "Audio File Information"
+msgstr "Información del archivo de audio"
+
+#: ./modules/audio/audio.module:304
+msgid " audio files"
+msgstr "archivo de audio"
+
+#: ./modules/audio/audio.module:319
+msgid "%name's audio files"
+msgstr "%nombres del archivo de audio"
+
+#: ./modules/audio/audio.module:322
+msgid "Add a new audio file."
+msgstr "Añadir un nuevo archivo de audio"
+
+#: ./modules/audio/audio.module:325
+msgid "You are not allowed to add audio files."
+msgstr "No tienes permisos para añadir un archivo de audio"
+
+#: ./modules/audio/audio.module:371
+msgid "RSS - blogs"
+msgstr "RSS blog"
+
+#: ./modules/audio/audio.module:381
+msgid "History"
+msgstr "Historia"
+
+#: ./modules/audio/audio.module:381
+msgid "Audio"
+msgstr "Audio"
+
+#: ./modules/audio/audio.module:381
+msgid "listen to the most recent audio files added"
+msgstr "Escucha lo mas recientes archivos de audio añadidos."
+
+#: ./modules/audio/audio.module:381
+msgid "Listen to %username's latest audio files."
+msgstr "Escucha el último archivo de audio del %username "
+
+#: ./modules/audio/audio.module:424
+msgid "Click here"
+msgstr "Pincha aquí "
+
+#: ./modules/audio/audio.module:500
+msgid "Uploaded file is not an audio file"
+msgstr "El archivo transferido no es un archivo de audio"
+
+#: ./modules/audio/audio.module:543
+msgid "Delete"
+msgstr "Borrar"
+
+#: ./modules/audio/audio.module:655
+msgid "Play"
+msgstr "Play"
+
+#: ./modules/audio/audio.module:656
+msgid "Song Name"
+msgstr "Nombre de la canción"
+
+#: ./modules/audio/audio.module:666
+msgid "by"
+msgstr "por"
+
+#: ./modules/audio/audio.module:38
+msgid "administer audio"
+msgstr "Administración de audio"
+
+#: ./modules/audio/audio.module:38
+msgid "create audio"
+msgstr "Crear audio"
+

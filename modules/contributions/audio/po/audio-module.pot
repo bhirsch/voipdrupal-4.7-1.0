@@ -1,0 +1,341 @@
+# LANGUAGE translation of Drupal (audio.module)
+# Copyright YEAR NAME <EMAIL@ADDRESS>
+# Generated from file: audio.module,v 1.51.2.19 2006/08/14 23:47:08 drewish
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: PROJECT VERSION\n"
+"POT-Creation-Date: 2006-08-18 17:34-0700\n"
+"PO-Revision-Date: YYYY-mm-DD HH:MM+ZZZZ\n"
+"Last-Translator: NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <EMAIL@ADDRESS>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=INTEGER; plural=EXPRESSION;\n"
+
+#: audio.module:15
+msgid "You can browse for audio by any of the following fields."
+msgstr ""
+
+#: audio.module:17
+msgid "The audio module allows users to upload and store audio files on a Drupal site. Audio is an important medium for community communication as the recent rise of the <a href=\"%elink-en-wikipedia-org\">podcast phenomenon</a> demonstrates."
+msgstr ""
+
+#: audio.module:18
+msgid "Users create audio nodes by uploading a file from their computer. They are then able to make changes to the metadata, perhaps adding an artist, or removing the track number. Visitors can download the audio file, view the file's metadata and encoding information, or browse for audio by metadata (artist, title, year, etc). Visitors can even play MP3s within their browser using the <a href=\"%elink-musicplayer-sourceforge-net\">XSPF flash player</a> that is bundled with the module."
+msgstr ""
+
+#: audio.module:19
+msgid "The module uses the <a href=\"%elink-www-getid3-org\">getID3 library</a> to read and write <a href=\"%elink-en-wikipedia-org\">ID3 tag</a> information from the audio file. getID3 can read metadata from a many different audio and video formats giving the audio module a great deal of flexibility."
+msgstr ""
+
+#: audio.module:20
+msgid "<p>You can:</p>\n                    <ul>\n                    <li>add an audio file at <a href=\"%node-add-audio\">create content &gt;&gt; audio</a>.</li>\n                    <li>see your most recent audio files at <a href=\"%user\">user account</a>.</li>\n                    <li>see all of the most recently added audio files at <a href=\"%audio\">audio</a>.</li>\n                    <li>browse for audio by its metadata (artist, album, genre, etc) at <a href=\"%audio-by\">audio &gt;&gt; by</a>.</li>\n                    <li>enable the <em>latest audio</em>, <em>random audio</em>, and <em>browse for audio</em> blocks at <a href=\"%admin-block\">administer &gt;&gt; block</a>.</li>\n                    <li>administer audio module at <a href=\"%admin-settings-audio\">administers &gt;&gt; settings &gt;&gt; audio</a>.</li>\n                    <li>download and the <em>required</em> getID3 library from <a href=\"%elink-prdownloads-sourceforge-net\">getID3 sourceforge</a> page.</li>\n                    </ul>"
+msgstr ""
+
+#: audio.module:30
+msgid "For more information please read the configuration and customization handbook <a href=\"%audio\">Audio page</a>."
+msgstr ""
+
+#: audio.module:33
+msgid "Allows uploading and playback of audio files. "
+msgstr ""
+
+#: audio.module:35
+msgid "The current PHP configuration limits file uploads to %maxsize"
+msgstr ""
+
+#: audio.module:36
+msgid "There are two PHP ini settings, upload_max_filesize and post_max_size, that limit the maximum size of uploads. You can change these settings in the php.ini file or by using a php_value directive in Apache .htaccess file. Consult the PHP documentation for more info."
+msgstr ""
+
+#: audio.module:39
+msgid "These settings let you determine what metadata the audio module tracks. You can add or remove metadata tags and select how they will be used.\n        <ul>\n        <li><em>required</em> forces a user to enter a value</li>\n        <li><em>hidden</em> prevents the tag from being listed in the node view</li>\n        <li><em>browsable</em> allows users to browse for audio using that tag</li>\n        <li><em>written to file</em> indicates that the tag should be saved to the file (this requires getid3 support)</li>\n        <li><em>weight</em> determines the order of the tags, lower weights are listed first</li>\n        <li><em>delete</em> indicates that you would like to remove the tag from the allowed list</li>\n        </ul>"
+msgstr ""
+
+#: audio.module:48
+msgid "<strong>Note:</strong> deleting a tag will not remove it from the database or file until the node is saved again."
+msgstr ""
+
+#: audio.module:51
+msgid "An audio file. The audio file could be used for adding music, podcasts, or audio clips to your site."
+msgstr ""
+
+#: audio.module:73;84;89;133;1087;0
+msgid "audio"
+msgstr ""
+
+#: audio.module:78
+msgid "metadata tags"
+msgstr ""
+
+#: audio.module:94;1091
+msgid "browse by"
+msgstr ""
+
+#: audio.module:99
+msgid "user's audio files"
+msgstr ""
+
+#: audio.module:105
+msgid "audio feed"
+msgstr ""
+
+#: audio.module:110
+msgid "users's audio feed"
+msgstr ""
+
+#: audio.module:116
+msgid "download"
+msgstr ""
+
+#: audio.module:121
+msgid "play"
+msgstr ""
+
+#: audio.module:306
+msgid "download audio file"
+msgstr ""
+
+#: audio.module:308
+msgid "%download_count downloads"
+msgstr ""
+
+#: audio.module:312
+msgid "%play_count plays"
+msgstr ""
+
+#: audio.module:390
+msgid "A file must be provided. If you tried uploading a file, make sure it's less than the upload size limit."
+msgstr ""
+
+#: audio.module:660
+msgid "Title"
+msgstr ""
+
+#: audio.module:662
+msgid "The title can use the file's metadata. Depending on what's filled out, you maybe able to use any of the following variables: "
+msgstr ""
+
+#: audio.module:670
+msgid "Body"
+msgstr ""
+
+#: audio.module:679
+msgid "Audio File Info"
+msgstr ""
+
+#: audio.module:686
+msgid "Current File"
+msgstr ""
+
+#: audio.module:687
+msgid "No file is attached."
+msgstr ""
+
+#: audio.module:692
+msgid "Add a new audio file"
+msgstr ""
+
+#: audio.module:693
+msgid "Click \"Browse...\" to select an audio file to upload. <strong>NOTE:</strong> the current PHP configuration limits uploads to %maxsize. "
+msgstr ""
+
+#: audio.module:698
+msgid "Allow file downloads."
+msgstr ""
+
+#: audio.module:701
+msgid "If checked, a link will be displayed allowing visitors to download this audio file on to their own computer."
+msgstr ""
+
+#: audio.module:702
+msgid "<strong>WARNING:</strong> even if you leave this unchecked, clever users will be able to find a way to download the file. This just makes them work a little harder to find the link."
+msgstr ""
+
+#: audio.module:711
+msgid "Audio Metadata"
+msgstr ""
+
+#: audio.module:723
+msgid "Replace this with a new file"
+msgstr ""
+
+#: audio.module:763
+msgid "Track Number"
+msgstr ""
+
+#: audio.module:764
+msgid "Enter either a single number or fraction here. '1' means that this is the first track on the album, and '1/8' ."
+msgstr ""
+
+#: audio.module:768
+msgid "Genre"
+msgstr ""
+
+#: audio.module:802
+msgid "Audio"
+msgstr ""
+
+#: audio.module:803
+msgid "listen to %username's recent audio files"
+msgstr ""
+
+#: audio.module:803
+msgid "Read %username's latest blog entries."
+msgstr ""
+
+#: audio.module:806
+msgid "History"
+msgstr ""
+
+#: audio.module:819
+msgid "audio: Latest"
+msgstr ""
+
+#: audio.module:820
+msgid "audio: Random"
+msgstr ""
+
+#: audio.module:821
+msgid "audio: Browse by"
+msgstr ""
+
+#: audio.module:831
+msgid "Show <em>n</em> recent audio nodes"
+msgstr ""
+
+#: audio.module:834
+msgid "The block will show this many of the most recent audio nodes."
+msgstr ""
+
+#: audio.module:840
+msgid "Show <em>n</em> random audio nodes"
+msgstr ""
+
+#: audio.module:843
+msgid "The block will show this many random audio nodes."
+msgstr ""
+
+#: audio.module:865
+msgid "Latest audio"
+msgstr ""
+
+#: audio.module:870
+msgid "Random audio"
+msgstr ""
+
+#: audio.module:882
+msgid "Browse for audio by"
+msgstr ""
+
+#: audio.module:898
+msgid "Default node title format"
+msgstr ""
+
+#: audio.module:901
+msgid "The audio node's title can use the file's metadata as variables. This will be used as the default title for all new audio nodes. The following values can be used: "
+msgstr ""
+
+#: audio.module:905
+msgid "Node teaser format"
+msgstr ""
+
+#: audio.module:908
+msgid "Specify a teaser format for all audio nodes. In addition to the tags allowed in the title, the following variables are also available: "
+msgstr ""
+
+#: audio.module:912
+msgid "Downloadable by default"
+msgstr ""
+
+#: audio.module:915
+msgid "Check this to make downloadable the default setting for new audio nodes. You should be aware that even when audio is not marked as downloadable, clever users can still download it, this just makes the work harder. "
+msgstr ""
+
+#: audio.module:978
+msgid "Reset to defaults"
+msgstr ""
+
+#: audio.module:980
+msgid "The configuration options have been reset to their default values."
+msgstr ""
+
+#: audio.module:1011
+msgid "The configuration options have been saved."
+msgstr ""
+
+#: audio.module:1086
+msgid "Home"
+msgstr ""
+
+#: audio.module:1094
+msgid "audio by %tag '%value'"
+msgstr ""
+
+#: audio.module:1097
+msgid "%tag"
+msgstr ""
+
+#: audio.module:1107
+msgid "audio by %tag"
+msgstr ""
+
+#: audio.module:1117
+msgid "Browse for audio by..."
+msgstr ""
+
+#: audio.module:1148
+msgid "%username's audio files"
+msgstr ""
+
+#: audio.module:1160
+msgid "%sitename audio files"
+msgstr ""
+
+#: audio.module:1178
+msgid "%name's audio files"
+msgstr ""
+
+#: audio.module:1184
+msgid "RSS - %title"
+msgstr ""
+
+#: audio.module:1192
+msgid "Add a new audio file."
+msgstr ""
+
+#: audio.module:1195
+msgid "You are not allowed to add audio files."
+msgstr ""
+
+#: audio.module:1277
+msgid "RSS - Latest audio files"
+msgstr ""
+
+#: audio.module:203
+msgid "administer audio"
+msgstr ""
+
+#: audio.module:203
+msgid "create audio"
+msgstr ""
+
+#: audio.module:203
+msgid "edit own audio"
+msgstr ""
+
+#: audio.module:203
+msgid "play audio"
+msgstr ""
+
+#: audio.module:203
+msgid "download audio"
+msgstr ""
+
+#: audio.module:203
+msgid "view download stats"
+msgstr ""
+

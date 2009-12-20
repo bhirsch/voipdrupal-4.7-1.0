@@ -1,0 +1,37 @@
+Index: modules/filter.module
+===================================================================
+RCS file: /cvs/drupal/drupal/modules/Attic/filter.module,v
+retrieving revision 1.122.2.4
+diff -u -p -r1.122.2.4 filter.module
+--- modules/filter.module	18 Oct 2006 20:14:42 -0000	1.122.2.4
++++ modules/filter.module	13 Dec 2006 13:50:46 -0000
+@@ -43,11 +43,11 @@ function filter_help($section) {
+     case 'admin/filters/'. arg(2):
+       return t('
+ <p>Every <em>filter</em> performs one particular change on the user input, for example stripping out malicious HTML or making URLs clickable. Choose which filters you want to apply to text in this input format.</p>
+-<p>If you notice some filters are causing conflicts in the output, you can <a href="%rearrange">rearrange them</a>.</p>', array('%rearrange' => url('admin/filters/'. arg(2) .'/order')));
++<p>If you notice some filters are causing conflicts in the output, you can <a href="%rearrange">rearrange them</a>.</p>', array('%rearrange' => check_url(url('admin/filters/'. arg(2) .'/order'))));
+ 
+     case 'admin/filters/'. arg(2) .'/configure':
+       return t('
+-<p>If you cannot find the settings for a certain filter, make sure you\'ve enabled it on the <a href="%url">view tab</a> first.</p>', array('%url' => url('admin/filters/'. arg(2))));
++<p>If you cannot find the settings for a certain filter, make sure you\'ve enabled it on the <a href="%url">view tab</a> first.</p>', array('%url' => check_url(url('admin/filters/'. arg(2)))));
+ 
+     case 'admin/filters/'. arg(2) .'/order':
+       return t('
+Index: modules/system.module
+===================================================================
+RCS file: /cvs/drupal/drupal/modules/Attic/system.module,v
+retrieving revision 1.320.2.15
+diff -u -p -r1.320.2.15 system.module
+--- modules/system.module	12 Dec 2006 21:49:13 -0000	1.320.2.15
++++ modules/system.module	13 Dec 2006 13:49:20 -0000
+@@ -41,7 +41,7 @@ function system_help($section) {
+     case 'admin/themes/settings/'. arg(3):
+       $reference = explode('.', arg(3), 2);
+       $theme = array_pop($reference);
+-      return t('<p>These options control the display settings for the <code>%template</code> theme. When your site is displayed using this theme, these settings will be used. By clicking "Reset to defaults," you can choose to use the <a href="%global">global settings</a> for this theme.</p>', array('%template' => $theme, '%global' => url('admin/themes/settings')));
++      return t('<p>These options control the display settings for the <code>%template</code> theme. When your site is displayed using this theme, these settings will be used. By clicking "Reset to defaults," you can choose to use the <a href="%global">global settings</a> for this theme.</p>', array('%template' => check_plain($theme), '%global' => url('admin/themes/settings')));
+     case 'admin/modules':
+       return t('<p>Modules are plugins for Drupal that extend its core functionality. Here you can select which modules are enabled. Click on the name of the module in the navigation menu for their individual configuration pages. Once a module is enabled, new <a href="%permissions">permissions</a> might be made available. Modules can automatically be temporarily disabled to reduce server load when your site becomes extremely busy by enabling the throttle.module and checking throttle. The auto-throttle functionality must be enabled on the <a href="%throttle">throttle configuration page</a> after having enabled the throttle module.</p>
+ <p>It is important that <a href="%update-php">update.php</a> is run every time a module is updated to a newer version.</p>', array('%permissions' => url('admin/access/permissions'), '%throttle' => url('admin/settings/throttle'), '%update-php' => $base_url .'/update.php'));

@@ -1,0 +1,57 @@
+<?php
+// $Id: location.dz.inc,v 1.2 2006/03/08 06:53:38 dww Exp $
+
+// Algeria
+
+function location_province_list_dz() {
+  return array('ADR' => "Adrar",
+    'ADE' => "Ain Defla",
+    'ATE' => "Ain Temouchent",
+    'ALG' => "Alger",
+    'ANN' => "Annaba",
+    'BAT' => "Batna",
+    'BEC' => "Bechar",
+    'BEJ' => "Bejaia",
+    'BIS' => "Biskra",
+    'BLI' => "Blida",
+    'BBA' => "Bordj Bou Arreridj",
+    'BOA' => "Bouira",
+    'BMD' => "Boumerdes",
+    'CHL' => "Chlef",
+    'CON' => "Constantine",
+    'DJE' => "Djelfa",
+    'EBA' => "El Bayadh",
+    'EOU' => "El Oued",
+    'ETA' => "El Tarf",
+    'GHA' => "Ghardaia",
+    'GUE' => "Guelma",
+    'ILL' => "Illizi",
+    'JIJ' => "Jijel",
+    'KHE' => "Khenchela",
+    'LAG' => "Laghouat",
+    'MUA' => "Muaskar",
+    'MED' => "Medea",
+    'MIL' => "Mila",
+    'MOS' => "Mostaganem",
+    'MSI' => "M'Sila",
+    'NAA' => "Naama",
+    'ORA' => "Oran",
+    'OUA' => "Ouargla",
+    'OEB' => "Oum el-Bouaghi",
+    'REL' => "Relizane",
+    'SAI' => "Saida",
+    'SET' => "Setif",
+    'SBA' => "Sidi Bel Abbes",
+    'SKI' => "Skikda",
+    'SAH' => "Souk Ahras",
+    'TAM' => "Tamanghasset",
+    'TEB' => "Tebessa",
+    'TIA' => "Tiaret",
+    'TIN' => "Tindouf",
+    'TIP' => "Tipaza",
+    'TIS' => "Tissemsilt",
+    'TOU' => "Tizi Ouzou",
+    'TLE' => "Tlemcen");
+}
+
+?>

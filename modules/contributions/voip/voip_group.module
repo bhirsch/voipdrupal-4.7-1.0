@@ -1,0 +1,635 @@
+<?php
+/* $Id: voip_group.module,v 1.6 2006/11/15 03:26:48 leob Exp $ */
+
+/**
+ * @file
+ * Provides VoIP group functionality to Drupal websites.
+ * 
+ */
+
+/**
+ * Required files
+ */
+foreach (array( 'voip_error_codes.inc') as $file) {
+  require_once('includes/' . $file);
+}
+
+
+/**
+ * Implementation of hook_help().
+ */
+function voip_group_help($section) {
+  switch ($section) {
+    case 'admin/modules#description':
+      return t('Creation and management of VoIP groups.');
+    case 'node/add#voip_group':
+      return t('VoIP groups have a central phone extension and provide mechanisms for their members to send voicemail messages to one another and determine the audience for the functionality provided by other VoIP modules.');
+    case 'admin/help#voip_group':
+      return t("Allows users to create VoIP groups, send voicemail messages to group members, access group information from telephones, determine the audience for the content published by other VoIP modules, etc.");
+  }
+}
+
+/**
+ * Implementation of hook_node_info().
+ */
+function voip_group_node_info() {
+  return array('voip_group' => array('name' => t('voip group'), 'base' => 'voip_group'));
+}
+
+/**
+ * Implementation of hook_perm().
+ */
+function voip_group_perm() {
+  return array('administer voip groups');
+}
+
+/**
+ * Implementation of hook_access().
+ */
+function voip_group_access($op, $node) {
+  
+  switch($op) {
+  	case 'create': 
+  	  // NOTE: until we figure out a good way to upload multiple audio fields with a form, voip_groups can only be created via xmlrpc
+/***** 
+ 	  // the variable $voip_xmlrpc_call below is used to prevent node_add() from displaying a link that would allow users to create voip groups on the website
+  	  global $voip_xmlrpc_call;
+      return (user_access('administer voip groups') && $voip_xmlrpc_call);
+*****/
+      return FALSE;
+    case 'update':
+    case 'delete':
+      // only the group administrators are allowed to update or delete the group
+      if ($node->type == 'voip_group') {
+// TODO: cannot call node_access here... this would lead to an infinite loop...
+//        return node_access('update', $node);
+        global $user;
+        $account = $user;
+        $gid = $node->nid;
+        // the following used to be og_is_admin($gid, $account = NULL)...
+        $rc = (isset($account->og_groups) && (in_array($gid, array_keys($account->og_groups)) && ($account->og_groups[$gid]['is_admin'])) || user_access('administer organic groups', $account));
+        return $rc;
+      }
+      break;
+  }
+}
+
+
+/**
+ * Implementation of hook_menu().
+ */
+function voip_group_menu($may_cache) {
+  $items = array();
+
+  if ($may_cache) {
+    $items[] = array('path' => 'node/add/voip_group', 'title' => t('voip group'),
+//      'access' => user_access('administer voip groups'));
+      // NOTE: until we figure out a way to add multiple audio files to the creation form, users will only be allowed to create voip_group nodes via xmlrpc...
+      'access' => FALSE);
+  }
+  else {
+    $items[] = array(
+      'path' => 'voip_group',
+      'title' => t('group extensions'),
+      'callback' => '_voip_group_directory_page',
+      'access' => user_access('access content'),
+      'type' => MENU_CALLBACK,
+    );
+  }
+
+  return $items;
+}
+
+/**
+ * Implementation of hook og_create_links().
+ */
+function voip_group_og_create_links($og_node) {
+  if ($og_node->voip_extension_info) {
+    $links = array();
+    $links[] = l(t('group extensions'), "voip_group/$og_node->nid");
+    return $links;
+  } 
+}
+
+
+/**
+ * Implementation of hook_user()
+ */
+function voip_group_user($op, &$edit, &$account, $category = NULL) {
+
+  if (!module_exist( 'voip')) {
+    $f = form_set_error('', t('Please make sure voip.module is loaded and enabled.'));
+    return FALSE;
+  }
+ 
+  // TODO: list all the voip groups (extension, name, audio name, link) the user is involved with
+  
+}
+
+/*
+ * Implementation of hook_insert()
+ */
+function voip_group_insert(&$node) {
+
+  // most of the processing is done by og.module and voip.module
+  
+  // record statistics
+  global $user;
+  $user_extension_number = isset($user->voip_extension_info)?$user->voip_extension_info['number']:NULL;
+  $user_info = array('extension_number' => $user_extension_number, 'uid' => $user->uid);
+  $notes = "nid: $node->nid, name: $node->title";
+  voip_log($user_info, 'groups', 'created', NULL, $notes);
+}
+
+/*
+ * Implementation of hook_delete()
+ */
+function voip_group_delete($node) {
+
+  // most of the processing is done by og.module and voip.module
+
+  // record statistics
+  global $user;
+  $user_extension_number = isset($user->voip_extension_info)?$user->voip_extension_info['number']:NULL;
+  $user_info = array('extension_number' => $user_extension_number, 'uid' => $user->uid);
+  $notes = "nid: $node->nid, name: $node->title";
+  voip_log($user_info, 'groups', 'deleted', NULL, $notes);
+
+  return TRUE;
+}
+
+
+/**
+ * Implementation of hook_xmlrpc()
+ */
+function voip_group_xmlrpc() {
+  return array(
+    array('voip_group.createGroup',
+          '_voip_group_xmlrpc_create_group',
+          array('array', 'array', 'array'),
+          t('Create a voip group.')
+    ),
+    array('voip_group.deleteGroup',
+          '_voip_group_xmlrpc_delete_group',
+          array('array', 'array', 'int'),
+          t('Delete a voip group.')
+    ),
+    array('voip_group.getSubscribers',
+          '_voip_group_xmlrpc_get_subscribers',
+          array('array', 'array', 'int', 'int', 'int'),
+          t('Returns list of subscribers for the specified group.')
+    ),
+
+  );
+} 
+
+/**
+ * Implementation of hook_form().
+ */
+function voip_group_form(&$node) {
+  
+  $f = array();
+  
+  $f['title'] = array(
+    '#type' => 'textfield', 
+    '#title' => t('Name'), 
+    '#weight' => 0, 
+    '#default_value' => $node->title, 
+    '#size' => 60, 
+    '#maxlength' => 128, 
+    '#required' => true
+  );
+    
+  $f['body_filter']['body'] = array(
+    '#type' => 'textarea', 
+    '#title' => t('Welcome message'), 
+    '#default_value' => $node->body, 
+    '#rows' => 10, 
+    '#required' => FALSE, 
+    '#description' => t('This message is shown by default at the top of the group home page.')
+  );
+  
+  $f['body_filter']['format'] = filter_form($node->format);
+
+  return $f;
+}
+
+/**
+ * Implementation of hook_block().
+ */
+function voip_group_block($op = 'list', $delta = 0, $edit = array()) {
+  if ($op == 'list') {
+    $blocks[0]['info'] = t('Telephony status');
+    return $blocks;
+  }
+  elseif ($op == 'view') {
+    switch ($delta) {
+      case 0:
+        return voip_group_block_telephony_status();
+
+    }
+  }
+}
+
+/**
+ * Block with basic telephony status associated with the group
+ */
+function voip_group_block_telephony_status() {
+  if ($groupnode = og_get_group_context()) {
+  	
+    $x = $groupnode->voip_extension_info;
+    $items = array();
+
+    // display extension number
+    $items[] = array('title' => t('Extension number'),
+                     'value' => $x['number'],
+                     'class' => 'voip_item',
+               );
+               
+    // display audio name
+    if ($x['nid_audio_name']) {
+      $audio_node = node_load($x['nid_audio_name']);
+      $audio_name = audio_get_player($audio_node); 
+    }
+    else {
+      $audio_name = t('n/a');
+    }
+    $items[] = array('title' => t('Audio name'),
+                     'value' => $audio_name,
+                     'class' => 'voip_item',
+               );
+
+    // display audio greetings    
+    if ($x['nid_audio_greetings']) {
+      $audio_node = node_load($x['nid_audio_greetings']);
+      $audio_greetings = audio_get_player($audio_node); 
+    }
+    else {
+      $audio_greetings = t('n/a');
+    }
+    $items[] = array('title' => t('Audio greetings'),
+                     'value' => $audio_greetings,
+                     'class' => 'voip_item',
+               );
+    
+    // display audio description   
+    if ($x['nid_audio_description']) {
+      $audio_node = node_load($x['nid_audio_description']);
+      $audio_description = audio_get_player($audio_node); 
+    }
+    else {
+      $audio_description = t('n/a');
+    }
+    $items[] = array('title' => t('Audio description'),
+                     'value' => $audio_description,
+                     'class' => 'voip_item',
+               );
+    
+  	$fields = array(t('Internet phone settings') => $items);
+    $content =  theme('voip_group_block', $fields);
+    $block['content'] = $content;
+    $block['subject'] = t('Telephony status');
+    return $block;
+  }
+}
+
+/*
+ * Implementation of hook_get_voip_type_name
+ */
+function voip_group_get_voip_type_name() {
+  return t('group');
+}
+
+
+/**
+ * Theme items for voip group blocks
+ * 
+ * @param $fields a multidimensional array for the fields, in the form of array (
+ *   'category1' => array(item_array1, item_array2), 'category2' => array(item_array3,
+ *    .. etc.). Item arrays are formatted as array(array('title' => 'item title',
+ *   'value' => 'item value', 'class' => 'class-name'), ... etc.). 
+ * 
+ *  NOTE: This function is based on theme_user_profile()
+ */
+function theme_voip_group_block($fields) {
+  foreach ($fields as $category => $items) {
+    if (strlen($category) > 0) {
+      $output .= "<h3>$category</h3>";
+    }
+    $bullets = array();
+    foreach ($items as $item) {
+      $bullets[] = (isset($item['title'])?"<b>{$item['title']}:</b> ":'') . (isset($item['value'])?"{$item['value']}":'');
+    }
+    if ($bullets) {
+      $output .= theme('item_list', $bullets);
+    }
+  }
+
+  return $output;
+}
+
+/**
+ * XMLRPC callback. Creates a new voip group
+ *
+ * @param $user_info
+ *   array with Drupal name and password of the author of the entry
+ * 
+ * @param $group_info
+ *   array with all the values required for the new group
+ * 
+ * @return
+ *   array.  In case of success, 'error_code' will be set to VOIP_SUCCESS and 'extension_info' 
+ *     will be set with information about the extension associated with the new group created.
+ *     In case of failure, 'error_code' will be set to the appropriate error code and 'error_msg' will contain an explanation of the error.
+ */
+function _voip_group_xmlrpc_create_group($user_info, $group_info) {
+//watchdog('create_group', "user_info: " . serialize($user_info) . ', group_info: ' . serialize($group_info));
+
+  $rc = array();
+
+  // validate given user info
+  global $user;
+  if ((!empty($user_info['user_name'])) && (!empty($user_info['password']))) {
+    $account = voip_user_authenticate($user_info['user_name'], $user_info['password']);
+    if (!$account->uid) {
+  	  $rc['error_code'] = VOIP_INVALID_USER_INFO;
+  	  $rc['error_msg'] = t('Invalid combination of user name and password.');
+      return $rc;
+    }
+    $user = $account;
+  }
+
+  // make sure user has permission to create voip groups
+  if (!user_access('administer voip groups')) {
+//watchdog('create_entry', "rc: " . serialize($rc));
+  	$rc['error_code'] = VOIP_LACK_OF_PERMISSION;
+  	$rc['error_msg'] = t('User does not have permission to create voip_group nodes.');
+    return $rc;
+  }
+  
+  // create a basic voip_group node
+  $node = new stdClass();
+// TODO: the type is the only thing that is specific to voip_group in this function...
+  $node->type = 'voip_group';
+  
+  $node->uid = $user->uid;
+
+  $node->title = isset($group_info['title'])?$group_info['title']:'';  // to be set after node is saved
+  $node->body  = isset($group_info['body'])?$group_info['body']:NULL; 
+  
+  // node-specific options
+  $node_options = variable_get('node_options_'. $node->type, array('status'));
+  $node->status = isset($group_info['status']) ? $group_info['status'] : in_array('status', $node_options);
+  $node->promote = isset($group_info['promote']) ? $group_info['promote'] : in_array('promote', $node_options);
+  $node->sticky = isset($group_info['sticky']) ? $group_info['sticky'] : in_array('sticky', $node_options);
+  $node->revision = isset($group_info['revision']) ? $group_info['revision'] : in_array('revision', $node_options);
+//  $node->comment = COMMENT_NODE_DISABLED; // set by og_submit_group()
+
+  // og-specific options
+  $node->og_selective  = isset($group_info['og_selective'])?$group_info['og_selective']:0; // type of subscription: 0 (open)), 1 (moderated), 2 (invite-only), 3 (closed);
+  $node->og_description = isset($group_info['og_description'])?$group_info['og_description']:'';
+  $node->og_website = isset($group_info['og_website'])?$group_info['og_website']:''; // url of the website associated with the group
+  $node->og_register = isset($group_info['og_register'])?$group_info['og_register']:0;// 1 == group subscription should be presented at user registration
+  $node->og_directory = isset($group_info['og_directory'])?$group_info['og_directory']:1; // 1 == group should be listed in groups directory
+  $node->og_language = isset($group_info['og_language'])?$group_info['og_language']:'';
+  
+  //
+  // voip-specific options
+  //
+  $node->voip_form_is_listed = isset($group_info['is_listed'])?$group_info['is_listed']:TRUE;
+ 
+  // associate the extension node with the desired categories
+  $categories =& $group_info['categories'];
+  if (!empty($categories) && !in_array(NULL, $categories)) {
+    $node->voip_form_taxonomy = $categories;
+  }
+  
+
+  // make sure the node to be created is valid
+  node_validate($node);
+  if ($errors = form_get_errors()) {
+    $rc['error_code'] = VOIP_PROCESSING_ERROR;
+    $rc['error_msg'] = implode("\n", $errors);
+    watchdog('voip_group', t('XMLRPC error creating voip group: %e', array('%e' => $rc->error_msg)), WATCHDOG_ERROR);
+    return $rc;
+  }
+
+  // save the node
+  node_save($node); 
+
+  if (!$node->nid) {
+  	$rc->result = VOIP_PROCESSING_ERROR;
+  	$rc->error_msg = t('Error creating new voip_group node.');
+    return $rc;
+  }
+
+  // set a default title and og_description for the new group
+  if (empty($node->title) || empty($node->og_description)) {
+  	$node = node_load($node->nid);
+    if (empty($node->title) && isset($node->voip_extension_info)) {
+      $node->title = t('Group %n', array('%n' => $node->voip_extension_info['number']));
+    }
+    if (empty($node->og_description)) {
+      $node->og_description = t('Group associated with extension number %n.', array('%n' => $node->voip_extension_info['number']));
+    }
+    node_save($node);
+  }
+  
+  // return the voip extension associated with the new group
+  $rc['error_code'] = VOIP_SUCCESS;
+  $node = node_load($node->nid);
+  $rc['extension_info'] = $node->voip_extension_info;
+  
+  return $rc;
+}
+
+/**
+ * XMLRPC callback. Deletes the specified voip group
+ *
+ * @param $user_info
+ *   array with Drupal name and password of the author of the entry
+ * 
+ * @param $nid
+ *   int. the node id of the group to be deleted
+ * 
+ * @return
+ *   array.  In case of success, 'error_code' will be set to VOIP_SUCCESS.
+ *     In case of failure, 'error_code' will be set to the appropriate error code and 'error_msg' will contain an explanation of the error.
+ */
+function _voip_group_xmlrpc_delete_group($user_info, $nid) {
+watchdog('delete_group', "user_info: " . serialize($user_info));
+
+  $rc = array();
+
+  // make sure the specified user is valid
+  global $user;
+  if ((!empty($user_info['user_name'])) && (!empty($user_info['password']))) {
+    $account = voip_user_authenticate($user_info['user_name'], $user_info['password']);
+    if (!$account->uid) {
+  	  $rc['error_code'] = VOIP_INVALID_USER_INFO;
+  	  $rc['error_msg'] = t('Invalid combination of user name and password.');
+      return $rc;
+    }
+    $user = $account;
+  }
+
+  // make sure user has permission to delete the group
+  $node = node_load($nid);
+  if (!node_access('delete', $node)) {
+//watchdog('delete_group', "rc: " . serialize($rc));
+  	$rc['error_code'] = VOIP_LACK_OF_PERMISSION;
+  	$rc['error_msg'] = t('User does not have permission to delete the group whose nid is %n.', (array('%n' => $nid)));
+    return $rc;
+  }
+
+  // delete the group
+  node_delete($nid); 
+
+  // return success
+  $rc['error_code'] = VOIP_SUCCESS;
+  return $rc;
+}
+
+/**
+ * XML-RPC callback. Return subscribers of the specified group.
+ *
+ * @return
+ *   array with
+ *     ['error_code'] :: VOIP_SUCCESS, VOIP_PROCESSING_FAILURE, VOIP_INVALID_USER_INFO, VOIP_LACK_OF_PERMISSION
+ *     ['error_msg'] :: string with eventual error message
+ *     ['subscribers'] :: array indexed by the subscribers extension number pointing to whether or not that subscriber is group administrator and/or is active. 
+ */
+function _voip_group_xmlrpc_get_subscribers($user_info, $gid, $min_is_active, $min_is_admin) {
+
+  $rc = array();
+
+  // validate given user info
+  global $user;
+  if (empty($user_info['user_name']) || empty($user_info['password'])) {
+  	$account = $user; // anonymous user
+  }
+  else {
+    $account = voip_user_authenticate($user_info['user_name'], $user_info['password']);
+  }
+  if (!$account->uid) {
+    $rc['error_code'] = VOIP_INVALID_USER_INFO;
+    $rc['error_msg'] = t('Invalid combination of user name and password.');
+    return $rc;
+  }
+
+  // make sure user belongs to group and has the necessary permissions
+  if (in_array($gid, array_keys($account->og_groups)) || user_access('administer organic groups', $account)) {
+    $sql = og_list_users_sql($min_is_active, $min_is_admin);
+    $result = db_query($sql, $gid);
+    while ($row = db_fetch_array($result)) {
+      $users[$row['uid']] = $row;
+    }
+    // now retrieve the extension number for each member of the group
+    $subscribers = array();
+    foreach ($users as $uid => $row) {
+      $query = "SELECT `number` FROM {voip_extensions} WHERE `uid` = %d";
+      $extension_number = db_result(db_query($query, $uid));
+      $subscribers[$extension_number] = array('is_active' => $row['is_active'], 'is_admin' => $row['is_admin']);
+    }
+    $rc['error_code'] = VOIP_SUCCESS;
+    $rc['subscribers'] = $subscribers;
+  }
+  else {
+    $rc['error_code'] = VOIP_LACK_OF_PERMISSION;
+    $rc['error_msg'] = t('User is not a member of the specified group');
+  }
+
+  return $rc;
+}
+
+/*
+ * Implementation of hook_voip_get_owners()
+ */
+function voip_group_voip_get_owners($extension_info) {
+
+  // the owners of a voip_group are the administrators of the group
+  $administrators = array();
+  $min_is_active = 1;
+  $min_is_admin = 1;
+  $gid = $extension_info['nid_contents'];
+  $sql = og_list_users_sql($min_is_active, $min_is_admin);
+  $result = db_query($sql, $gid);
+  while ($row = db_fetch_array($result)) {
+    $administrator_ids[] = $row['uid'];
+  }
+
+  // now retrieve the extension of each administrator of the group
+  $owners = array();
+  foreach ($administrator_ids as $uid) {
+    $rc = voip_get_extension_info_from_uid($uid);
+    if ($rc['error_code'] === VOIP_SUCCESS) {
+      $owners[] = $rc['extension_info'];
+    }
+  }
+  return $owners;
+}
+ 
+function _voip_group_directory_page($gid=NULL) {
+  if ($gid) {
+    $group = node_load($gid);
+    og_set_group_context($group);
+    $bc = array(l(t('home'), ''), l(t('groups'), 'og'), l($group->title, "node/$gid"));
+    drupal_set_breadcrumb($bc);
+    
+    // retrieve group subscribers  
+    $min_is_active = 1;
+    $min_is_admin = 0;
+    $sql = og_list_users_sql($min_is_active, $min_is_admin);
+    $result = db_query($sql, $gid);
+    while ($row = db_fetch_array($result)) {
+      $users[] = $row['uid'];
+      if ($row['is_admin']) {
+      	$admins[] = $row['uid'];
+      }
+    }
+    $user_list = implode(', ', $users);
+ 	
+    $header = array(
+      array('data' => t('extension'), 'field' => 'number'),
+      array('data' => t('name'), 'field' => 'title', 'sort' => 'asc'),
+      t('audio name'),
+      t('audio description'),
+      t('admin?')
+    );
+  
+    $query = "SELECT n.title, x.number, x.uid, x.nid_audio_name, x.nid_audio_description" 
+  	         . " FROM {voip_extensions} x INNER JOIN {node} n ON x.nid_extension=n.nid " 
+  		     . " WHERE x.is_active=%d AND n.title<>'' AND x.uid IN (%s)";
+    $is_active = 1;
+    $query_args = array($is_active, $user_list);
+
+    $query .= tablesort_sql($header);
+    $result = pager_query($query, 30, 0, NULL, $query_args);
+
+    while ($entry = db_fetch_object($result)) {
+      $name = $entry->title;
+  	  $audio_name = '';
+  	  if ($entry->nid_audio_name) {
+  	    $name_node = node_load($entry->nid_audio_name);
+  	    $audio_name = audio_get_player($name_node);
+  	  }
+  	  $number = l("$entry->number", "user/$entry->uid");
+  	  $audio_description = '';
+  	  if ($entry->nid_audio_description) {
+  	    $description_node = node_load($entry->nid_audio_description);
+  	    $audio_description = audio_get_player($description_node);
+  	  }
+  	  $admin = (in_array($entry->uid, $admins))?t('yes'):'';
+      $rows[] = array($number, $name, $audio_name, $audio_description, $admin);
+    }
+
+    $output .= theme('table', $header, $rows);
+    $output .= theme('pager', NULL, 30, 0);
+    return $output;
+  }
+  else {
+    drupal_goto();
+  }
+}
+
+

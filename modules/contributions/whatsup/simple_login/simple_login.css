@@ -1,0 +1,23 @@
+.simple_login-container {
+  text-align: center;
+}
+
+.simple_login-login-link {
+  text-align: left;
+}
+
+.simple_login-login-link a {
+  text-decoration: none;
+}
+
+.simple_login-block-message {
+  text-align: left;
+}
+
+.user-login-block {
+  text-align: left;
+}
+
+.user-login-block a {
+  text-align: left;
+}

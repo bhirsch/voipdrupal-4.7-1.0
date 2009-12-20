@@ -1,0 +1,538 @@
+/* $Id: style.css,v 1.13 2006/04/03 22:20:48 unconed Exp $ */
+
+/*
+** HTML elements
+*/
+body {
+  background-image: url(images/back.gif);
+  background-attachment:fixed;
+  margin-left: 0px;
+  margin-top: 0px;
+  margin-right: 0px;
+  margin-bottom: 0px;
+/*  font: 76% Verdana, Arial, Helvetica, sans-serif; */
+}
+tr.odd td, tr.even td {
+  padding: 0.3em;
+}
+tr.odd {
+	background-color:#333333;
+}
+tr.even{
+	background-color:#666666;
+}
+
+.event dayview{
+	background-color:#999999;
+}
+
+.odd a:link{	color:#336699; }
+.odd a:visited{ color:#336699; }
+.even a:link{	color:#CCCCFF }
+.even a:visited{ color:#CCCCFF }
+
+h1, h2, h3, h4, h5, h6 {
+  margin-bottom: 0.5em;
+}
+h1 {
+  font-size: 1.0em;
+}
+h2 {
+  font-size: 1.2em;
+}
+h3, h4, h5, h6 {
+  font-size: 1.1em;
+}
+p {
+  margin-top: 0.5em;
+  margin-bottom: 0.9em;
+  margin-left: 5px;
+  text-align:left;
+}
+/******
+a {
+  text-decoration: none;
+  font-weight: bold;
+}
+a:link {
+  color: #39c;
+}
+a:visited {
+  color: #369;
+}
+a:hover {
+  color: #39c;
+  text-decoration: underline;
+}
+*********/
+A:visited { color:#336699; text-decoration: none}
+A:link    { color:#336699; text-decoration: none}
+A:active  { color:#336699; text-decoration: none}
+A:hover   { color:#336699; text-decoration: underline}
+
+
+
+fieldset {
+  border: 1px solid #ccc;
+}
+pre {
+  background-color: #eee;
+  padding: 0.75em 1.5em;
+  font-size: 12px;
+  border: 1px solid #ddd;
+}
+table {
+  /* make <td> sizes relative to body size! */
+  font-size: 1em;
+}
+
+td {
+  font-family: Verdana, Arial, Helvetica, sans-serif;
+  font-size: 12px;
+  text-align:left;
+}
+
+td.active{
+  color:#336699; 
+  text-decoration: none;
+}
+
+.form-item label {
+  font-size: 1em;
+  color: #222;
+}
+.item-list .title {
+  font-size: 1em;
+  color: #222;
+}
+.links {
+  margin-bottom: 0em;
+}
+.comment .links {
+  margin-bottom: 0em;
+}
+
+/*
+** Page layout blocks / IDs
+*/
+
+#header, #content {
+  width: 924;
+}
+/*********
+#header {
+  background-color: #69c;
+}
+#logo {
+  vertical-align: middle;
+  border: 0;
+}
+#logo img {
+  float: left;
+  padding: 0em 1.0em 0em 1em;
+  border: 0;
+}
+***********/
+#menu {
+  padding: 0.5em 0.5em 0 0.5em;
+  text-align: right;
+  vertical-align: middle;
+}
+#primary {
+  font-size: 1.0em;
+  padding: 0em 0.8em 0.5em 0;
+  color: #9cf;
+}
+#primary a {
+  font-weight: bold;
+  color: #fff;
+}
+#secondary {
+  padding: 0 1em 0.5em 0;
+  font-size: 0.8em;
+  color: #9cf;
+}
+#secondary a {
+  font-weight: bold;
+  color: #9cf;
+}
+#search .form-text, #search .form-submit {
+  border: 1px solid #369;
+  font-size: 1.1em;
+  height: 1.5em;
+  vertical-align: middle;
+}
+#search .form-text {
+  width: 8em;
+  padding: 0 0.5em 0 0.5em;
+}
+#mission {
+  background-color: #369;
+  padding: 1.5em 2em;
+  color: #fff;
+}
+#mission a, #mission a:visited {
+  color: #9cf;
+  font-weight: bold;
+}
+#breadcrum{
+	background-color:#CCCCCC;
+	color:#FFFFFF;
+	display:block;
+	
+	margin:0;
+	padding:0 0 0 0.5em;
+}
+
+.site-name {
+  margin: 0.6em 0em 0em 0em;
+  padding: 0em;
+  font-size: 2em;
+}
+.site-name a:link, .site-name a:visited {
+  color: #fff;
+}
+.site-name a:hover {
+  color: #369;
+  text-decoration: none;
+}
+.site-slogan {
+  font-size: 1em;
+  color: #eee;
+  display: block;
+  margin: 0em 0em 0em 0em;
+  font-style: italic;
+  font-weight: bold;
+}
+
+#main {
+  /* padding in px not ex because IE messes up 100% width tables otherwise */
+/*  padding: 10px; */
+  background-color:#333333;
+  color:#FFFFFF;
+}
+
+#mission, .node .content, .comment .content, .voip_item {
+  line-height: 1.4;
+}
+#help {
+  font-size: 0.9em;
+  margin-bottom: 1em;
+}
+.breadcrumb {
+  margin-bottom: 0;
+}
+.messages {
+  background-color:#CC6666;
+  color:#333333;
+  border: 1px solid #ccc;
+  padding: 0.3em;
+  margin-bottom: 1em;
+}
+#msgs{
+  display:block;
+  width:100%;
+}
+
+.error {
+  border-color: red;
+}
+#sidebar-left, #sidebar-right {
+  /* padding in px not ex because IE messes up 100% width tables otherwise */
+  vertical-align: top;
+}
+
+#sidebar-left {
+  color: #336699;
+}
+
+#sidebar-right {
+ color:#000000;
+}
+
+
+#footer {
+  background-color: #000000;
+  padding: 1em;
+  font-size: 0.8em;
+}
+
+/*
+** Common declarations for child classes of node, comment, block, box, etc.
+** If you want any of them styled differently for a specific parent, add
+** additional rules /with only the differing properties!/ to .parent .class.
+** See .comment .title for an example.
+*/
+.title, .title a {
+  font-weight: bold;
+  font-size: 1em;
+  color: #777;
+  margin: 0 auto 0 auto;  /* decrease default margins for h<x>.title */
+}
+.submitted {
+  color: #999;
+  font-size: 0.8em;
+}
+.links {
+  color: #999;
+}
+.links a {
+  font-weight: bold;
+}
+.block, .box {
+  padding: 0 0 1.5em 0;
+}
+.block {
+  background-color: #FFFFFF
+  border-bottom: 1px solid #bbb;
+  padding-bottom: 0.75em;
+  margin-bottom: 0.75em
+}
+
+.block .content {
+  margin-top: 0;
+  background-color: #CCCCCC;
+}
+
+.block .content .item-list, .block .content li {
+  color: #336699;
+  font-weight: bold;
+/*  padding-left: 1.5em; */
+}
+
+#sidebar-left .block a:link{
+	color:#336699;
+}
+
+#sidebar-left .block a:visited{
+	color:#336699;
+}
+
+#sidebar-right .block {
+	background-color:#CCCCCC;
+	color:#000000;
+}
+
+#sidebar-right .block a:link{
+	color:#000000;
+}
+
+#sidebar-right .block  a:visited{
+	color:#000000;
+}
+
+
+
+.item-list ul, li ul {
+  font-weight: bold;
+  magin-left:0;
+  padding-left:0;
+  margin-right:0.5em;
+}
+.item-list A:link, li A:link, .more-link A:link{
+  color: #336699;
+}
+.item-list A:visited, li A:visited, .more-link A:visited {
+  color: #336699;
+}
+
+.more-link {
+  font-size: 10px;
+  margin-right:0.5em;
+}
+ 
+.block .title .left_first {
+	font-size: 12px; 
+	font-weight: bold; 
+	color: #FFFFFF; 
+	font-family: "Times New Roman", Times, serif; 
+	margin-top:0;
+}
+
+.block .title .left_remainder {
+	font-family: Arial, Helvetica, sans-serif;
+	font-weight: bold;
+	font-size: 12px;
+	color: #336699;
+	margin-top:0;
+	text-align: left;
+}
+
+.block .title .right_header {
+	font-family: "Times New Roman", Times, serif; 
+	font-size: 12px;
+	font-weight: bold;
+	color: #FFFFFF;
+	text-align:right;
+}
+
+
+.box .title {
+  font-size: 1.1em;
+}
+
+ #main{
+/*  margin: .5em 0 2em 0; */
+  padding: .5em;
+}
+
+#pic{
+	padding:0;
+	background-color:#333333;
+}
+
+.sticky {
+/*  padding: .5em; */
+/*  border: solid 2px #E25E2E; */
+  background-color:#333333;
+  color:#FFFFFF;
+
+}
+
+.node h2, #main h2 {
+	color: #E25E2E;
+	font-weight: bold;
+}
+.node a:link, #main a:link{
+	color: #E25E2E;
+}
+.node a:visited, #main a:visited{
+	color: #E25E2E;
+}
+
+.node .content, .comment .content, #main .content, .voip_item {
+  margin: .5em 0 .5em 0;
+}
+.node .taxonomy {
+  color: #999;
+  font-size: 0.8em;
+  padding: 1.5em;
+}
+.node .picture {
+  border: 1px solid #ddd;
+  float: right;
+  margin: 0.5em;
+}
+.comment {
+  border: 1px solid #abc;
+  padding: .5em;
+  margin-bottom: 1em;
+}
+.comment .title a {
+  font-size: 1.1em;
+  font-weight: normal;
+}
+.comment .new {
+  text-align: right;
+  font-weight: bold;
+  font-size: 0.8em;
+  float: right;
+  color: red;
+}
+.comment .picture {
+  border: 1px solid #abc;
+  float: right;
+  margin: 0.5em;
+}
+
+/*
+** Module specific styles
+*/
+#aggregator .feed-source {
+  background-color: #eee;
+  border: 1px solid #ccc;
+  padding: 1em;
+  margin: 1em 0 1em 0;
+}
+#aggregator .news-item .categories, #aggregator .source, #aggregator .age {
+  color: #999;
+  font-style: italic;
+  font-size: 0.9em;
+}
+#aggregator .title {
+  margin-bottom: 0.5em;
+  font-size: 1em;
+}
+#aggregator h3 {
+  margin-top: 1em;
+}
+#forum table {
+  width: 100%;
+}
+#forum td {
+  padding: 0.5em 0.5em 0.5em 0.5em;
+}
+#forum td.forum, #forum td.posts {
+  background-color: #eee;
+}
+#forum td.topics, #forum td.last-reply {
+  background-color: #ddd;
+}
+#forum td.container {
+  background-color: #ccc;
+}
+#forum td.container a {
+  color: #555;
+}
+#forum td.statistics, #forum td.settings, #forum td.pager {
+  height: 1.5em;
+  border: 1px solid #bbb;
+}
+#forum td .name {
+  color: #96c;
+}
+#forum td .links {
+  padding-top: 0.7em;
+  font-size: 0.9em;
+}
+#profile .profile {
+  clear: both;
+  border: 1px solid #abc;
+  padding: .5em;
+  margin: 1em 0em 1em 0em;
+}
+#profile .profile .name {
+  padding-bottom: 0.5em;
+}
+.block-forum h3 {
+  margin-bottom: .5em;
+}
+.calendar a {
+  text-decoration: none;
+}
+.calendar td, .calendar th {
+  padding: 0.4em 0;
+  border-color: #888;
+}
+.calendar .day-today {
+  background-color: #69c;
+}
+.calendar .day-today a {
+  color: #fff;
+}
+.calendar .day-selected {
+  background-color: #369;
+  color: #fff;
+}
+.calendar .header-week {
+  background-color: #ccc;
+}
+.calendar .day-blank {
+  background-color: #ccc;
+}
+.calendar .row-week td a:hover {
+  background-color: #fff; color: #000;
+}
+
+/* voip declarations */
+.voip_item {
+  vertical-align: top;
+}
+
+#main h1 {
+  text-transform: uppercase;
+  font-size: 1.2em;
+  color: #E25E2E;
+  font-weight: bold;
+}
+

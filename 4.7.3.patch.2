@@ -1,0 +1,84 @@
+Index: includes/common.inc
+===================================================================
+RCS file: /cvs/drupal/drupal/includes/common.inc,v
+retrieving revision 1.537.2.6
+diff -u -Ffunction -r1.537.2.6 common.inc
+--- includes/common.inc	18 Jul 2006 10:46:23 -0000	1.537.2.6
++++ includes/common.inc	17 Oct 2006 09:24:05 -0000
+@@ -976,8 +976,9 @@ function url($path = NULL, $query = NULL
+   }
+ 
+   // Return an external link if $path contains an allowed absolute URL.
+-  // Only call the slow filter_xss_bad_protocol if $path contains a ':'.
+-  if (strpos($path, ':') !== FALSE && filter_xss_bad_protocol($path, FALSE) == check_plain($path)) {
++  // Only call the slow filter_xss_bad_protocol if $path contains a ':' before any / ? or #.
++  $colonpos = strpos($path, ':');
++  if ($colonpos !== FALSE && !preg_match('![/?#]!', substr($path, 0, $colonpos)) && filter_xss_bad_protocol($path, FALSE) == check_plain($path)) {
+     // Split off the fragment
+     if (strpos($path, '#')) {
+       list($path, $old_fragment) = explode('#', $path, 2);
+Index: includes/theme.inc
+===================================================================
+RCS file: /cvs/drupal/drupal/includes/theme.inc,v
+retrieving revision 1.292.2.5
+diff -u -Ffunction -r1.292.2.5 theme.inc
+--- includes/theme.inc	2 Jul 2006 10:08:23 -0000	1.292.2.5
++++ includes/theme.inc	17 Oct 2006 09:24:55 -0000
+@@ -1,5 +1,5 @@
+ <?php
+-// $Id: theme.inc,v 1.292.2.5 2006/07/02 10:08:23 killes Exp $
++// $Id: theme.inc,v 1.292.2.6 2006/08/24 00:04:05 unconed Exp $
+ 
+ /**
+  * @file
+@@ -503,7 +503,7 @@ function theme_links($links, $delimiter 
+  * Return a themed image.
+  *
+  * @param $path
+- *   The path of the image file.
++ *   Either the path of the image file (relative to base_path()) or a full URL.
+  * @param $alt
+  *   The alternative text for text-based browsers.
+  * @param $title
+@@ -518,7 +518,8 @@ function theme_links($links, $delimiter 
+ function theme_image($path, $alt = '', $title = '', $attributes = NULL, $getsize = TRUE) {
+   if (!$getsize || (is_file($path) && (list($width, $height, $type, $image_attributes) = @getimagesize($path)))) {
+     $attributes = drupal_attributes($attributes);
+-    return '<img src="'. check_url(base_path() . $path) .'" alt="'. check_plain($alt) .'" title="'. check_plain($title) .'" '. $image_attributes . $attributes .' />';
++    $url = (url($path) == $path) ? $path : (base_path() . $path);
++    return '<img src="'. check_url($url) .'" alt="'. check_plain($alt) .'" title="'. check_plain($title) .'" '. $image_attributes . $attributes .' />';
+   }
+ }
+ 
+Index: modules/filter.module
+===================================================================
+RCS file: /cvs/drupal/drupal/modules/Attic/filter.module,v
+retrieving revision 1.122.2.2
+diff -u -Ffunction -r1.122.2.2 filter.module
+--- modules/filter.module	2 Jul 2006 20:53:52 -0000	1.122.2.2
++++ modules/filter.module	17 Oct 2006 09:24:05 -0000
+@@ -1349,15 +1349,20 @@ function filter_xss_bad_protocol($string
+   if ($decode) {
+     $string = decode_entities($string);
+   }
+-  // Remove soft hyphen
+-  $string = str_replace(chr(194) . chr(173), '', $string);
+-  // Strip protocols
+-
++  // Iteratively remove any invalid protocol found.
+   do {
+     $before = $string;
+     $colonpos = strpos($string, ':');
+     if ($colonpos > 0) {
++      // We found a colon, possibly a protocol. Verify.
+       $protocol = substr($string, 0, $colonpos);
++      // If a colon is preceded by a slash, question mark or hash, it cannot
++      // possibly be part of the URL scheme. This must be a relative URL,
++      // which inherits the (safe) protocol of the base document.
++      if (preg_match('![/?#]!', $protocol)) {
++        break;
++      }
++      // Check if this is a disallowed protocol
+       if (!isset($allowed_protocols[$protocol])) {
+         $string = substr($string, $colonpos + 1);
+       }

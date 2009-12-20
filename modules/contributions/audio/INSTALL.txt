@@ -1,0 +1,39 @@
+Audio module dependencies
+---------------------------
+ * Drupal 4.7.0 or newer.
+ * getID3 1.7.7 (http://getid3.org/) package for reading and writing audio
+   metadata.
+
+
+To install the audio module
+---------------------------
+
+1. Extract the 'audio' module directory, including all its subdirectories, into
+   your drupal/modules directory.
+
+2. Install the getID3 package (optional but recommended).
+
+   a. Download the project getId3 version from SourceForge.net. The latest
+      version tested with the audio module is 1.7.7. Earlier versions contain
+      bugs that will cause you headaches.
+
+   b. Extract the archive into the modules/audio/getid3 directory. When you're
+      finished the directory structure should look something like:
+
+        drupal/
+          modules/
+            audio/
+              getid3/
+                readme.txt
+                [...]
+                getid3/
+                  getid3.php
+                  write.php
+
+3. Enable the audio, audio_getid3 and audio_image modules on the
+   admin >> modules page. The database tables will be created automagically for
+   you at this point.
+
+4. Go to admin >> settings >> audio and check that the path to the getID3
+   package is configured correctly. If you follow the above directory
+   structure, the path should be "modules/audio/getid3/getid3/".

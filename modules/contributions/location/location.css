@@ -1,0 +1,5 @@
+/* $Id: location.css,v 1.2 2006/03/08 06:53:37 dww Exp $ */
+.container-inline input {
+  width: auto;
+  display: inline;
+}

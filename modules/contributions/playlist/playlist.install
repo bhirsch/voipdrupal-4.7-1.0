@@ -1,0 +1,43 @@
+<?php
+
+
+/**
+ * Install the initial schema.
+ */
+function playlist_install() {
+  switch ($GLOBALS['db_type']) {
+    case 'mysql':
+    case 'mysqli':
+      db_query(
+<<<MYSQL_UPDATE
+        CREATE TABLE {playlist_relate} (
+          rid int(11) NOT NULL auto_increment,
+          type varchar(255) NOT NULL default '',
+          parent_id int(11) NOT NULL default 0,
+          child_id int(11) NOT NULL default 0,
+          weight int(11) default 0,
+          PRIMARY KEY  (rid)
+        ) /*!40100 DEFAULT CHARACTER SET utf8 */;;
+MYSQL_UPDATE
+      );
+      break;
+  }
+}
+
+
+/**
+ * Add column for playlist type. We put audio_playlist as default for those migrating from 4.6.
+ */
+function playlist_update_1() {
+  $items = array();
+  $items[] = update_sql("ALTER TABLE {playlist_relate} ADD type varchar(255) NOT NULL default ''");
+  $items[] = update_sql("UPDATE {playlist_relate} SET type = 'audio_playlist' WHERE type = ''");
+  return $items;
+}
+
+/*
+ * UTF 8 Conversion for 4.6 -> 4.7
+ */
+function playlist_update_2() {
+  return _system_update_utf8(array('playlist_relate'));
+}

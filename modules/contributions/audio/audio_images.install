@@ -1,0 +1,66 @@
+<?php
+// $Id: audio_images.install,v 1.1.2.2 2006/08/15 16:47:33 drewish Exp $
+
+/**
+ * Install the initial schema.
+ */
+function audio_images_install() {
+  switch ($GLOBALS['db_type']) {
+    case 'mysql':
+    case 'mysqli':
+      db_query("
+        CREATE TABLE {audio_image} (
+          `pid` int(10) NOT NULL default '0',
+          `nid` int(10) unsigned NOT NULL default '0',
+          `vid` int(10) unsigned NOT NULL default '0',
+          `pictype` tinyint(2) unsigned NOT NULL default '0',
+          `width` smallint(6) unsigned NOT NULL default '0',
+          `height` smallint(6) unsigned NOT NULL default '0',
+          `filemime` varchar(20) NOT NULL default '',
+          `filepath` varchar(255) NOT NULL default '',
+          `filesize` int(10) unsigned NOT NULL default '0',
+          PRIMARY KEY  (`pid`),
+          KEY `audio_image_vid_pictype` (`vid`,`pictype`)
+        ) /*!40100 DEFAULT CHARACTER SET utf8 */;
+      ");
+      break;
+    case 'pgsql':
+      db_query("
+        CREATE TABLE {audio_image} (
+          pid INTEGER PRIMARY KEY,
+          nid INTEGER NOT NULL DEFAULT 0,
+          vid INTEGER NOT NULL DEFAULT 0,
+          pictype INTEGER NOT NULL DEFAULT 0,
+          width INTEGER NOT NULL DEFAULT 0,
+          height INTEGER NOT NULL DEFAULT 0,
+          filemime VARCHAR(20) NOT NULL DEFAULT '',
+          filepath VARCHAR(255) NOT NULL DEFAULT '',
+          filesize INTEGER NOT NULL DEFAULT 0
+        );
+        CREATE INDEX audio_image_vid_pictype_index ON {audio_image} (vid, pictype);
+      ");
+  }
+}
+
+
+/**
+ * Remove the auto inc id field (we'll use drupal's sequences) and add an index.
+ */
+function audio_images_update_1() {
+  $ret = array();
+  switch ($GLOBALS['db_type']) {
+    case 'mysql':
+    case 'mysqli':
+      $ret[] = update_sql(
+<<<MYSQL_UPDATE
+        ALTER TABLE {audio_image}
+          ADD COLUMN `nid` INTEGER UNSIGNED NOT NULL DEFAULT 0 AFTER `pid`,
+          MODIFY COLUMN `pid` INTEGER UNSIGNED NOT NULL DEFAULT 0,
+          ADD INDEX `audio_image_vid_pictype`(`vid`, `pictype`);
+MYSQL_UPDATE
+      );
+      break;
+  }
+  return $ret;
+}
+

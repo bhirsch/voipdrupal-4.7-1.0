@@ -1,0 +1,195 @@
+<?php
+// $Id: xspf.module,v 1.3 2006/10/16 13:00:00 leob Exp $
+/**
+* Implementation of hook_node_info().
+*/
+function xspf_node_info() {
+  return array('xspf' => array('name' => t('xspf feed'), 'base' => 'xspf'));
+}
+
+
+/**
+ * Implementation of hook_help
+ */
+function xspf_help($section) {
+  switch ($section) {
+    case 'admin/modules#description':
+    case 'admin/modules#help':
+      return t('Generates xspf feeds for audio node lists');
+   }
+}
+
+/**
+ * Implementation of hook_menu().
+ */
+function xspf_menu($may_cache) {
+  global $base_url;
+  $items = array();
+  if (!$may_cache) {
+    $generate_menu = FALSE;
+    $playlist_info = new stdClass();
+    if (arg(0) == 'xspf') {
+      $term = arg(1);
+      $path = ($term) ? "xspf/$term" : 'xspf';
+      $playlist_info->title = t('audio list for %name', array('%name' => variable_get('site_name', 'this site')));
+      $playlist_info->info = $base_url;
+      $playlist_info->location = $base_url . '/' . $path;
+      $playlist_info->image = variable_get('xspf_image_url', '');
+      $generate_menu = TRUE;
+    }
+    else if (arg(0) == 'user' && is_numeric(arg(1)) && (arg(2) == 'xspf')) {
+      $user = user_load(array('uid' => arg(1)));
+      if ($user->uid) {
+        $term = arg(3);
+      	$path = ($term)? ('user/'.arg(1)."/xspf/$term") : ('user/'.arg(1).'/xspf');
+        $query_info['uid'] = $user->uid;
+        $playlist_info->title = t('audio list for %name', array('%name' => $user->name));
+        $playlist_info->creator = $user->name;
+        $playlist_info->info = $base_url . '/user/'. arg(1);
+        $playlist_info->location = $base_url . '/' . $path;
+        $playlist_info->image = ($user->picture)? $user->picture : variable_get('user_picture_default', NULL);
+        $generate_menu = TRUE;      
+      }
+    }
+    if ($generate_menu) {
+      $tid = NULL;
+      $found = FALSE;
+      if ($term && is_string($term)) {
+        $category_list = _audio_xmlrpc_get_category_list();
+        foreach ($category_list as $category_entry) {
+          if ($category_entry['category_name'] == $term) {
+            $tid = $category_entry['category_id'];
+            $found = TRUE;
+            break;
+          }
+        }
+      }
+      if (!$term || $found) {
+        $query_info['status'] = 1; // published nodes
+        $query_info['categories_or'] = array($tid);
+        // make sure the term is a valid 'audio' category and, if so, determine is taxonomy id (tid)
+        // TODO: I don't think I need to specify the following limits...
+        $query_info['date_from'] = (time()-60*24*3600);  // by default, return entries that have been created/modified in the past 60 days
+        $query_info['limit'] = 10;   // by default, return no more than 10 entries
+        // TODO: update the code below when _audio_api_get_node_list() becomes part of audio.module
+        $audio_nodes = _audio_api_get_node_list($query_info);
+        $items[] = array('path' => $path, 
+            'title' => t('xspf feed'),
+            'access' => user_access('access content'),
+            'callback' => 'xspf_feed',
+            'callback arguments' => array($audio_nodes, $playlist_info),
+            'type' => MENU_CALLBACK);
+      }
+    }
+  }
+  return $items;
+}
+
+/**
+ * A generic function for generating XSPF feeds from a set of audio nodes so that they can be played as a playlist.
+ * NOTE: this function has been inspired by audio_playlist_xspf() and node_feed()
+ *
+ * @param $nodes
+ *   An array with the audio nodes to be included in the playlist.
+ * 
+ * @param $playlist_info
+ *   An object with meta information about the playlist
+ * 
+ */
+function xspf_feed($nodes, $playlist_info = NULL) {
+  global $base_url;
+
+  $output = '<?xml version="1.0" encoding="UTF-8"?>';
+  $output .= '<playlist version="1" xmlns="http://xspf.org/ns/0/">';
+
+  if (is_null($playlist_info)) {
+  	$playlist_info = new stdClass();
+  }
+  
+  if ($playlist_info->title) {
+    $output .= "<title>{$playlist_info->title}</title>";
+  }
+  else {
+  	$title = t("audio list for %name", array('%name' => variable_get('site_name', 'drupal')));
+  	$output .= "<title>".$title."</title>";
+  }
+  if ($playlist_info->creator) {
+    $output .= "<creator>{$playlist_info->creator}</creator>";
+  }
+  if ($playlist_info->info) { // url that originated the playlist
+    $output .= "<info>".$playlist_info->info."</info>";
+  }
+  else {
+    $output .= "<info>".$base_url."</info>";
+  }
+  if ($playlist_info->location) { // url of the playlist itself
+    $output .= "<location>".$playlist_info->location."</location>";
+  }
+  else {
+    $output .= "<location>".$base_url."/xspf </location>";
+  }
+  if ($playlist_info->license) {
+    $output .= "<license>{$playlist_info->license}</license>";
+  }
+  if ($playlist_info->annotation) {
+    $output .= "<annotation>{$playlist_info->annotation}</annotation>";
+  }
+  $image_url = ($playlist_info->image)?($playlist_info->image):variable_get('xspf_image_url', '');
+  if ($image_url) {
+    $output .= "<image>{$image_url}</image>";
+  }
+
+  $output .= '<trackList>';
+  foreach ($nodes as $audio_node) {
+    if ($audio_node->audio_fileinfo['fileformat'] == 'mp3') {
+      $output .= '<track>';
+      $output .= "<location>{$audio_node->url_play}</location>";
+      $output .= "<creator>{$audio_node->audio_tags['artist']}</creator>";
+      $output .= "<album>{$audio_node->audio_tags['album']}</album>";
+      $output .= "<title>{$audio_node->audio_tags['title']}</title>";
+      $output .= "<annotation>{$audio_node->audio_tags['artist']} - {$audio_node->audio_tags['title']}</annotation>";
+      $output .= "<duration>{$audio_node->audio_fileinfo['playtime']}</duration>";
+      $output .= ($image_url)?"<image>{$image_url}</image>":'';
+      $output .= "<info>".$base_url ."/?q=node/".$audio_node->nid ."</info>";
+      $output .= '</track>';
+    }
+  }
+  $output .= '  </trackList>';
+  $output .= '</playlist>';  
+
+  drupal_set_header('Content-Type: text/xml; charset=utf-8');
+  print $output;
+}
+
+function xspf_settings() {
+  if(!module_exist("audio")) drupal_set_message("<div style=\"color:red; font-weight:bold;\">You must first install and enable the audio.module in order for the xspf.module to work correctly.</div>");
+  
+  $form['xspf_form']['xspf_image_url'] = array(
+    '#type' => 'textfield', 
+    '#title' => t('Playlist image URL'), 
+    '#default_value' => variable_get('xspf_image_url', ''), 
+    '#size' => 30, 
+    '#description' => t('url of the default image file to be associated with the playlists generated by the xspf feeds. Leave blank for no image.')
+   );
+
+  return $form;
+} 
+
+function _xspf_get_audio_categories() {
+  $type = 'audio'; 
+  $vocabularies = module_invoke('taxonomy', 'get_vocabularies', $type, 'vid');
+  $categories = array();
+  if ($vocabularies) {
+    foreach ($vocabularies as $vocabulary) {
+      $terms = module_invoke('taxonomy', 'get_tree', $vocabulary->vid, 0, -1);
+      foreach ($terms as $term) {
+        $term_name = $term->name;
+        foreach (module_invoke('taxonomy', 'get_parents', $term->tid, 'tid') as $parent) {
+          $term_name = $parent->name . '/' . $term_name;
+        }
+        $categories[] = array('category_name' => $term_name, 'category_id' => $term->tid);
+      }
+    }
+  }
+  return $categories;
+}

@@ -1,0 +1,56 @@
+Step 1
+------
+To use this project, feed the location.mysql to your database.  If your site
+is using a prefix for database table names, make sure to adjust accordingly.
+
+  mysql -u username -ppassword -h localhost database-name < modules/location/location.mysql
+
+where "username", "password" are the username/loging and "database-name" are
+the parameters to login to your Drupal site's database.  You can leave out
+"-h localhost" if your MySQL server runs on the same site as your Apache.
+However, replace 'localhost' in "-h localhost" if your MySQL server is on a 
+different machine.
+
+IMPORTANT:
+To support proximity searches and most useful features, you will need a postal codes
+database for each country for which you plan to use a file from the "supported/"
+directory. The database structure can be loaded from the database/zipcodes.mysql 
+file, and the data can be loaded from database/zipcodes.CC.mysql (where CC is the 
+two-letter country code).
+
+As of this post, only U.S. and German postal codes are supported.  A single zipcodes 
+table holds all the zipcodes.  To create the zipcodes table using the database/zipcodes.mysql 
+file from within the location tarball:
+
+  mysql -u username -ppassword -h localhost database-name < modules/location/database/zipcodes.mysql
+
+To make use of the U.S. postalcodes:
+
+  mysql -u username -ppassword -h localhost database-name < modules/location/database/zipcodes.us.mysql
+
+To make use of the German postal codes:
+
+  mysql -u username -ppassword -h localhoost database-name < modules/location/database/zipcodes.de.mysql
+
+Feed these dumps to your database as well, adjusting for prefixes.  Careful, the
+postal code dump for the US is a few MB.
+
+Step 2
+------
+In the "modules/" directory, create a subdirectory called "location/" which itself
+contains a subdirectory called "supported/".
+
+Download "location.inc" to "modules/location/"
+Download "location.module" to "modules/location/"
+Download "earth.inc" to "modules/location/"
+Download "supported/location.us.inc" to "modules/location/supported/" (for support of US locations)
+
+Step 3
+------
+Enable the location module on your site.
+Visit the settings page for location.module and enable features for U.S. (the only option as of now).
+Finally, go to the default workflow settings for each node type and enable (or require location collection
+on a field-by-field basis... it is encouraged that you enable postal codes and country fields for node types
+for which you want to enable proximity searches.
+
+
